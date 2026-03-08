@@ -1,0 +1,9 @@
+pyqt5
+pyqtwebengine
+scipy
+pandas
+trimesh
+matplotlib
+pygfx
+pymediainfo
+av

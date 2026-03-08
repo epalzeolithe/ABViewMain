@@ -1,0 +1,14 @@
+venv/
+.env/
+*.pyc
+old/
+# macOS
+.DS_Store
+
+# PyCharm
+.idea/
+
+# outputs
+*.csv
+*.mp4
+*.insv
