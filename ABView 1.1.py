@@ -17,13 +17,13 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel,
     QGridLayout, QVBoxLayout, QHBoxLayout,
     QSlider, QPushButton, QDialog, QAction, QInputDialog,
-    QSizePolicy)
+    QSizePolicy, QShortcut)
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from pymediainfo import MediaInfo
-
+from PyQt5.QtGui import QKeySequence
 matplotlib.use("Qt5Agg")
 
 #***********************************************
@@ -413,10 +413,16 @@ class MainWindow(QMainWindow):
 
         act_add_bookmark = QAction("Ajouter Bookmark", self)
         act_add_bookmark.setShortcut("Ctrl+D")
+        # Force Ctrl+D to work even when QWebEngineView or other widgets capture the keyboard
+        self.shortcut_add_bookmark = QShortcut(QKeySequence("Ctrl+D"), self)
+        self.shortcut_add_bookmark.activated.connect(self.add_bookmark)
         act_add_bookmark.triggered.connect(self.add_bookmark)
 
         self.menu_bookmarks.addAction(act_add_bookmark)
         self.load_bookmarks()
+        # ---- Ensure keyboard shortcuts work regardless of focused widget ----
+        for act in self.findChildren(QAction):
+            act.setShortcutContext(Qt.ApplicationShortcut)
 
         self.grid = QGridLayout()
         self.layout.addLayout(self.grid)
@@ -451,33 +457,27 @@ class MainWindow(QMainWindow):
 
         # Actions Zoom (menu Settings)
         self.act_zoom_out = QAction("Zoom -", self)
-        self.act_zoom_out.setShortcut("Ctrl+-")
         self.act_zoom_out.triggered.connect(self.zoom_box_out)
         menu_settings.addAction(self.act_zoom_out)
 
         self.act_zoom_in = QAction("Zoom +", self)
-        self.act_zoom_in.setShortcut("Ctrl++")
         self.act_zoom_in.triggered.connect(self.zoom_box_in)
         menu_settings.addAction(self.act_zoom_in)
 
         self.act_zoom_reset = QAction("Reset Zoom", self)
-        self.act_zoom_reset.setShortcut("Ctrl+0")
         self.act_zoom_reset.triggered.connect(self.reset_zoom)
         menu_settings.addAction(self.act_zoom_reset)
 
         # Actions Trace (menu Settings)
         self.act_trace_minus = QAction("Trace -", self)
-        self.act_trace_minus.setShortcut("Ctrl+[")
         self.act_trace_minus.triggered.connect(self.trace_minus)
         menu_settings.addAction(self.act_trace_minus)
 
         self.act_trace_plus = QAction("Trace +", self)
-        self.act_trace_plus.setShortcut("Ctrl+]")
         self.act_trace_plus.triggered.connect(self.trace_plus)
         menu_settings.addAction(self.act_trace_plus)
 
         self.act_trace_reset = QAction("Reset Trace", self)
-        self.act_trace_reset.setShortcut("Ctrl+T")
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
 
@@ -785,6 +785,7 @@ class MainWindow(QMainWindow):
         # ---- pygfx ----
         self.gfx_display = gfx.Display()
         self.gfx_scene = gfx.Scene()
+
 
         # axes de repère local (X=rouge, Y=vert, Z=bleu) without arrow tips
         axes_len = 300
