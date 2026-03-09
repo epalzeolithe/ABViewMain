@@ -520,6 +520,9 @@ class MainWindow(QMainWindow):
         self.btn_recalibrate = QPushButton("Recalibrer")
         self.btn_recalibrate.clicked.connect(self.calibrate_gfx_on_current_frame)
 
+        self.btn_pallier = QPushButton("Palier")
+        self.btn_pallier.clicked.connect(self.seek_palier)
+
         self.btn_add_bookmark = QPushButton("Bookmark")
         self.btn_add_bookmark.clicked.connect(self.add_bookmark)
 
@@ -536,6 +539,7 @@ class MainWindow(QMainWindow):
         self.btn_misedos_securite.clicked.connect(self.goto_misedos_securite)
         self.btn_enchainement = QPushButton("Enchaînement")
         self.btn_enchainement.clicked.connect(self.goto_enchainement)
+
 
         # self.btn_lock_elev = QPushButton("🔒 Elev")
         # self.btn_lock_elev.clicked.connect(self.toggle_elev_lock)
@@ -567,6 +571,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
         buttons_layout.addWidget(self.btn_fwd_10)
+        buttons_layout.addWidget(self.btn_pallier)
         buttons_layout.addWidget(self.btn_recalibrate)
         buttons_layout.addWidget(self.btn_add_bookmark)
         buttons_layout.addWidget(self.btn_start)
@@ -1539,6 +1544,34 @@ class MainWindow(QMainWindow):
     def goto_enchainement(self):
         self.seek_video(61117)
         self.slider.setValue(self.i)
+
+    def seek_palier(self):
+        """
+        Cherche un pallier :
+        |gps_fpm| < 100 ft/min
+        gps_speed > 150 km/h
+        pendant 10 secondes
+        """
+
+        window = int(DF_FREQ * 5)  # 5 secondes
+
+        fpm = df["gps_fpm"].to_numpy()
+        speed = df["gps_speed"].to_numpy()
+
+        for i in range(0, len(df) - window):
+
+            seg_fpm = fpm[i:i + window]
+            seg_speed = speed[i:i + window]
+
+            if np.all(np.abs(seg_fpm) < 150) and np.all(seg_speed > 150):
+                frame = self.get_video_frame_from_df_index(i)
+                self.seek_video(frame)
+                self.slider.setValue(self.i)
+
+                print("Palier trouvé @ frame", frame)
+                return
+
+        print("Aucun palier trouvé")
 
 
     # ==================================================
