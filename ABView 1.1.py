@@ -29,7 +29,7 @@ matplotlib.use("Qt5Agg")
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.0 Initial Release"
+__version__ = "1.1 Fixes"
 INSV1="data/VID_20260221_091717_00_050.insv"
 INSV2="data/VID_20260221_091717_00_051.insv"
 MERGED_DATA = INSV1+".merged_data.csv"
@@ -361,6 +361,7 @@ class MainWindow(QMainWindow):
     def init_UI(self):
         # ---- UI ----
         central = QWidget()
+        #central.setStyleSheet("background-color: white;")  # fond gris
         self.setCentralWidget(central)
         self.layout = QVBoxLayout(central)
 
@@ -405,20 +406,24 @@ class MainWindow(QMainWindow):
         menu_navigation.addAction(act_entree_box)
 
         # ---- Reload bookmarks CSV ----
-        act_reload_bookmarks = QAction("Recharger CSV", self)
-        act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
-        self.menu_bookmarks.addAction(act_reload_bookmarks)
+        self.act_reload_bookmarks = QAction("Recharger CSV", self)
+        self.act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
 
-        self.menu_bookmarks.addSeparator()
+        # ---- Add bookmark ----
+        self.act_add_bookmark = QAction("Ajouter Bookmark", self)
+        self.act_add_bookmark.setShortcut("Ctrl+D")
 
-        act_add_bookmark = QAction("Ajouter Bookmark", self)
-        act_add_bookmark.setShortcut("Ctrl+D")
         # Force Ctrl+D to work even when QWebEngineView or other widgets capture the keyboard
         self.shortcut_add_bookmark = QShortcut(QKeySequence("Ctrl+D"), self)
         self.shortcut_add_bookmark.activated.connect(self.add_bookmark)
-        act_add_bookmark.triggered.connect(self.add_bookmark)
 
-        self.menu_bookmarks.addAction(act_add_bookmark)
+        self.act_add_bookmark.triggered.connect(self.add_bookmark)
+
+        # build base menu structure
+        self.menu_bookmarks.addAction(self.act_reload_bookmarks)
+        self.menu_bookmarks.addSeparator()
+        self.menu_bookmarks.addAction(self.act_add_bookmark)
+        self.menu_bookmarks.addSeparator()
         self.load_bookmarks()
         # ---- Ensure keyboard shortcuts work regardless of focused widget ----
         for act in self.findChildren(QAction):
@@ -435,6 +440,14 @@ class MainWindow(QMainWindow):
 
         self.video1 = QLabel(alignment=Qt.AlignCenter)
         self.video2 = QLabel(alignment=Qt.AlignCenter)
+        # ---- GPS heading overlay on video1 (top center, text sized) ----
+        self.video1_heading_label = QLabel("", self.video1)
+        self.video1_heading_label.setAlignment(Qt.AlignCenter)
+        self.video1_heading_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_heading_label.adjustSize()
+        self.video1_heading_label.raise_()
         # avoid expensive per-frame scaling; let Qt scale automatically
         self.video1.setScaledContents(True)
         self.video2.setScaledContents(True)
@@ -787,6 +800,7 @@ class MainWindow(QMainWindow):
         self.gfx_scene = gfx.Scene()
 
 
+
         # axes de repère local (X=rouge, Y=vert, Z=bleu) without arrow tips
         axes_len = 300
         x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [axes_len, 0, 0]], dtype=np.float32))
@@ -833,6 +847,16 @@ class MainWindow(QMainWindow):
         )
         self.gfx_acc_arrow.visible = True
         self.gfx_object.add(self.gfx_acc_arrow)
+
+        # ---- G vector trail (history of acceleration direction) ----
+        self.g_trail_len = 120  # number of stored points
+        self.g_trail = np.zeros((self.g_trail_len, 3), dtype=np.float32)
+        trail_geom = gfx.Geometry(positions=self.g_trail)
+        self.gfx_g_trail = gfx.Line(
+            trail_geom,
+            gfx.LineMaterial(color="#ff8800", thickness=3),
+        )
+        self.gfx_object.add(self.gfx_g_trail)
 
         # ajout du groupe à la scène
         self.gfx_scene.add(self.gfx_object)
@@ -905,6 +929,7 @@ class MainWindow(QMainWindow):
 
         self.gfx_canvas = self.gfx_display.canvas
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+        # ---- Force white background on pygfx Qt widget ----
 
         # ---- DataFrame info overlay (top-left) ----
         self.df_info_label = QLabel("Data:", self.gfx_canvas)
@@ -914,34 +939,27 @@ class MainWindow(QMainWindow):
         self.df_info_label.move(10, 10)
         self.df_info_label.raise_()
 
-        # ---- Pitch overlay (top-right) ----
+        # ---- Pitch overlay (custom position) ----
         self.pitch_label = QLabel("Pitch:", self.gfx_canvas)
         self.pitch_label.setStyleSheet("color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
         self.pitch_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.pitch_label.adjustSize()
-        self.pitch_label.move(
-            self.gfx_canvas.width() - self.pitch_label.width() - 10,10)
+        # position under wing artificial horizon (left side)
+        self.pitch_label.move(0, 260)
         self.pitch_label.raise_()
 
-        # ---- Inclination overlay (under Pitch) ----
+        # ---- Inclination overlay (custom position) ----
         self.roll_label = QLabel("Bank:", self.gfx_canvas)
-        self.roll_label.setStyleSheet("color: darkred; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+        self.roll_label.setStyleSheet("color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
         self.roll_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.roll_label.adjustSize()
-        self.roll_label.move(self.gfx_canvas.width() - self.roll_label.width() - 10,60)
+        self.roll_label.move(0, 300)
         self.roll_label.raise_()
 
-        # ---- Inertial Heading overlay (under Bank) ----
-        self.heading_label = QLabel("Inertial Heading:", self.gfx_canvas)
-        self.heading_label.setStyleSheet("color: black; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
-        self.heading_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.heading_label.adjustSize()
-        self.heading_label.move(self.gfx_canvas.width() - self.heading_label.width() - 10,110)
-        self.heading_label.raise_()
 
         # ---- Acceleration magnitude (g) overlay ----
         self.g_label = QLabel("g:", self.gfx_canvas)
-        self.g_label.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+        self.g_label.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.g_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.g_label.adjustSize()
         self.g_label.move(self.gfx_canvas.width() - self.g_label.width() - 10,160)
@@ -955,27 +973,29 @@ class MainWindow(QMainWindow):
         self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label.width() - 10,210)
         self.g_label_minmax.raise_()
 
-        # ---- GPS speed & altitude overlay (bottom-right) ----
+        # ---- GPS speed & altitude overlay (top-right) ----
         self.gps_label_speed = QLabel("GPS:", self.gfx_canvas)
-        self.gps_label_speed.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+        self.gps_label_speed.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.gps_label_speed.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_speed.adjustSize()
+        # position top‑right of pygfx window
         self.gps_label_speed.move(
             self.gfx_canvas.width() - self.gps_label_speed.width() - 10,
-            self.gfx_canvas.height() - self.gps_label_speed.height())
+            10)
         self.gps_label_speed.raise_()
         self.gps_label_speed.show()
 
-        # ---- GS max label (under GPS speed) ----
+        # ---- GS max label (just under GS) ----
         self.gsmax_label = QLabel("GSmax:", self.gfx_canvas)
         self.gsmax_label.setStyleSheet(
             "color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
         )
         self.gsmax_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gsmax_label.adjustSize()
+        # GSmax just under GS
         self.gsmax_label.move(
             self.gfx_canvas.width() - self.gsmax_label.width() - 10,
-            self.gfx_canvas.height() - self.gsmax_label.height() - 70
+            50
         )
         self.gsmax_label.raise_()
         self.gsmax_label.show()
@@ -983,7 +1003,7 @@ class MainWindow(QMainWindow):
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_alt = QLabel("GPS:", self.gfx_canvas)
         self.gps_label_alt.setStyleSheet(
-            "color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+            "color: darkgreen; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.gps_label_alt.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
@@ -996,7 +1016,7 @@ class MainWindow(QMainWindow):
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_vario = QLabel("GPS:", self.gfx_canvas)
         self.gps_label_vario.setStyleSheet(
-            "color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 20px; font-weight: bold;")
+            "color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;")
         self.gps_label_vario.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
@@ -1044,9 +1064,15 @@ class MainWindow(QMainWindow):
         self.g = np.linalg.norm(acc) / 9.81
         acc = acc / np.linalg.norm(acc) # normer vecteur
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
-        self.acc_vec = self.acc_vec * 400  # scaling up
+        self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
         self.acc_geom.positions.data[1] = self.acc_vec
         self.acc_geom.positions.update_range(0, 2)
+
+        # ---- Update G vector trail ----
+        self.g_trail[:-1] = self.g_trail[1:]
+        self.g_trail[-1] = self.acc_vec
+        self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
+        self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
 
         # ---- Update arrow head position and orientation ----
         direction = self.acc_vec / (np.linalg.norm(self.acc_vec) + 1e-9)
@@ -1083,9 +1109,9 @@ class MainWindow(QMainWindow):
         self.g_label.setText(f"G:{self.g:.1f}")
         self.g_label_minmax.setText(f"  Gmin {self.g_min:.2f}\n  Gmax {self.g_max:.2f}")
         self.g_label.adjustSize()
-        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),int(self.gfx_canvas.height()/2)-20)
+        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),self.gfx_canvas.height()-100)
         self.g_label_minmax.adjustSize()
-        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(),int(self.gfx_canvas.height()/2)+10)
+        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(),self.gfx_canvas.height()-40)
 
         # update acceleration vector geometry & color
         if self.g > 0.8:
@@ -1100,7 +1126,7 @@ class MainWindow(QMainWindow):
         self.g_label.setStyleSheet(
             f"color: rgb({r * 255},{g*255},{b*255}); "
             "background-color: transparent; padding: 10px; "
-            "font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         #rotation de l'objet
         M = np.eye(4);M[:3, :3] = R_final.T
         self.gfx_object.local.matrix = M
@@ -1203,17 +1229,19 @@ class MainWindow(QMainWindow):
 
         self.pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
         self.pitch_label.adjustSize()
-        self.pitch_label.move(self.gfx_canvas.width() - self.pitch_label.width(),40)
+        self.pitch_label.move(0, 260)
 
         self.roll_label.setText(f"Bank {inclinaison_deg:.1f}°")
         self.roll_label.adjustSize()
-        self.roll_label.move(self.gfx_canvas.width() - self.roll_label.width(),80)
+        self.roll_label.move(0, 300)
 
         # ---- Update GPS speed / altitude overlay ----
-        #row = df.iloc[self.idf]
-        self.heading_label.setText(f"Heading {row.gps_heading:.1f}°")
-        self.heading_label.adjustSize()
-        self.heading_label.move(self.gfx_canvas.width() - self.heading_label.width(),0)
+        # ---- Update heading overlay on video1 ----
+        if hasattr(self, "video1_heading_label"):
+            self.video1_heading_label.setText(f"{row.gps_heading:.1f}°")
+            self.video1_heading_label.adjustSize()
+            x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
+            self.video1_heading_label.move(x, 5)
 
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
@@ -1221,20 +1249,20 @@ class MainWindow(QMainWindow):
             self.gs_max = row.gps_speed
         self.gps_label_speed.adjustSize()
         self.gps_label_speed.move(
-            self.gfx_canvas.width() - self.gps_label_speed.width(),
-            self.gfx_canvas.height() - self.gps_label_speed.height()-15)
+            self.gfx_canvas.width() - self.gps_label_speed.width() - 10,
+            0)
 
         # update GSmax label
         self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
         self.gsmax_label.adjustSize()
         self.gsmax_label.move(
-            self.gfx_canvas.width() - self.gsmax_label.width(),
-            self.gfx_canvas.height() - self.gsmax_label.height())
+            self.gfx_canvas.width() - self.gsmax_label.width() - 10,
+            45)
 
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
         if row.gps_speed < 113:
-            r=0; g=0; b=0
+            r=g=0; b=255
         else:
             if row.gps_speed > 112 and row.gps_speed < 236:
                 r=0; g=255; b=0
@@ -1247,19 +1275,17 @@ class MainWindow(QMainWindow):
         self.gps_label_speed.setStyleSheet(
             f"color: rgb({r},{g},{b}); "
             "background-color: transparent; padding: 10px; "
-            "font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
 
         self.gps_label_alt.setText(f"Alt {row.gps_alt:.0f} ft")
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
-            self.gfx_canvas.width() - self.gps_label_alt.width(),
-            self.gfx_canvas.height() - self.gps_label_alt.height() - 50)
+            self.gfx_canvas.width() - self.gps_label_alt.width(),60)
 
         self.gps_label_vario.setText(f"{row.gps_fpm:.0f} ft/min")
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
-            self.gfx_canvas.width() - self.gps_label_vario.width(),
-            self.gfx_canvas.height() - self.gps_label_vario.height() - 90)
+            self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
     def calibrate_gfx(self,where):
         row = df.iloc[where]
@@ -1332,9 +1358,12 @@ class MainWindow(QMainWindow):
     def refresh_bookmark_menu(self):
         if not hasattr(self, "menu_bookmarks"):
             return
-        actions = self.menu_bookmarks.actions()[1:]
-        for a in actions:
-            self.menu_bookmarks.removeAction(a)
+        # rebuild menu while preserving the fixed actions
+        self.menu_bookmarks.clear()
+        self.menu_bookmarks.addAction(self.act_reload_bookmarks)
+        self.menu_bookmarks.addSeparator()
+        self.menu_bookmarks.addAction(self.act_add_bookmark)
+        self.menu_bookmarks.addSeparator()
 
         for _, row in self.bookmarks_df.iterrows():
             name = row["name"]
