@@ -532,6 +532,18 @@ class MainWindow(QMainWindow):
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
 
+        # ---- Camera mounting pitch adjustment ----
+        self.act_pitch_cam_plus = QAction("Pitch Montage Caméra +1°", self)
+        self.act_pitch_cam_plus.triggered.connect(self.pitch_cam_plus)
+        menu_settings.addAction(self.act_pitch_cam_plus)
+
+        self.act_pitch_cam_minus = QAction("Pitch Montage Caméra -1°", self)
+        self.act_pitch_cam_minus.triggered.connect(self.pitch_cam_minus)
+        menu_settings.addAction(self.act_pitch_cam_minus)
+
+        # display current value in menu text
+        self.update_pitch_cam_menu()
+
         # ---- slider + controls ----
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, N - 1)
@@ -689,6 +701,37 @@ class MainWindow(QMainWindow):
         factor = f"×{self.box_zoom:.2f}"
         if hasattr(self, "act_zoom_reset"):
             self.act_zoom_reset.setText(f"Reset Zoom (Actual = {factor})")
+
+    def update_pitch_cam_menu(self):
+        """Update menu text showing current camera mounting pitch."""
+        if hasattr(self, "act_pitch_cam_plus"):
+            val = f"{self.montage_pitch_angle:.1f}°"
+            self.act_pitch_cam_plus.setText(f"Pitch Montage Caméra +1° (actuel {val})")
+            self.act_pitch_cam_minus.setText("Pitch Montage Caméra -1°")
+
+    def pitch_cam_plus(self):
+        """Increase camera mounting pitch by 1 degree."""
+        self.montage_pitch_angle += 1
+        self.update_pitch_cam_menu()
+
+        # refresh display immediately even when paused
+        if hasattr(self, "row"):
+            try:
+                self.update_gfx_orientation()
+            except Exception:
+                pass
+
+    def pitch_cam_minus(self):
+        """Decrease camera mounting pitch by 1 degree."""
+        self.montage_pitch_angle -= 1
+        self.update_pitch_cam_menu()
+
+        # refresh display immediately even when paused
+        if hasattr(self, "row"):
+            try:
+                self.update_gfx_orientation()
+            except Exception:
+                pass
 
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
