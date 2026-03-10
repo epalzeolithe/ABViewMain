@@ -560,6 +560,10 @@ class MainWindow(QMainWindow):
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
 
+        # ---- Fullscreen pygfx view ----
+        self.btn_fullscreen = QPushButton("Fullscreen 3D")
+        self.btn_fullscreen.clicked.connect(self.toggle_gfx_fullscreen)
+
         # ---- jump buttons (time navigation) ----
         self.btn_back_10 = QPushButton("⏪ 10s")
         self.btn_back_10.clicked.connect(self.jump_back_10s)
@@ -614,6 +618,7 @@ class MainWindow(QMainWindow):
 
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.btn_pause)
+        buttons_layout.addWidget(self.btn_fullscreen)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
@@ -1668,15 +1673,47 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    def toggle_gfx_fullscreen(self):
+        """Toggle fullscreen mode for the pygfx canvas while keeping playback running."""
+        if not hasattr(self, "_gfx_fullscreen"):
+            self._gfx_fullscreen = False
+
+        if not self._gfx_fullscreen:
+            # store parent layout position
+            self._gfx_old_parent = self.gfx_canvas.parent()
+
+            # remove from layout
+            self.gfx_canvas.setParent(None)
+
+            # show fullscreen
+            self.gfx_canvas.setWindowFlags(Qt.Window)
+            self.gfx_canvas.showFullScreen()
+
+            self._gfx_fullscreen = True
+        else:
+            # restore widget back into grid
+            self.gfx_canvas.setWindowFlags(Qt.Widget)
+            self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+            self.gfx_canvas.showNormal()
+
+            self._gfx_fullscreen = False
+
     # ==================================================
-    # Gestion clavier (Espace = Pause / Lecture)
+    # Gestion clavier (Espace = Pause / Lecture, ESC = exit fullscreen)
     # ==================================================
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Space:
             self.toggle_play()
             event.accept()
-        else:
-            super().keyPressEvent(event)
+            return
+
+        # ESC exits pygfx fullscreen
+        if event.key() == Qt.Key_Escape and getattr(self, "_gfx_fullscreen", False):
+            self.toggle_gfx_fullscreen()
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
     # ==================================================
     # time jump helpers
