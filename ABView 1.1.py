@@ -863,6 +863,19 @@ class MainWindow(QMainWindow):
         )
         self.gfx_object.add(self.gfx_g_trail)
 
+        # ---- Nose trajectory (trace of aircraft nose) ----
+        self.nose_trail_len = 200
+        self.nose_trail = np.zeros((self.nose_trail_len, 3), dtype=np.float32)
+
+        nose_geom = gfx.Geometry(positions=self.nose_trail)
+
+        self.gfx_nose_trail = gfx.Line(
+            nose_geom,
+            gfx.LineMaterial(color="#00ffff", thickness=4),
+        )
+
+        self.gfx_scene.add(self.gfx_nose_trail)
+
         # ajout du groupe à la scène
         self.gfx_scene.add(self.gfx_object)
         self.gfx_display.show(self.gfx_scene)
@@ -1077,6 +1090,19 @@ class MainWindow(QMainWindow):
         self.g_trail[-1] = self.acc_vec
         self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
         self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
+
+        # ---- Nose trajectory update ----
+        nose_vec = fwd * 400
+
+        # If trail is empty (after seek/reset), initialize it with the current nose position
+        if not np.any(self.nose_trail):
+            self.nose_trail[:] = nose_vec
+        else:
+            self.nose_trail[:-1] = self.nose_trail[1:]
+            self.nose_trail[-1] = nose_vec
+
+        self.gfx_nose_trail.geometry.positions.data[:] = self.nose_trail
+        self.gfx_nose_trail.geometry.positions.update_range(0, len(self.nose_trail))
 
         # ---- Update arrow head position and orientation ----
         direction = self.acc_vec / (np.linalg.norm(self.acc_vec) + 1e-9)
@@ -1414,6 +1440,22 @@ class MainWindow(QMainWindow):
     def seek_video(self, frame):
 
         self.i = int(frame)
+        # ---- Reset trails when seeking (nose + G vector history) ----
+        if hasattr(self, "nose_trail"):
+            self.nose_trail[:] = 0
+            try:
+                self.gfx_nose_trail.geometry.positions.data[:] = self.nose_trail
+                self.gfx_nose_trail.geometry.positions.update_range(0, len(self.nose_trail))
+            except Exception:
+                pass
+
+        if hasattr(self, "g_trail"):
+            self.g_trail[:] = 0
+            try:
+                self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
+                self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
+            except Exception:
+                pass
 
         fps = float(self.stream1.average_rate)
 
@@ -1488,14 +1530,36 @@ class MainWindow(QMainWindow):
                 pass
 
     # ==================================================
-    # Gestion clavier (Espace = Pause / Lecture)
+    # Gestion clavier (Espace = Pause / Lecture, flèches = navigation)
     # ==================================================
     def keyPressEvent(self, event):
+        # Space = play / pause
         if event.key() == Qt.Key_Space:
             self.toggle_play()
             event.accept()
-        else:
-            super().keyPressEvent(event)
+            return
+
+        # Right arrow = next frame
+        if event.key() == Qt.Key_Right:
+            self.playing = False
+            self.i = min(N - 1, self.i + 1)
+            self.seek_video(self.i)
+            self.slider.setValue(self.i)
+            self.update_all()
+            event.accept()
+            return
+
+        # Left arrow = previous frame
+        if event.key() == Qt.Key_Left:
+            self.playing = False
+            self.i = max(0, self.i - 1)
+            self.seek_video(self.i)
+            self.slider.setValue(self.i)
+            self.update_all()
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
     # ==================================================
     # time jump helpers
