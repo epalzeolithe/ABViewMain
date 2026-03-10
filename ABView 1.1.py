@@ -487,6 +487,24 @@ class MainWindow(QMainWindow):
         )
         self.video1_heading_label.adjustSize()
         self.video1_heading_label.raise_()
+
+        # ---- Pitch overlay on video1 (bottom center, text sized) ----
+        self.video1_pitch_label = QLabel("", self.video1)
+        self.video1_pitch_label.setAlignment(Qt.AlignCenter)
+        self.video1_pitch_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_pitch_label.adjustSize()
+        self.video1_pitch_label.raise_()
+
+        # ---- Bank overlay on video1 (above pitch) ----
+        self.video1_bank_label = QLabel("", self.video1)
+        self.video1_bank_label.setAlignment(Qt.AlignCenter)
+        self.video1_bank_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_bank_label.adjustSize()
+        self.video1_bank_label.raise_()
         # avoid expensive per-frame scaling; let Qt scale automatically
         self.video1.setScaledContents(True)
         self.video2.setScaledContents(True)
@@ -672,8 +690,7 @@ class MainWindow(QMainWindow):
         self.fig = Figure()
         self.canvas = FigureCanvas(self.fig)
         self.grid.addWidget(self.canvas, 1, 2, 1, 1)
-        # double-clic souris sur le graphe -> plein écran
-        self.canvas.mpl_connect("button_press_event", self.on_matplotlib_double_click)
+
 
     def lock_elev(self, event):
         if not self.elev_locked:
@@ -1411,6 +1428,22 @@ class MainWindow(QMainWindow):
             x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
             self.video1_heading_label.move(x, 5)
 
+        # ---- Update pitch overlay on video1 (above bank) ----
+        if hasattr(self, "video1_pitch_label"):
+            self.video1_pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
+            self.video1_pitch_label.adjustSize()
+            x_pitch = int((self.video1.width() - self.video1_pitch_label.width()) / 2)
+            y_pitch = self.video1.height() - self.video1_pitch_label.height() - 45
+            self.video1_pitch_label.move(x_pitch, y_pitch)
+
+        # ---- Update bank overlay below pitch ----
+        if hasattr(self, "video1_bank_label"):
+            self.video1_bank_label.setText(f"Bank {inclinaison_deg:.1f}°")
+            self.video1_bank_label.adjustSize()
+            x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
+            y_bank = y_pitch + self.video1_pitch_label.height() + 5
+            self.video1_bank_label.move(x_bank, y_bank)
+
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
         if row.gps_speed > self.gs_max:
@@ -2033,83 +2066,6 @@ class MainWindow(QMainWindow):
         if not self.playing:
             self.update_all()
 
-    def on_matplotlib_double_click(self, event):
-        if event.button != 1 or not event.dblclick:
-            return
-
-        # mettre la lecture en pause lors du passage en plein écran
-        if self.playing:
-            self.toggle_play()
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Graphe GPS – Plein écran")
-        dlg.showFullScreen()
-
-        layout = QVBoxLayout(dlg)
-
-        fig_fs = Figure()
-        canvas_fs = FigureCanvas(fig_fs)
-        layout.addWidget(canvas_fs)
-
-        # copier le contenu du graphe existant
-        ax_fs = fig_fs.add_subplot(111, projection="3d")
-        fig_fs.subplots_adjust(
-            left=0.02,
-            right=0.98,
-            bottom=0.02,
-            top=0.98
-        )
-
-        ax_src = self.ax
-        ax_fs.set_xlim(ax_src.get_xlim())
-        ax_fs.set_ylim(ax_src.get_ylim())
-        ax_fs.set_zlim(ax_src.get_zlim())
-        ax_fs.view_init(azim=ax_src.azim, elev=ax_src.elev)
-
-        fs_traj_collection = Line3DCollection([], cmap="viridis", linewidth=2)
-        fs_traj_collection.set_norm(Normalize(vmin=0, vmax=6000))  # altitude ft
-        ax_fs.add_collection(fs_traj_collection)
-
-        last = self.idf - TRACE
-        if last < 0:
-            last = 0
-        lx = df.loc[last:self.idf, "gps_lon"]
-        ly = df.loc[last:self.idf, "gps_lat"]
-        lz = df.loc[last:self.idf, "gps_alt"]
-        lx = lx[::10]
-        ly = ly[::10]
-        lz = lz[::10]
-
-        # trajectoire colorée par altitude (Line3DCollection)
-        if len(lx) > 1:
-            points = np.array([lx.values, ly.values, lz.values]).T
-            segments = np.stack([points[:-1], points[1:]], axis=1)
-            fs_traj_collection.set_segments(segments)
-            fs_traj_collection.set_array(lz.values[:-1])
-
-        # recopier lignes classiques
-        for line in ax_src.lines:
-            try:
-                x, y, z = line.get_data_3d()
-            except AttributeError:
-                # fallback sécurité (anciennes versions)
-                x, y, z = line._verts3d
-
-            ax_fs.plot(
-                x, y, z,
-                color=line.get_color(),
-                linestyle=line.get_linestyle(),
-                linewidth=line.get_linewidth()
-            )
-
-        canvas_fs.draw_idle()
-
-        # ouverture plein écran (bloquant)
-        dlg.exec_()
-
-        # reprise automatique de la lecture à la fermeture
-        if not self.playing:
-            self.toggle_play()
 
     # ==================================================
     def update_matplotlib_gps(self):
