@@ -830,14 +830,38 @@ class MainWindow(QMainWindow):
         self.gfx_object = gfx.Group()
 
         # vecteurs du repère local
-        length = 500  # longueur des vecteurs
+        length = 400  # longueur des vecteurs
         x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
-        self.gfx_vec_x = gfx.Line(x_geom,gfx.LineMaterial(color="red", thickness=1),)
+        self.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
         y_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, length, 0]], dtype=np.float32))
-        self.gfx_vec_y = gfx.Line(y_geom,gfx.LineMaterial(color="green", thickness=1),)
+        self.gfx_vec_y = gfx.Line(
+            y_geom,
+            gfx.LineMaterial(color="green", thickness=8),
+        )
         z_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, 0, length]], dtype=np.float32))
-        self.gfx_vec_z = gfx.Line(z_geom,gfx.LineMaterial(color="blue", thickness=1),)
+        self.gfx_vec_z = gfx.Line(z_geom, gfx.LineMaterial(color="blue", thickness=1),)
         self.gfx_object.add(self.gfx_vec_x);self.gfx_object.add(self.gfx_vec_y);self.gfx_object.add(self.gfx_vec_z)
+
+        # ---- Arrow head for Y vector ----
+        self.gfx_y_arrow = gfx.Mesh(
+            gfx.cone_geometry(radius=25, height=60),
+            gfx.MeshPhongMaterial(color="green"),
+        )
+
+        # place arrow at end of Y vector
+        self.gfx_y_arrow.local.position = (0, length, 0)
+
+        # rotate cone so it points along +Y (cone default axis is +Z)
+        theta = -np.pi / 2
+        qx = (
+            np.sin(theta / 2),
+            0.0,
+            0.0,
+            np.cos(theta / 2),
+        )
+        self.gfx_y_arrow.local.rotation = qx
+
+        self.gfx_object.add(self.gfx_y_arrow)
 
         # ---- Acceleration vector (line, updated each frame) ----
         acc_positions = np.array([[0, 0, 0], [0, 0, 0]], dtype=np.float32)
@@ -864,14 +888,14 @@ class MainWindow(QMainWindow):
         self.gfx_object.add(self.gfx_g_trail)
 
         # ---- Nose trajectory (trace of aircraft nose) ----
-        self.nose_trail_len = 200
+        self.nose_trail_len = 600
         self.nose_trail = np.zeros((self.nose_trail_len, 3), dtype=np.float32)
 
         nose_geom = gfx.Geometry(positions=self.nose_trail)
 
         self.gfx_nose_trail = gfx.Line(
             nose_geom,
-            gfx.LineMaterial(color="#00ffff", thickness=4),
+            gfx.LineMaterial(color="#00008b", thickness=4),
         )
 
         self.gfx_scene.add(self.gfx_nose_trail)
@@ -1086,8 +1110,13 @@ class MainWindow(QMainWindow):
         self.acc_geom.positions.update_range(0, 2)
 
         # ---- Update G vector trail ----
-        self.g_trail[:-1] = self.g_trail[1:]
-        self.g_trail[-1] = self.acc_vec
+        # If trail is empty (after seek/reset), initialize it with the current vector
+        if not np.any(self.g_trail):
+            self.g_trail[:] = self.acc_vec
+        else:
+            self.g_trail[:-1] = self.g_trail[1:]
+            self.g_trail[-1] = self.acc_vec
+
         self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
         self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
 
