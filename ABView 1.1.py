@@ -195,6 +195,44 @@ class ArtificialHorizon(QWidget):
         painter.setPen(pen)
         painter.drawLine(-w, pitch_offset, w, pitch_offset)
 
+        # ---- Pitch reference lines (±10° ±20° ±30°) with EFIS ticks ----
+        pen_ref = QPen(QColor("white"))
+        pen_ref.setWidth(1)
+        painter.setPen(pen_ref)
+
+        for deg in (10, 20, 30,45, 60, 75, 90):
+            offset = int(deg * pitch_scale)
+
+            # longer line for 10°, shorter for others
+            if deg <= 10:
+                half = w // 6
+            else:
+                half = w // 12
+
+            # +deg line
+            y = pitch_offset - offset
+            painter.drawLine(-half, y, half, y)
+
+            # EFIS side ticks
+            painter.drawLine(-half - 10, y, -half, y)
+            painter.drawLine(half, y, half + 10, y)
+
+            # numeric labels
+            painter.drawText(-half - 40, y + 5, f"{deg}")
+            painter.drawText(half + 15, y + 5, f"{deg}")
+
+            # -deg line
+            y = pitch_offset + offset
+            painter.drawLine(-half, y, half, y)
+
+            # EFIS side ticks
+            painter.drawLine(-half - 10, y, -half, y)
+            painter.drawLine(half, y, half + 10, y)
+
+            # numeric labels
+            painter.drawText(-half - 45, y + 5, f"-{deg}")
+            painter.drawText(half + 15, y + 5, f"-{deg}")
+
         painter.resetTransform()
 
         if not self.show_triangle:
@@ -895,7 +933,7 @@ class MainWindow(QMainWindow):
 
         self.gfx_nose_trail = gfx.Line(
             nose_geom,
-            gfx.LineMaterial(color="#00008b", thickness=4),
+            gfx.LineMaterial(color="green", thickness=4),
         )
 
         self.gfx_scene.add(self.gfx_nose_trail)
