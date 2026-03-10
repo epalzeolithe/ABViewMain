@@ -289,19 +289,65 @@ class AnalogBadin(QWidget):
         pen = QPen(QColor("white"))
         pen.setWidth(2)
         painter.setPen(pen)
-        painter.setBrush(QColor(0,0,0,120))
-        painter.drawEllipse(cx - r, cy - r, r*2, r*2)
+        painter.setBrush(QColor(0, 0, 0, 120))
+        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
 
-        # scale marks every 20 km/h
+        # scale and colored arcs
         max_speed = 400
-        for v in range(0, max_speed+1, 20):
-            angle = (v / max_speed) * 270 - 135
+
+        from PyQt5.QtCore import QRect
+
+        def angle_from_speed(v):
+            return (v / max_speed) * 270 - 135
+
+        rect = QRect(cx - r + 6, cy - r + 6, (r - 6) * 2, (r - 6) * 2)
+
+        # ---- green arc (0‑200 km/h) ----
+        pen = QPen(QColor(0, 200, 0))
+        pen.setWidth(6)
+        painter.setPen(pen)
+        start = angle_from_speed(0)
+        end = angle_from_speed(200)
+        painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
+
+        # ---- yellow arc (200‑340 km/h) ----
+        pen = QPen(QColor(255, 200, 0))
+        pen.setWidth(6)
+        painter.setPen(pen)
+        start = angle_from_speed(200)
+        end = angle_from_speed(340)
+        painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
+
+        # ---- red arc (340‑400 km/h) ----
+        pen = QPen(QColor(220, 0, 0))
+        pen.setWidth(6)
+        painter.setPen(pen)
+        start = angle_from_speed(340)
+        end = angle_from_speed(400)
+        painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
+
+        # ---- tick marks every 20 km/h ----
+        pen = QPen(QColor("white"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+
+        for v in range(0, max_speed + 1, 20):
+            angle = angle_from_speed(v)
             rad = math.radians(angle)
-            x1 = cx + (r-10) * math.cos(rad)
-            y1 = cy + (r-10) * math.sin(rad)
+            x1 = cx + (r - 12) * math.cos(rad)
+            y1 = cy + (r - 12) * math.sin(rad)
             x2 = cx + r * math.cos(rad)
             y2 = cy + r * math.sin(rad)
             painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+        # ---- numeric labels ----
+        painter.setPen(QPen(QColor("white")))
+        for v in (50, 100, 150, 200, 250, 300):
+            angle = angle_from_speed(v)
+            rad = math.radians(angle)
+            xt = cx + (r - 30) * math.cos(rad)
+            yt = cy + (r - 30) * math.sin(rad)
+            painter.drawText(int(xt - 10), int(yt + 5), str(v))
 
         # needle
         v = max(0, min(self.speed, max_speed))
@@ -312,8 +358,8 @@ class AnalogBadin(QWidget):
         pen.setWidth(3)
         painter.setPen(pen)
 
-        x = cx + (r-15) * math.cos(rad)
-        y = cy + (r-15) * math.sin(rad)
+        x = cx + (r - 15) * math.cos(rad)
+        y = cy + (r - 15) * math.sin(rad)
         painter.drawLine(cx, cy, int(x), int(y))
 
         painter.end()
