@@ -505,6 +505,33 @@ class MainWindow(QMainWindow):
         )
         self.video1_bank_label.adjustSize()
         self.video1_bank_label.raise_()
+
+        # ---- Badin (GPS speed) overlay on video1 (bottom-left) ----
+        self.video1_speed_label = QLabel("", self.video1)
+        self.video1_speed_label.setAlignment(Qt.AlignCenter)
+        self.video1_speed_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_speed_label.adjustSize()
+        self.video1_speed_label.raise_()
+
+        # ---- GPS altitude overlay on video1 (bottom-right) ----
+        self.video1_alt_label = QLabel("", self.video1)
+        self.video1_alt_label.setAlignment(Qt.AlignCenter)
+        self.video1_alt_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_alt_label.adjustSize()
+        self.video1_alt_label.raise_()
+
+        # ---- GPS vario overlay on video1 (above altitude) ----
+        self.video1_fpm_label = QLabel("", self.video1)
+        self.video1_fpm_label.setAlignment(Qt.AlignCenter)
+        self.video1_fpm_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video1_fpm_label.adjustSize()
+        self.video1_fpm_label.raise_()
         # avoid expensive per-frame scaling; let Qt scale automatically
         self.video1.setScaledContents(True)
         self.video2.setScaledContents(True)
@@ -1443,6 +1470,30 @@ class MainWindow(QMainWindow):
             x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
             y_bank = y_pitch + self.video1_pitch_label.height() + 5
             self.video1_bank_label.move(x_bank, y_bank)
+
+        # ---- Update badin (GPS speed) overlay on video1 (bottom-left) ----
+        if hasattr(self, "video1_speed_label"):
+            self.video1_speed_label.setText(f"{row.gps_speed:.0f} km/h")
+            self.video1_speed_label.adjustSize()
+            x_speed = 10
+            y_speed = self.video1.height() - self.video1_speed_label.height() - 10
+            self.video1_speed_label.move(x_speed, y_speed)
+
+        # ---- Update vario overlay on video1 (bottom-right) ----
+        if hasattr(self, "video1_fpm_label"):
+            self.video1_fpm_label.setText(f"{row.gps_fpm:.0f} ft/min")
+            self.video1_fpm_label.adjustSize()
+            x_fpm = self.video1.width() - self.video1_fpm_label.width() - 10
+            y_fpm = self.video1.height() - self.video1_fpm_label.height() - 10
+            self.video1_fpm_label.move(x_fpm, y_fpm)
+
+        # ---- Update altitude overlay just above vario ----
+        if hasattr(self, "video1_alt_label"):
+            self.video1_alt_label.setText(f"Alt {row.gps_alt:.0f} ft")
+            self.video1_alt_label.adjustSize()
+            x_alt = self.video1.width() - self.video1_alt_label.width() - 10
+            y_alt = y_fpm - self.video1_alt_label.height() - 5
+            self.video1_alt_label.move(x_alt, y_alt)
 
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
