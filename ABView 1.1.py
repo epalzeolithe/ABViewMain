@@ -1007,7 +1007,7 @@ class MainWindow(QMainWindow):
         # ---- Acceleration vector (line, updated each frame) ----
         acc_positions = np.array([[0, 0, 0], [0, 0, 0]], dtype=np.float32)
         self.acc_geom = gfx.Geometry(positions=acc_positions)
-        self.gfx_vec_acc = gfx.Line(self.acc_geom, gfx.LineMaterial(color="green", thickness=8, depth_test=False),)
+        self.gfx_vec_acc = gfx.Line(self.acc_geom, gfx.LineMaterial(color="green", thickness=4, depth_test=False),)
         self.gfx_object.add(self.gfx_vec_acc)
 
         # ---- Arrow head for acceleration vector ----
