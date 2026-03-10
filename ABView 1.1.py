@@ -1205,11 +1205,12 @@ class MainWindow(QMainWindow):
             # roll in wing reference
             # compute roll around the wing viewing axis using Y/Z plane
             # this remains stable when aircraft pitch approaches vertical
-            roll_w = np.degrees(np.arctan2(up_w[1], up_w[2]))
+            right_w = np.cross(fwd_w, up_w)
+            roll_w = np.degrees(np.arctan2(right_w[2], up_w[2]))
 
             # invert pitch sign for wingtip reference (viewed from the side)
             self.hud_horizon_wing.pitch = -pitch_w
-            self.hud_horizon_wing.bank = -roll_w
+            self.hud_horizon_wing.bank = roll_w
             self.hud_horizon_wing.heading = heading_deg
             self.hud_horizon_wing.update()
 
