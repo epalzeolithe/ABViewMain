@@ -572,6 +572,10 @@ class MainWindow(QMainWindow):
         self.btn_detach_video2 = QPushButton("Detach Video 2")
         self.btn_detach_video2.clicked.connect(self.detach_video2_window)
 
+        # ---- Detach Matplotlib window ----
+        self.btn_detach_matplotlib = QPushButton("Detach GPS")
+        self.btn_detach_matplotlib.clicked.connect(self.detach_matplotlib_window)
+
         # ---- jump buttons (time navigation) ----
         self.btn_back_10 = QPushButton("⏪ 10s")
         self.btn_back_10.clicked.connect(self.jump_back_10s)
@@ -629,6 +633,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_detach_gfx)
         buttons_layout.addWidget(self.btn_detach_video1)
         buttons_layout.addWidget(self.btn_detach_video2)
+        buttons_layout.addWidget(self.btn_detach_matplotlib)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
@@ -2314,6 +2319,45 @@ class MainWindow(QMainWindow):
             self.grid.addWidget(self.video2, 0, 2, 1, 2)
             self.video2_detached = False
             self.btn_detach_video2.setText("Detach Video 2")
+        except Exception:
+            pass
+
+        event.accept()
+
+
+    def detach_matplotlib_window(self):
+        """Toggle detach/close for matplotlib GPS canvas."""
+        if getattr(self, "matplotlib_detached", False):
+            if hasattr(self, "matplotlib_window"):
+                self.matplotlib_window.close()
+            return
+
+        self.matplotlib_detached = True
+
+        # remove from layout
+        self.grid.removeWidget(self.canvas)
+
+        # create detached window
+        self.matplotlib_window = QMainWindow(self)
+        self.matplotlib_window.setWindowTitle("GPS Graph")
+        self.matplotlib_window.setCentralWidget(self.canvas)
+        self.matplotlib_window.resize(900, 700)
+
+        self.btn_detach_matplotlib.setText("Close GPS")
+
+        # detect close
+        self.matplotlib_window.closeEvent = self._on_matplotlib_window_closed
+
+        self.matplotlib_window.show()
+
+
+    def _on_matplotlib_window_closed(self, event):
+        """Restore matplotlib canvas back into the grid when the detached window closes."""
+        try:
+            self.canvas.setParent(None)
+            self.grid.addWidget(self.canvas, 1, 2, 1, 1)
+            self.matplotlib_detached = False
+            self.btn_detach_matplotlib.setText("Detach GPS")
         except Exception:
             pass
 
