@@ -560,6 +560,10 @@ class MainWindow(QMainWindow):
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
 
+        # ---- Detach pygfx window ----
+        self.btn_detach_gfx = QPushButton("Detach 3D")
+        self.btn_detach_gfx.clicked.connect(self.detach_gfx_window)
+
         # ---- jump buttons (time navigation) ----
         self.btn_back_10 = QPushButton("⏪ 10s")
         self.btn_back_10.clicked.connect(self.jump_back_10s)
@@ -614,6 +618,7 @@ class MainWindow(QMainWindow):
 
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.btn_pause)
+        buttons_layout.addWidget(self.btn_detach_gfx)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
@@ -2196,7 +2201,38 @@ class MainWindow(QMainWindow):
         self.text_taille_box.set_text(f"Box Width {round((2 * self.box_zoom * BOX * 111320.0)/1000.0,2):.1f} km / Trace Length {TRACE/DF_FREQ:.0f}s")
         self.canvas.draw_idle()
         self.gps_lastrow=row
+    def detach_gfx_window(self):
+        """Detach pygfx canvas into its own window."""
+        if hasattr(self, "gfx_detached") and self.gfx_detached:
+            return
 
+        self.gfx_detached = True
+
+        # remove from layout
+        self.grid.removeWidget(self.gfx_canvas)
+
+        # create new window
+        self.gfx_window = QMainWindow(self)
+        self.gfx_window.setWindowTitle("3D View")
+        self.gfx_window.setCentralWidget(self.gfx_canvas)
+        self.gfx_window.resize(900, 700)
+
+        # detect close event
+        self.gfx_window.closeEvent = self._on_gfx_window_closed
+
+        self.gfx_window.show()
+
+
+    def _on_gfx_window_closed(self, event):
+        """Restore pygfx canvas back into main layout when detached window closes."""
+        try:
+            self.gfx_canvas.setParent(None)
+            self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+            self.gfx_detached = False
+        except Exception:
+            pass
+
+        event.accept()
 
 
 # ======================================================
@@ -2205,4 +2241,5 @@ if __name__ == "__main__":
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
+
 
