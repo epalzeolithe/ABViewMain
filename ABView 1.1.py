@@ -1530,36 +1530,14 @@ class MainWindow(QMainWindow):
                 pass
 
     # ==================================================
-    # Gestion clavier (Espace = Pause / Lecture, flèches = navigation)
+    # Gestion clavier (Espace = Pause / Lecture)
     # ==================================================
     def keyPressEvent(self, event):
-        # Space = play / pause
         if event.key() == Qt.Key_Space:
             self.toggle_play()
             event.accept()
-            return
-
-        # Right arrow = next frame
-        if event.key() == Qt.Key_Right:
-            self.playing = False
-            self.i = min(N - 1, self.i + 1)
-            self.seek_video(self.i)
-            self.slider.setValue(self.i)
-            self.update_all()
-            event.accept()
-            return
-
-        # Left arrow = previous frame
-        if event.key() == Qt.Key_Left:
-            self.playing = False
-            self.i = max(0, self.i - 1)
-            self.seek_video(self.i)
-            self.slider.setValue(self.i)
-            self.update_all()
-            event.accept()
-            return
-
-        super().keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
 
     # ==================================================
     # time jump helpers
