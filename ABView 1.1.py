@@ -45,6 +45,7 @@ TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
 VITESSE_MISE_EN_LIGNE = 80 #km/h
 PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, ecran face à soi, légerement inclinée vers soi
+OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
 R_recalage_repere=3 # données issues BB
 #R_recalage_repere=1 # données issues computed VQF
 refcam=[0,0,1] # données issues de BB
@@ -374,7 +375,7 @@ class MainWindow(QMainWindow):
         self.init_gps_matplotlib()
 
         self.init_gfx()
-        # self.calibrate_gfx(index_enligne_devol)
+        self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
 
         # ---- realtime timer (compensated loop) ----
         self.target_fps = 30
@@ -532,6 +533,11 @@ class MainWindow(QMainWindow):
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
 
+        # ---- Recalibrate camera mounting from current frame ----
+        self.act_recalibrate_sol = QAction("Recalibrer Sol", self)
+        self.act_recalibrate_sol.triggered.connect(self.calibrate_gfx_on_current_frame)
+        menu_settings.addAction(self.act_recalibrate_sol)
+
         # ---- Camera mounting pitch adjustment ----
         self.act_pitch_cam_plus = QAction("Pitch Montage Caméra +1°", self)
         self.act_pitch_cam_plus.triggered.connect(self.pitch_cam_plus)
@@ -567,7 +573,7 @@ class MainWindow(QMainWindow):
         self.btn_fwd_10 = QPushButton("10s ⏩")
         self.btn_fwd_10.clicked.connect(self.jump_fwd_10s)
 
-        self.btn_recalibrate = QPushButton("Recalibrer")
+        self.btn_recalibrate = QPushButton("Recalibrer Sol")
         self.btn_recalibrate.clicked.connect(self.calibrate_gfx_on_current_frame)
 
         self.btn_pallier = QPushButton("Palier")
@@ -1428,12 +1434,28 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
-    def calibrate_gfx(self,where):
-        row = df.iloc[where]
-        grav = [row.x4_acc_x, row.x4_acc_y, row.x4_acc_z]  # utilisation accelero Y au repos
+    def calibrate_gfx(self, where):
+        # average accelerometer over 100 samples to reduce IMU noise
+        start = max(0, where - 50)
+        end = min(len(df), where + 50)
+
+        acc = df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
+        grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
-        self.montage_pitch_angle = math.degrees(math.acos(-grav[1]))
-        print("Angle de montage : ",self.montage_pitch_angle)
+        self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
+        print("Angle de montage : ", self.montage_pitch_angle)
+
+        # update menu display of camera pitch
+        try:
+            self.update_pitch_cam_menu()
+        except Exception:
+            pass
+
+        # refresh graphics immediately (useful when paused)
+        try:
+            self.update_gfx_orientation()
+        except Exception:
+            pass
 
     def calibrate_gfx_on_current_frame(self):
         self.calibrate_gfx(self.idf)
