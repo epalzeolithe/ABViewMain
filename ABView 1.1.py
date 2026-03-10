@@ -263,6 +263,61 @@ class ArtificialHorizon(QWidget):
 
         painter.end()
 
+
+# ======================================================
+# Analog Badin (Circular Airspeed Indicator)
+# ======================================================
+class AnalogBadin(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setStyleSheet("background: transparent;")
+        self.speed = 0.0
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import QPainter, QPen, QColor
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        r = min(w, h) // 2 - 5
+        cx = w // 2
+        cy = h // 2
+
+        # outer circle
+        pen = QPen(QColor("white"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.setBrush(QColor(0,0,0,120))
+        painter.drawEllipse(cx - r, cy - r, r*2, r*2)
+
+        # scale marks every 20 km/h
+        max_speed = 400
+        for v in range(0, max_speed+1, 20):
+            angle = (v / max_speed) * 270 - 135
+            rad = math.radians(angle)
+            x1 = cx + (r-10) * math.cos(rad)
+            y1 = cy + (r-10) * math.sin(rad)
+            x2 = cx + r * math.cos(rad)
+            y2 = cy + r * math.sin(rad)
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+        # needle
+        v = max(0, min(self.speed, max_speed))
+        angle = (v / max_speed) * 270 - 135
+        rad = math.radians(angle)
+
+        pen = QPen(QColor("red"))
+        pen.setWidth(3)
+        painter.setPen(pen)
+
+        x = cx + (r-15) * math.cos(rad)
+        y = cy + (r-15) * math.sin(rad)
+        painter.drawLine(cx, cy, int(x), int(y))
+
+        painter.end()
+
 # ======================================================
 # Main Window
 # ======================================================
@@ -514,6 +569,11 @@ class MainWindow(QMainWindow):
         )
         self.video1_speed_label.adjustSize()
         self.video1_speed_label.raise_()
+
+        # ---- Analog badin (circular airspeed indicator) ----
+        self.video1_badin = AnalogBadin(self.video1)
+        self.video1_badin.setGeometry(10, int(self.video1.height()/2) - 80, 160, 160)
+        self.video1_badin.show()
 
         # ---- GPS altitude overlay on video1 (bottom-right) ----
         self.video1_alt_label = QLabel("", self.video1)
@@ -1478,6 +1538,13 @@ class MainWindow(QMainWindow):
             x_speed = 10
             y_speed = self.video1.height() - self.video1_speed_label.height() - 10
             self.video1_speed_label.move(x_speed, y_speed)
+
+        # ---- Update analog badin ----
+        if hasattr(self, "video1_badin"):
+            self.video1_badin.speed = row.gps_speed
+            self.video1_badin.update()
+            yb = int(self.video1.height()/2 - self.video1_badin.height()/2)
+            self.video1_badin.move(10, yb)
 
         # ---- Update vario overlay on video1 (bottom-right) ----
         if hasattr(self, "video1_fpm_label"):
