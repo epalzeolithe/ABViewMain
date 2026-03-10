@@ -573,8 +573,6 @@ class MainWindow(QMainWindow):
         self.btn_fwd_10 = QPushButton("10s ⏩")
         self.btn_fwd_10.clicked.connect(self.jump_fwd_10s)
 
-        self.btn_recalibrate = QPushButton("Recalibrer Sol")
-        self.btn_recalibrate.clicked.connect(self.calibrate_gfx_on_current_frame)
 
         self.btn_pallier = QPushButton("Palier")
         self.btn_pallier.clicked.connect(self.seek_palier)
@@ -600,14 +598,7 @@ class MainWindow(QMainWindow):
         # self.btn_lock_elev = QPushButton("🔒 Elev")
         # self.btn_lock_elev.clicked.connect(self.toggle_elev_lock)
 
-        self.btn_zoom_out = QPushButton("🔍 Zoom -")
-        self.btn_zoom_out.clicked.connect(self.zoom_box_out)
 
-        self.btn_zoom_in = QPushButton("🔍 Zoom +")
-        self.btn_zoom_in.clicked.connect(self.zoom_box_in)
-
-        self.btn_zoom_reset = QPushButton("🔄 Reset Zoom")
-        self.btn_zoom_reset.clicked.connect(self.reset_zoom)
 
         self.btn_trace_minus = QPushButton("Trace -")
         self.btn_trace_minus.clicked.connect(self.trace_minus)
@@ -628,7 +619,6 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_fwd_2)
         buttons_layout.addWidget(self.btn_fwd_10)
         buttons_layout.addWidget(self.btn_pallier)
-        buttons_layout.addWidget(self.btn_recalibrate)
         buttons_layout.addWidget(self.btn_add_bookmark)
         buttons_layout.addWidget(self.btn_start)
         buttons_layout.addWidget(self.btn_mise_en_ligne)
@@ -636,9 +626,6 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_misedos_securite)
         buttons_layout.addWidget(self.btn_enchainement)
         # buttons_layout.addWidget(self.btn_lock_elev)
-        buttons_layout.addWidget(self.btn_zoom_out)
-        buttons_layout.addWidget(self.btn_zoom_in)
-        buttons_layout.addWidget(self.btn_zoom_reset)
         buttons_layout.addWidget(self.btn_trace_minus)
         buttons_layout.addWidget(self.btn_trace_plus)
         buttons_layout.addWidget(self.btn_trace_reset)
@@ -921,6 +908,7 @@ class MainWindow(QMainWindow):
         x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
         self.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
         y_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, length, 0]], dtype=np.float32))
+        self.y_geom = y_geom  # Reference for later updates
         self.gfx_vec_y = gfx.Line(
             y_geom,
             gfx.LineMaterial(color="green", thickness=8),
@@ -1186,6 +1174,14 @@ class MainWindow(QMainWindow):
 
         # Rotated vectors repère local
         fwd = R_final.T @ fwd_original; up = R_final.T @ up_original; down = R_final.T @ down_original
+        # ---- Scale Y vector with GPS speed ----
+        speed_scale = row.gps_speed * 2.0  # visual scale factor
+        self.y_geom.positions.data[1] = (0.0, speed_scale, 0.0)
+        self.y_geom.positions.update_range(0, 2)
+
+        # move arrow head to the end of the vector
+        if hasattr(self, "gfx_y_arrow"):
+            self.gfx_y_arrow.local.position = (0.0, speed_scale, 0.0)
 
         # ---- Update acceleration vector ----
         acc = np.array([-row.x4_acc_x,-row.x4_acc_y,-row.x4_acc_z])# rotation
@@ -1418,6 +1414,12 @@ class MainWindow(QMainWindow):
                     r=int((row.gps_speed-235)/(300-235)*255); g=255-int((row.gps_speed-235)/(300-235)*255); b=0
                 else:
                     r=255;g=0;b=0
+
+        # apply same color to velocity vector (gfx_vec_y)
+        if hasattr(self, "gfx_vec_y"):
+            self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+        if hasattr(self, "gfx_y_arrow"):
+            self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
 
         self.gps_label_speed.setStyleSheet(
             f"color: rgb({r},{g},{b}); "
@@ -2074,7 +2076,6 @@ class MainWindow(QMainWindow):
                 linestyle=line.get_linestyle(),
                 linewidth=line.get_linewidth()
             )
-
 
         canvas_fs.draw_idle()
 
