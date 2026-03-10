@@ -564,6 +564,14 @@ class MainWindow(QMainWindow):
         self.btn_detach_gfx = QPushButton("Detach 3D")
         self.btn_detach_gfx.clicked.connect(self.detach_gfx_window)
 
+        # ---- Detach Video1 window ----
+        self.btn_detach_video1 = QPushButton("Detach Video 1")
+        self.btn_detach_video1.clicked.connect(self.detach_video1_window)
+
+        # ---- Detach Video2 window ----
+        self.btn_detach_video2 = QPushButton("Detach Video 2")
+        self.btn_detach_video2.clicked.connect(self.detach_video2_window)
+
         # ---- jump buttons (time navigation) ----
         self.btn_back_10 = QPushButton("⏪ 10s")
         self.btn_back_10.clicked.connect(self.jump_back_10s)
@@ -619,6 +627,8 @@ class MainWindow(QMainWindow):
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.btn_pause)
         buttons_layout.addWidget(self.btn_detach_gfx)
+        buttons_layout.addWidget(self.btn_detach_video1)
+        buttons_layout.addWidget(self.btn_detach_video2)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
@@ -2202,8 +2212,11 @@ class MainWindow(QMainWindow):
         self.canvas.draw_idle()
         self.gps_lastrow=row
     def detach_gfx_window(self):
-        """Detach pygfx canvas into its own window."""
-        if hasattr(self, "gfx_detached") and self.gfx_detached:
+        """Toggle detach/close for pygfx canvas."""
+        if getattr(self, "gfx_detached", False):
+            # close popup
+            if hasattr(self, "gfx_window"):
+                self.gfx_window.close()
             return
 
         self.gfx_detached = True
@@ -2217,6 +2230,8 @@ class MainWindow(QMainWindow):
         self.gfx_window.setCentralWidget(self.gfx_canvas)
         self.gfx_window.resize(900, 700)
 
+        self.btn_detach_gfx.setText("Close 3D")
+
         # detect close event
         self.gfx_window.closeEvent = self._on_gfx_window_closed
 
@@ -2229,6 +2244,76 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
+            self.btn_detach_gfx.setText("Detach 3D")
+        except Exception:
+            pass
+
+        event.accept()
+
+
+    def detach_video1_window(self):
+        """Toggle detach/close for video1."""
+        if getattr(self, "video1_detached", False):
+            if hasattr(self, "video1_window"):
+                self.video1_window.close()
+            return
+
+        self.video1_detached = True
+
+        self.grid.removeWidget(self.video1)
+
+        self.video1_window = QMainWindow(self)
+        self.video1_window.setWindowTitle("Video 1")
+        self.video1_window.setCentralWidget(self.video1)
+        self.video1_window.resize(900, 600)
+
+        self.btn_detach_video1.setText("Close Video 1")
+
+        self.video1_window.closeEvent = self._on_video1_window_closed
+
+        self.video1_window.show()
+
+
+    def _on_video1_window_closed(self, event):
+        try:
+            self.video1.setParent(None)
+            self.grid.addWidget(self.video1, 0, 0, 1, 2)
+            self.video1_detached = False
+            self.btn_detach_video1.setText("Detach Video 1")
+        except Exception:
+            pass
+
+        event.accept()
+
+    def detach_video2_window(self):
+        """Toggle detach/close for video2."""
+        if getattr(self, "video2_detached", False):
+            if hasattr(self, "video2_window"):
+                self.video2_window.close()
+            return
+
+        self.video2_detached = True
+
+        self.grid.removeWidget(self.video2)
+
+        self.video2_window = QMainWindow(self)
+        self.video2_window.setWindowTitle("Video 2")
+        self.video2_window.setCentralWidget(self.video2)
+        self.video2_window.resize(900, 600)
+
+        self.btn_detach_video2.setText("Close Video 2")
+
+        self.video2_window.closeEvent = self._on_video2_window_closed
+
+        self.video2_window.show()
+
+
+    def _on_video2_window_closed(self, event):
+        try:
+            self.video2.setParent(None)
+            self.grid.addWidget(self.video2, 0, 2, 1, 2)
+            self.video2_detached = False
+            self.btn_detach_video2.setText("Detach Video 2")
         except Exception:
             pass
 
