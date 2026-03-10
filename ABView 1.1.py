@@ -905,22 +905,24 @@ class MainWindow(QMainWindow):
 
         # vecteurs du repère local
         length = 400  # longueur des vecteurs
-        x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
-        self.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
+        #x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
+        #elf.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
         y_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, length, 0]], dtype=np.float32))
         self.y_geom = y_geom  # Reference for later updates
         self.gfx_vec_y = gfx.Line(
             y_geom,
-            gfx.LineMaterial(color="green", thickness=8),
+            gfx.LineMaterial(color="green", thickness=8, depth_test=False),
         )
-        z_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, 0, length]], dtype=np.float32))
-        self.gfx_vec_z = gfx.Line(z_geom, gfx.LineMaterial(color="blue", thickness=1),)
-        self.gfx_object.add(self.gfx_vec_x);self.gfx_object.add(self.gfx_vec_y);self.gfx_object.add(self.gfx_vec_z)
+        #z_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, 0, length]], dtype=np.float32))
+        #self.gfx_vec_z = gfx.Line(z_geom, gfx.LineMaterial(color="blue", thickness=1),)
+        #self.gfx_object.add(self.gfx_vec_x);
+        self.gfx_object.add(self.gfx_vec_y);
+        # self.gfx_object.add(self.gfx_vec_z)
 
         # ---- Arrow head for Y vector ----
         self.gfx_y_arrow = gfx.Mesh(
             gfx.cone_geometry(radius=25, height=60),
-            gfx.MeshPhongMaterial(color="green"),
+            gfx.MeshPhongMaterial(color="green", depth_test=False),
         )
 
         # place arrow at end of Y vector
@@ -941,13 +943,13 @@ class MainWindow(QMainWindow):
         # ---- Acceleration vector (line, updated each frame) ----
         acc_positions = np.array([[0, 0, 0], [0, 0, 0]], dtype=np.float32)
         self.acc_geom = gfx.Geometry(positions=acc_positions)
-        self.gfx_vec_acc = gfx.Line(self.acc_geom,gfx.LineMaterial(color="green", thickness=8),)
+        self.gfx_vec_acc = gfx.Line(self.acc_geom, gfx.LineMaterial(color="green", thickness=8, depth_test=False),)
         self.gfx_object.add(self.gfx_vec_acc)
 
         # ---- Arrow head for acceleration vector ----
         self.gfx_acc_arrow = gfx.Mesh(
             gfx.cone_geometry(radius=25, height=60),
-            gfx.MeshPhongMaterial(color="green"),
+            gfx.MeshPhongMaterial(color="green", depth_test=False),
         )
         self.gfx_acc_arrow.visible = True
         self.gfx_object.add(self.gfx_acc_arrow)
@@ -1154,6 +1156,9 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.setGeometry(10, 140, 130, 125)
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
+
+
+
 
     def update_gfx_orientation(self):
         #R = quat_to_rot(quats[self.i])
