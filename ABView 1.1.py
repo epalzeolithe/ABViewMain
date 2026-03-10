@@ -1008,7 +1008,7 @@ class MainWindow(QMainWindow):
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_alt = QLabel("GPS:", self.gfx_canvas)
         self.gps_label_alt.setStyleSheet(
-            "color: darkgreen; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+            "color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.gps_label_alt.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
@@ -1210,7 +1210,8 @@ class MainWindow(QMainWindow):
 
             # invert pitch sign for wingtip reference (viewed from the side)
             self.hud_horizon_wing.pitch = -pitch_w
-            self.hud_horizon_wing.bank = -roll_w
+            self.hud_horizon_wing.bank = -gps_alt
+            roll_w
             self.hud_horizon_wing.heading = heading_deg
             self.hud_horizon_wing.update()
 
