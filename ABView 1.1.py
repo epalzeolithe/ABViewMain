@@ -3,7 +3,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-import time
+
 import av
 import matplotlib
 import numpy as np
@@ -420,7 +420,7 @@ class AnalogAltimeter(QWidget):
         rad = math.radians(angle_big - 90)
 
         pen = QPen(QColor("white"))
-        pen.setWidth(3)
+        pen.setWidth(2)
         painter.setPen(pen)
 
         x = cx + (r - 15) * math.cos(rad)
@@ -468,6 +468,8 @@ class MainWindow(QMainWindow):
         self.i = 0
         self.idf = 0
         self.playing = True
+
+        # screen capture process
         self.speed = 1
         self.current_video_time_utc = None
         self.frame_skipped_count = 0
@@ -793,6 +795,7 @@ class MainWindow(QMainWindow):
 
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
+
 
         # ---- Detach pygfx window ----
         self.btn_detach_gfx = QPushButton("Detach 3D")
