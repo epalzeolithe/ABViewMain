@@ -1142,11 +1142,9 @@ class MainWindow(QMainWindow):
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
 
-        for z in (0, 500, 1000, 1500, 2000):
-            label = QLabel(f"{z} m", self)
-            label.setStyleSheet(
-                "color: yellow; background-color: rgba(0,0,0,120); padding:2px; font-family:'Menlo'; font-size:12px;"
-            )
+        for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
+            label = QLabel(f"{z} ft", self)
+            label.setStyleSheet("color: yellow; background-color: rgba(0,0,0,120); padding:2px; font-family:'Menlo'; font-size:12px;")
             label.adjustSize()
             label.show()
             label.raise_()
@@ -1174,7 +1172,7 @@ class MainWindow(QMainWindow):
         top = gx.y() + 10
         height = gx.height() - 20
 
-        max_alt = 2000.0
+        max_alt = 5500.0
 
         # position altitude bar next to the scale
         bar_x = gx.x() + 60
@@ -1193,7 +1191,7 @@ class MainWindow(QMainWindow):
         except Exception:
             alt = 0
 
-        alt = max(0, min(2000, alt))
+        alt = max(0, min(5500, alt))
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
@@ -1879,11 +1877,6 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
-        # ---- update altitude labels for pyqtgraph GPS view ----
-        try:
-            self.update_altitude_labels()
-        except Exception:
-            pass
 
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
@@ -2488,16 +2481,42 @@ class MainWindow(QMainWindow):
         # convert degrees to approximate meters
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
         y = (lat - lat0) * 111320 / 1000
-        z = (alt-3000) / 1000
+        z = (alt-3000-1000) / 1000
+
+        # debug: dernière position calculée
+        if len(x) > 0:
+            print(x[-1], y[-1], z[-1])
 
         pts = np.column_stack([x, y, z])
 
         if len(pts) > 1:
-            self.gps_line.setData(pos=pts)
+            # ---- color segments based on altitude ----
+            zmin = np.min(z)
+            zmax = np.max(z)
+            if zmax - zmin < 1e-6:
+                zmax = zmin + 1e-6
+
+            # normalize altitude 0..1
+            zn = (z - zmin) / (zmax - zmin)
+
+            # simple blue→green→red gradient
+            colors = np.zeros((len(pts), 4))
+            colors[:, 0] = zn          # red increases with altitude
+            colors[:, 1] = 1.0 - abs(zn - 0.5) * 2.0  # green mid band
+            colors[:, 2] = 1.0 - zn    # blue decreases with altitude
+            colors[:, 3] = 1.0         # alpha
+
+            self.gps_line.setData(pos=pts, color=colors)
 
         #if end < len(gps_lat_vals):
         #    # aircraft stays at center
         #    self.gps_point.setData(pos=[[0.0, 0.0, 0.0]])
+
+        # ---- update altitude labels for pyqtgraph GPS view ----
+        try:
+            self.update_altitude_labels()
+        except Exception:
+            pass
 
     def update_matplotlib_gps(self):
         # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
