@@ -302,19 +302,19 @@ class AnalogBadin(QWidget):
 
         rect = QRect(cx - r + 6, cy - r + 6, (r - 6) * 2, (r - 6) * 2)
 
-        # ---- green arc (0‑200 km/h) ----
+        # ---- green arc (0‑300 km/h) ----
         pen = QPen(QColor(0, 200, 0))
         pen.setWidth(6)
         painter.setPen(pen)
         start = angle_from_speed(0)
-        end = angle_from_speed(200)
+        end = angle_from_speed(300)
         painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
 
-        # ---- yellow arc (200‑340 km/h) ----
+        # ---- yellow arc (300‑340 km/h) ----
         pen = QPen(QColor(255, 200, 0))
         pen.setWidth(6)
         painter.setPen(pen)
-        start = angle_from_speed(200)
+        start = angle_from_speed(300)
         end = angle_from_speed(340)
         painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
 
@@ -354,7 +354,7 @@ class AnalogBadin(QWidget):
         angle = (v / max_speed) * 270 - 135
         rad = math.radians(angle)
 
-        pen = QPen(QColor("red"))
+        pen = QPen(QColor("white"))
         pen.setWidth(3)
         painter.setPen(pen)
 
@@ -753,8 +753,6 @@ class MainWindow(QMainWindow):
         self.btn_mise_en_ligne = QPushButton("Mise en ligne")
         self.btn_mise_en_ligne.clicked.connect(self.goto_mise_en_ligne)
 
-        self.btn_entree_box = QPushButton("Entrée BOX")
-        self.btn_entree_box.clicked.connect(self.goto_entree_box)
 
         self.btn_misedos_securite = QPushButton("Mise dos sécurité")
         self.btn_misedos_securite.clicked.connect(self.goto_misedos_securite)
@@ -767,14 +765,6 @@ class MainWindow(QMainWindow):
 
 
 
-        self.btn_trace_minus = QPushButton("Trace -")
-        self.btn_trace_minus.clicked.connect(self.trace_minus)
-
-        self.btn_trace_plus = QPushButton("Trace +")
-        self.btn_trace_plus.clicked.connect(self.trace_plus)
-
-        self.btn_trace_reset = QPushButton("Reset Trace")
-        self.btn_trace_reset.clicked.connect(self.reset_trace)
 
         self.btn_quitter = QPushButton("Quitter")
         self.btn_quitter.clicked.connect(self.close)
@@ -793,13 +783,9 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_add_bookmark)
         buttons_layout.addWidget(self.btn_start)
         buttons_layout.addWidget(self.btn_mise_en_ligne)
-        buttons_layout.addWidget(self.btn_entree_box)
         buttons_layout.addWidget(self.btn_misedos_securite)
         buttons_layout.addWidget(self.btn_enchainement)
         # buttons_layout.addWidget(self.btn_lock_elev)
-        buttons_layout.addWidget(self.btn_trace_minus)
-        buttons_layout.addWidget(self.btn_trace_plus)
-        buttons_layout.addWidget(self.btn_trace_reset)
         buttons_layout.addWidget(self.btn_quitter)
 
         self.layout.addWidget(self.slider)
@@ -1589,7 +1575,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_badin"):
             self.video1_badin.speed = row.gps_speed
             self.video1_badin.update()
-            yb = int(self.video1.height()/2 - self.video1_badin.height()/2)
+            yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 40
             self.video1_badin.move(10, yb)
 
         # ---- Update vario overlay on video1 (bottom-right) ----
