@@ -365,6 +365,84 @@ class AnalogBadin(QWidget):
         painter.end()
 
 # ======================================================
+# Analog Altimeter (Circular Altimeter with Two Needles)
+# ======================================================
+class AnalogAltimeter(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setStyleSheet("background: transparent;")
+        self.alt = 0.0
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import QPainter, QPen, QColor
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        r = min(w, h) // 2 - 5
+        cx = w // 2
+        cy = h // 2
+
+        # outer circle
+        pen = QPen(QColor("white"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.setBrush(QColor(0, 0, 0, 120))
+        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+
+        # graduations every 100 ft (0-900)
+        for i in range(0, 1000, 100):
+            angle = (i / 1000.0) * 360.0
+            rad = math.radians(angle - 90)
+            x1 = cx + (r - 12) * math.cos(rad)
+            y1 = cy + (r - 12) * math.sin(rad)
+            x2 = cx + r * math.cos(rad)
+            y2 = cy + r * math.sin(rad)
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+        # ---- numeric labels (0‑9 thousands scale) ----
+        painter.setPen(QPen(QColor("white")))
+        for i in range(10):
+            angle = (i / 10.0) * 360.0
+            rad = math.radians(angle - 90)
+
+            xt = cx + (r - 28) * math.cos(rad)
+            yt = cy + (r - 28) * math.sin(rad)
+
+            painter.drawText(int(xt - 6), int(yt + 6), str(i))
+
+        # ---- Large needle (hundreds of feet) ----
+        alt1000 = self.alt % 1000
+        angle_big = (alt1000 / 1000.0) * 360.0
+        rad = math.radians(angle_big - 90)
+
+        pen = QPen(QColor("white"))
+        pen.setWidth(3)
+        painter.setPen(pen)
+
+        x = cx + (r - 15) * math.cos(rad)
+        y = cy + (r - 15) * math.sin(rad)
+        painter.drawLine(cx, cy, int(x), int(y))
+
+        # ---- Small needle (thousands of feet) ----
+        alt10000 = (self.alt / 1000.0) % 10
+        angle_small = (alt10000 / 10.0) * 360.0
+        rad = math.radians(angle_small - 90)
+
+        pen = QPen(QColor("white"))
+        pen.setWidth(5)
+        painter.setPen(pen)
+
+        x = cx + (r - 30) * math.cos(rad)
+        y = cy + (r - 30) * math.sin(rad)
+        painter.drawLine(cx, cy, int(x), int(y))
+
+        painter.end()
+
+# ======================================================
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
@@ -620,6 +698,11 @@ class MainWindow(QMainWindow):
         self.video1_badin = AnalogBadin(self.video1)
         self.video1_badin.setGeometry(10, int(self.video1.height()/2) - 80, 160, 160)
         self.video1_badin.show()
+
+        # ---- Analog altimeter (right side) ----
+        self.video1_altimeter = AnalogAltimeter(self.video1)
+        self.video1_altimeter.setGeometry(self.video1.width() - 170, int(self.video1.height()/2) - 80, 160, 160)
+        self.video1_altimeter.show()
 
         # ---- GPS altitude overlay on video1 (bottom-right) ----
         self.video1_alt_label = QLabel("", self.video1)
@@ -1577,6 +1660,14 @@ class MainWindow(QMainWindow):
             self.video1_badin.update()
             yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 40
             self.video1_badin.move(10, yb)
+
+        # ---- Update analog altimeter ----
+        if hasattr(self, "video1_altimeter"):
+            self.video1_altimeter.alt = row.gps_alt
+            self.video1_altimeter.update()
+            ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 40
+            xa = self.video1.width() - self.video1_altimeter.width() - 10
+            self.video1_altimeter.move(xa, ya)
 
         # ---- Update vario overlay on video1 (bottom-right) ----
         if hasattr(self, "video1_fpm_label"):
