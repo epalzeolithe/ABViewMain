@@ -1104,7 +1104,7 @@ class MainWindow(QMainWindow):
         grid = gl.GLGridItem()
         grid.setSize(2, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
-        grid.translate(0, 0, 0)  # slightly below aircraft
+        grid.translate(0, 0, -1)  # slightly below aircraft
 
         self.gps_view.addItem(grid)
 
@@ -1113,7 +1113,7 @@ class MainWindow(QMainWindow):
         grid_vertical_yz.setSize(2, 2)
         grid_vertical_yz.setSpacing(0.25,0.25)
         grid_vertical_yz.rotate(90, 1, 0, 0)
-        grid_vertical_yz.translate(0, 1, 1)
+        grid_vertical_yz.translate(0, -1, 0)
         self.gps_view.addItem(grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
@@ -1121,13 +1121,39 @@ class MainWindow(QMainWindow):
         grid_vertical_xz.setSize(2, 2)
         grid_vertical_xz.setSpacing(0.25, 0.25)
         grid_vertical_xz.rotate(90, 0, 1, 0)
-        grid_vertical_xz.translate(1,0, 1)
+        grid_vertical_xz.translate(-1,0, 0)
         self.gps_view.addItem(grid_vertical_xz)
 
         self.gps_view.addItem(self.gps_line)
         self.gps_view.addItem(self.gps_point)
         # initial zoom level
-        #self.gps_view.setCameraPosition(distance=3500)
+        #self.gps_view.setCameraPosition(distance=3)
+
+        # ---- altitude labels (screen overlay style) ----
+        self.altitude_labels = []
+        for z in (0, 500, 1000, 1500, 2000):
+            label = QLabel(f"{z} m", self.gps_view)
+            label.setStyleSheet(
+                "color: yellow; background: transparent; font-family: 'Menlo'; font-size: 12px;"
+            )
+            label.adjustSize()
+            label.show()
+            label.raise_()
+            self.altitude_labels.append((z, label))
+
+    def update_altitude_labels(self):
+        """Project altitude labels in screen space so they stay readable."""
+        if not hasattr(self, "altitude_labels"):
+            return
+
+        w = self.gps_view.width()
+        h = self.gps_view.height()
+
+        # simple vertical positioning near the YZ grid
+        for z, label in self.altitude_labels:
+            y = int(h * (1 - (z / 2000.0)))
+            x = 10
+            label.move(x, y)
 
     def init_gps_matplotlib(self):
         self.ax = self.fig.add_subplot(111, projection="3d")
@@ -1809,6 +1835,12 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
+        # ---- update altitude labels for pyqtgraph GPS view ----
+        try:
+            self.update_altitude_labels()
+        except Exception:
+            pass
+
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
@@ -2422,25 +2454,6 @@ class MainWindow(QMainWindow):
         #if end < len(gps_lat_vals):
         #    # aircraft stays at center
         #    self.gps_point.setData(pos=[[0.0, 0.0, 0.0]])
-
-        # ---- Display zoom level ----
-        try:
-            zoom = self.gps_view.opts["distance"]
-        except Exception:
-            zoom = 0
-
-        # create label once
-        if not hasattr(self, "gps_zoom_label"):
-            self.gps_zoom_label = QLabel("", self.gps_view)
-            self.gps_zoom_label.setStyleSheet(
-                "color: gray; background-color: rgba(255,255,255,200);"
-                "padding: 3px; font-family: 'Menlo'; font-size: 10px;"
-            )
-            self.gps_zoom_label.move(10, 10)
-            self.gps_zoom_label.show()
-
-        self.gps_zoom_label.setText(f"Zoom {zoom:.1f}")
-        self.gps_zoom_label.adjustSize()
 
     def update_matplotlib_gps(self):
         # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
