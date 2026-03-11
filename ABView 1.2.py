@@ -14,10 +14,20 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel,
-    QGridLayout, QVBoxLayout, QHBoxLayout,
-    QSlider, QPushButton, QDialog, QAction, QInputDialog,
-    QSizePolicy, QShortcut)
+    QShortcut,   QApplication,
+    QMainWindow,
+    QWidget,
+    QLabel,
+    QFrame,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QAction,
+    QSlider,
+    QSizePolicy,
+    QInputDialog
+)
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from pymediainfo import MediaInfo
 from PyQt5.QtGui import QKeySequence
@@ -1129,31 +1139,65 @@ class MainWindow(QMainWindow):
         # initial zoom level
         #self.gps_view.setCameraPosition(distance=3)
 
-        # ---- altitude labels (screen overlay style) ----
-        self.altitude_labels = []
+        # ---- altitude scale overlay (Red Bull style vertical scale) ----
+        self.altitude_scale_labels = []
+
         for z in (0, 500, 1000, 1500, 2000):
-            label = QLabel(f"{z} m", self.gps_view)
+            label = QLabel(f"{z} m", self)
             label.setStyleSheet(
-                "color: yellow; background: transparent; font-family: 'Menlo'; font-size: 12px;"
+                "color: yellow; background-color: rgba(0,0,0,120); padding:2px; font-family:'Menlo'; font-size:12px;"
             )
             label.adjustSize()
             label.show()
             label.raise_()
-            self.altitude_labels.append((z, label))
+            self.altitude_scale_labels.append((z, label))
+
+        # ---- vertical altitude bar ----
+        self.altitude_bar = QFrame(self)
+        self.altitude_bar.setStyleSheet("background-color: rgba(255,255,255,120);")
+        self.altitude_bar.setGeometry(0, 0, 4, 200)
+        self.altitude_bar.show()
+
+        # moving marker showing current altitude
+        self.altitude_cursor = QFrame(self)
+        self.altitude_cursor.setStyleSheet("background-color: red;")
+        self.altitude_cursor.setGeometry(0, 0, 12, 4)
+        self.altitude_cursor.show()
 
     def update_altitude_labels(self):
-        """Project altitude labels in screen space so they stay readable."""
-        if not hasattr(self, "altitude_labels"):
+        """Draw a vertical altitude scale next to the 3D GPS viewer."""
+        if not hasattr(self, "altitude_scale_labels"):
             return
 
-        w = self.gps_view.width()
-        h = self.gps_view.height()
+        gx = self.gps_view.geometry()
+        x_left = gx.x() + 8
+        top = gx.y() + 10
+        height = gx.height() - 20
 
-        # simple vertical positioning near the YZ grid
-        for z, label in self.altitude_labels:
-            y = int(h * (1 - (z / 2000.0)))
-            x = 10
-            label.move(x, y)
+        max_alt = 2000.0
+
+        # position altitude bar next to the scale
+        bar_x = gx.x() + 60
+        bar_top = top
+        bar_height = height
+        self.altitude_bar.setGeometry(bar_x, bar_top, 4, bar_height)
+
+        for z, label in self.altitude_scale_labels:
+            t = z / max_alt
+            y = int(top + height * (1.0 - t))
+            label.move(x_left, y - label.height() // 2)
+
+        # ---- altitude cursor position ----
+        try:
+            alt = float(self.row.gps_alt)
+        except Exception:
+            alt = 0
+
+        alt = max(0, min(2000, alt))
+        t = alt / max_alt
+        y_cursor = int(top + height * (1.0 - t))
+
+        self.altitude_cursor.move(bar_x - 4, y_cursor - 2)
 
     def init_gps_matplotlib(self):
         self.ax = self.fig.add_subplot(111, projection="3d")
