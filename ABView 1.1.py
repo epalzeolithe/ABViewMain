@@ -557,6 +557,7 @@ class MainWindow(QMainWindow):
         self.init_map_OSM_widget()
         self.map_view.loadFinished.connect(self.on_map_loaded)
 
+        self.enable_matplotlib_gps = True
         self.init_gps_matplotlib()
 
         self.init_gfx()
@@ -746,6 +747,13 @@ class MainWindow(QMainWindow):
         self.act_lock_elev.setChecked(self.elev_locked)
         self.act_lock_elev.triggered.connect(self.toggle_elev_lock)
         menu_settings.addAction(self.act_lock_elev)
+
+        # ---- Pause / Resume GPS matplotlib updates ----
+        self.act_pause_gps_update = QAction("Pause Update GPS", self)
+        self.act_pause_gps_update.setCheckable(True)
+        self.act_pause_gps_update.setChecked(False)
+        self.act_pause_gps_update.triggered.connect(self.toggle_matplotlib_gps)
+        menu_settings.addAction(self.act_pause_gps_update)
 
         # Actions Zoom (menu Settings)
         self.act_zoom_out = QAction("Zoom -", self)
@@ -2328,10 +2336,20 @@ class MainWindow(QMainWindow):
 
 
     # ==================================================
+    def toggle_matplotlib_gps(self):
+        """Toggle matplotlib GPS update on/off."""
+        self.enable_matplotlib_gps = not self.enable_matplotlib_gps
+
+        # keep menu checkbox synchronized
+        if hasattr(self, "act_pause_gps_update"):
+            self.act_pause_gps_update.setChecked(not self.enable_matplotlib_gps)
+
     def update_matplotlib_gps(self):
         # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
         #if self.i % 4 != 0:
         #    return
+        if not self.enable_matplotlib_gps:
+            return
 
         row = self.row
 
