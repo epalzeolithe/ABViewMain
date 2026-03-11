@@ -39,7 +39,7 @@ BOOKMARK_FILE=INSV1+".bookmark.csv"
 STL_FILE="data/CAP10.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
 DF_FREQ = 100
-TRACE = 9000 # taille de la trace 6000=1 minute
+TRACE = 3000 # taille de la trace 6000=1 minute
 TRACE_DEFAULT = TRACE
 TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50

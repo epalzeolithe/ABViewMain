@@ -171,8 +171,20 @@ def get_datas_from_gns3000(log):
 
         gdf = gdf.rename(columns={'lat': 'gps_lat', 'lon': 'gps_lon', 'alt': 'gps_alt', 'speed': 'gps_speed','heading': 'gps_heading'})
         # calcul vitesse Z
+
+
+        # ajout date à gdf et décaler en GMT
+        st1 = get_mp4_creation_datetime(X4_INSV_1)
+        print(st1)
+        offset = st1.replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
+        # offset = idf['timestamp'][0].replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
+        gdf["timestamp"] = pd.to_datetime(st1.strftime("%Y-%m-%d") + " " + gdf["timestamp"].astype(str),
+                                          format="mixed") + pd.Timedelta(hours=offset)
+
+
         gdf['gps_fpm'] = np.gradient(gdf['gps_alt'], GNS3000_PERIOD)
         gdf['gps_fpm'] = gdf['gps_fpm'] * 60
+
         gdf.to_csv(log+".csv", index=True, encoding="utf-8")
         return gdf
     else:
@@ -313,12 +325,6 @@ if __name__ == "__main__":
     for df in [gdf, idf, xdf]:
         df.sort_values("timestamp", inplace=True)
 
-    # ajout date à gdf et décaler en GMT
-    st1 = get_mp4_creation_datetime(X4_INSV_1)
-    print(st1)
-    offset = st1.replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
-    #offset = idf['timestamp'][0].replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
-    gdf["timestamp"] = pd.to_datetime(st1.strftime("%Y-%m-%d") + " " + gdf["timestamp"].astype(str),format="mixed")+ pd.Timedelta(hours=offset)
 
     # force iphone timestamp dtype si lecture csv
     idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
