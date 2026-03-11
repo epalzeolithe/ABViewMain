@@ -1622,8 +1622,16 @@ class MainWindow(QMainWindow):
         self.g_min = min(self.g_min, self.g)
         self.g_max = max(self.g_max, self.g)
 
-        self.g_label.setText(f"G:{self.g:.1f}")
-        self.g_label_minmax.setText(f"  Gmin {self.g_min:.2f}\n  Gmax {self.g_max:.2f}")
+        try:
+            if self.g_label is not None:
+                self.g_label.setText(f"G:{self.g:.1f}")
+        except RuntimeError:
+            return
+        try:
+            if self.g_label_minmax is not None:
+                self.g_label_minmax.setText(f"  Gmin {self.g_min:.2f}\n  Gmax {self.g_max:.2f}")
+        except RuntimeError:
+            return
         self.g_label.adjustSize()
         self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),self.gfx_canvas.height()-100)
         self.g_label_minmax.adjustSize()
@@ -2464,6 +2472,12 @@ class MainWindow(QMainWindow):
         if self.i % 8 != 0:
             return
 
+        row = self.row
+        if self.map_ready:
+            lat = row.gps_lat
+            lon = row.gps_lon
+            self.map_view.page().runJavaScript(f"window.updateMarker({lat}, {lon});")
+
         end = self.idf
         start = end - TRACE
         if start < 0:
@@ -2490,21 +2504,23 @@ class MainWindow(QMainWindow):
         pts = np.column_stack([x, y, z])
 
         if len(pts) > 1:
-            # ---- color segments based on altitude ----
-            zmin = np.min(z)
-            zmax = np.max(z)
-            if zmax - zmin < 1e-6:
-                zmax = zmin + 1e-6
+            # ---- color segments based on altitude (3000 → 5000 ft) ----
+            z_abs = alt  # original altitude values in ft
 
-            # normalize altitude 0..1
-            zn = (z - zmin) / (zmax - zmin)
+            zmin = 3000.0
+            zmax = 5000.0
 
-            # simple blue→green→red gradient
+            # normalize altitude in 0..1 within [3000,5000]
+            zn = (z_abs - zmin) / (zmax - zmin)
+            zn = np.clip(zn, 0.0, 1.0)
+
             colors = np.zeros((len(pts), 4))
-            colors[:, 0] = zn          # red increases with altitude
-            colors[:, 1] = 1.0 - abs(zn - 0.5) * 2.0  # green mid band
-            colors[:, 2] = 1.0 - zn    # blue decreases with altitude
-            colors[:, 3] = 1.0         # alpha
+
+            # blue -> green -> red gradient
+            colors[:, 0] = zn                       # red increases with altitude
+            colors[:, 1] = 1.0 - np.abs(zn - 0.5)*2 # green strongest mid-altitude
+            colors[:, 2] = 1.0 - zn                 # blue decreases with altitude
+            colors[:, 3] = 1.0                      # alpha
 
             self.gps_line.setData(pos=pts, color=colors)
 
