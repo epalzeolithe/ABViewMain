@@ -1102,46 +1102,32 @@ class MainWindow(QMainWindow):
 
         # ground grid (visual reference in meters)
         grid = gl.GLGridItem()
-        grid.setSize(2000, 2000)   # 2 km x 2 km area
-        grid.setSpacing(100, 100)  # grid every 100 m
+        grid.setSize(2, 2)   # 2 km x 2 km area
+        grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, 0)  # slightly below aircraft
 
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
         grid_vertical_yz = gl.GLGridItem()
-        grid_vertical_yz.setSize(2000, 2000)
-        grid_vertical_yz.setSpacing(100, 100)
+        grid_vertical_yz.setSize(2, 2)
+        grid_vertical_yz.setSpacing(0.25,0.25)
         grid_vertical_yz.rotate(90, 1, 0, 0)
-        grid_vertical_yz.translate(0, 1000, 1000)
+        grid_vertical_yz.translate(0, 1, 1)
         self.gps_view.addItem(grid_vertical_yz)
-
-        # ---- altitude labels on vertical grid ----
-        from PyQt5.QtGui import QFont
-
-        font = QFont("Menlo", 18)
-
-        for z in range(0, 6001, 500):
-            label = gl.GLTextItem(
-                pos=(0, 950, z),
-                text=f"{z} m",
-                color=(1, 1, 0, 1),
-                font=font
-            )
-            self.gps_view.addItem(label)
 
         # ---- vertical grid (XZ plane) ----
         grid_vertical_xz = gl.GLGridItem()
-        grid_vertical_xz.setSize(2000, 2000)
-        grid_vertical_xz.setSpacing(100, 100)
+        grid_vertical_xz.setSize(2, 2)
+        grid_vertical_xz.setSpacing(0.25, 0.25)
         grid_vertical_xz.rotate(90, 0, 1, 0)
-        grid_vertical_xz.translate(1000,0, 1000)
+        grid_vertical_xz.translate(1,0, 1)
         self.gps_view.addItem(grid_vertical_xz)
 
         self.gps_view.addItem(self.gps_line)
         self.gps_view.addItem(self.gps_point)
         # initial zoom level
-        self.gps_view.setCameraPosition(distance=3500)
+        #self.gps_view.setCameraPosition(distance=3500)
 
     def init_gps_matplotlib(self):
         self.ax = self.fig.add_subplot(111, projection="3d")
@@ -2424,18 +2410,18 @@ class MainWindow(QMainWindow):
         alt0 = gps_alt_vals[end]
 
         # convert degrees to approximate meters
-        x = (lon - lon0) * 111320 * np.cos(np.radians(lat0))
-        y = (lat - lat0) * 111320
-        z = alt-3000
+        x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
+        y = (lat - lat0) * 111320 / 1000
+        z = (alt-3000) / 1000
 
         pts = np.column_stack([x, y, z])
 
         if len(pts) > 1:
             self.gps_line.setData(pos=pts)
 
-        if end < len(gps_lat_vals):
-            # aircraft stays at center
-            self.gps_point.setData(pos=[[0.0, 0.0, 0.0]])
+        #if end < len(gps_lat_vals):
+        #    # aircraft stays at center
+        #    self.gps_point.setData(pos=[[0.0, 0.0, 0.0]])
 
         # ---- Display zoom level ----
         try:
