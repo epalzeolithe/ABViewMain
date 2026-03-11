@@ -534,6 +534,10 @@ class MainWindow(QMainWindow):
         self.g_max = float("-inf")
         self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT #camera vericale au repos par défaut, ecran face à soi
         self.gs_max = float("-inf")
+        # ---- smoothed values for instruments (visual interpolation) ----
+        self.smooth_speed = None
+        self.smooth_alt = None
+        self.instrument_alpha = 0.2  # smoothing factor (0=slow, 1=no smoothing)
         # ---- bookmarks ----
         self.bookmarks = []
         self.bookmarks_df = None
@@ -1657,16 +1661,28 @@ class MainWindow(QMainWindow):
             y_speed = self.video1.height() - self.video1_speed_label.height() - 10
             self.video1_speed_label.move(x_speed, y_speed)
 
-        # ---- Update analog badin ----
+        # ---- Update analog badin with smoothing ----
+        if self.smooth_speed is None:
+            self.smooth_speed = row.gps_speed
+        else:
+            a = self.instrument_alpha
+            self.smooth_speed = (1 - a) * self.smooth_speed + a * row.gps_speed
+
         if hasattr(self, "video1_badin"):
-            self.video1_badin.speed = row.gps_speed
+            self.video1_badin.speed = self.smooth_speed
             self.video1_badin.update()
             yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 40
             self.video1_badin.move(10, yb)
 
-        # ---- Update analog altimeter ----
+        # ---- Update analog altimeter with smoothing ----
+        if self.smooth_alt is None:
+            self.smooth_alt = row.gps_alt
+        else:
+            a = self.instrument_alpha
+            self.smooth_alt = (1 - a) * self.smooth_alt + a * row.gps_alt
+
         if hasattr(self, "video1_altimeter"):
-            self.video1_altimeter.alt = row.gps_alt
+            self.video1_altimeter.alt = self.smooth_alt
             self.video1_altimeter.update()
             ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 40
             xa = self.video1.width() - self.video1_altimeter.width() - 10
