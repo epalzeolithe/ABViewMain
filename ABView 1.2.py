@@ -917,7 +917,7 @@ class MainWindow(QMainWindow):
         # ---- PyQtGraph GPS 3D ----
         self.gps_view = gl.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
-        self.gps_view.setCameraPosition(distance=2)
+        self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
 
@@ -1096,21 +1096,26 @@ class MainWindow(QMainWindow):
 
     def init_gps_pyqtgraph(self):
 
-        # trajectory rendered as a "tube-like" bundle of parallel lines
+        # ---- trajectory rendered as a circular bundle (tube-like) ----
         self.gps_lines = []
-        offsets = [
-            (0.0, 0.0, 0.0),
-            (0.002, 0.0, 0.0),
-            (-0.002, 0.0, 0.0),
-            (0.0, 0.002, 0.0),
-            (0.0, -0.002, 0.0),
-        ]
+
+        tube_radius = 0.006
+        tube_segments = 12  # number of lines around the tube
+
+        offsets = []
+        for k in range(tube_segments):
+            a = 2 * np.pi * k / tube_segments
+            offsets.append((
+                tube_radius * np.cos(a),
+                tube_radius * np.sin(a),
+                0.0
+            ))
 
         for off in offsets:
             line = gl.GLLinePlotItem(
                 pos=np.zeros((2, 3)),
                 color=(1, 1, 1, 1),
-                width=2,
+                width=8,
                 antialias=True
             )
             line._tube_offset = np.array(off)
@@ -1159,7 +1164,7 @@ class MainWindow(QMainWindow):
 
         for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
             label = QLabel(f"{z} ft", self)
-            label.setStyleSheet("color: yellow; background-color: rgba(0,0,0,120); padding:2px; font-family:'Menlo'; font-size:12px;")
+            label.setStyleSheet("color: black; background-color: rgba(255,255,255,220); padding:2px; font-family:'Menlo'; font-size:12px;")
             label.adjustSize()
             label.show()
             label.raise_()
@@ -1167,7 +1172,7 @@ class MainWindow(QMainWindow):
 
         # ---- vertical altitude bar ----
         self.altitude_bar = QFrame(self)
-        self.altitude_bar.setStyleSheet("background-color: rgba(255,255,255,120);")
+        self.altitude_bar.setStyleSheet("background-color: rgba(128,128,128,120);")
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
@@ -2510,8 +2515,11 @@ class MainWindow(QMainWindow):
         # convert degrees to approximate meters
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
         y = (lat - lat0) * 111320 / 1000
-        z = (alt-3000-1000) / 1000
 
+        if alt[-1]>3000: #décalage de 3000 si dans le box
+            z = (alt-3000-1000) / 1000
+        else:
+            z = (alt - 1000) / 1000
         # debug: dernière position calculée
         if len(x) > 0:
             print(x[-1], y[-1], z[-1])
