@@ -916,6 +916,7 @@ class MainWindow(QMainWindow):
         # ---- matplotlib ----
         # ---- PyQtGraph GPS 3D ----
         self.gps_view = gl.GLViewWidget()
+        self.gps_view.setBackgroundColor('w')
         self.gps_view.setCameraPosition(distance=2)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
@@ -1095,27 +1096,39 @@ class MainWindow(QMainWindow):
 
     def init_gps_pyqtgraph(self):
 
-        # ligne trajectoire
-        self.gps_line = gl.GLLinePlotItem(
-            pos=np.zeros((2, 3)),
-            color=(1, 1, 1, 1),
-            width=2,
-            antialias=True
-        )
+        # trajectory rendered as a "tube-like" bundle of parallel lines
+        self.gps_lines = []
+        offsets = [
+            (0.0, 0.0, 0.0),
+            (0.002, 0.0, 0.0),
+            (-0.002, 0.0, 0.0),
+            (0.0, 0.002, 0.0),
+            (0.0, -0.002, 0.0),
+        ]
+
+        for off in offsets:
+            line = gl.GLLinePlotItem(
+                pos=np.zeros((2, 3)),
+                color=(1, 1, 1, 1),
+                width=2,
+                antialias=True
+            )
+            line._tube_offset = np.array(off)
+            self.gps_view.addItem(line)
+            self.gps_lines.append(line)
 
         # point avion
         self.gps_point = gl.GLScatterPlotItem(
             pos=np.zeros((1, 3)),
             size=10,
-            color=(1, 0, 0, 1)
-        )
+            color=(1, 0, 0, 1))
 
         # ground grid (visual reference in meters)
         grid = gl.GLGridItem()
         grid.setSize(2, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
-
+        grid.setColor((150,150,150))
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
@@ -1124,6 +1137,7 @@ class MainWindow(QMainWindow):
         grid_vertical_yz.setSpacing(0.25,0.25)
         grid_vertical_yz.rotate(90, 1, 0, 0)
         grid_vertical_yz.translate(0, -1, 0)
+        grid_vertical_yz.setColor((150, 150, 150))
         self.gps_view.addItem(grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
@@ -1132,9 +1146,10 @@ class MainWindow(QMainWindow):
         grid_vertical_xz.setSpacing(0.25, 0.25)
         grid_vertical_xz.rotate(90, 0, 1, 0)
         grid_vertical_xz.translate(-1,0, 0)
+        grid_vertical_xz.setColor((150, 150, 150))
         self.gps_view.addItem(grid_vertical_xz)
 
-        self.gps_view.addItem(self.gps_line)
+        # self.gps_view.addItem(self.gps_line)  # REMOVED
         self.gps_view.addItem(self.gps_point)
         # initial zoom level
         #self.gps_view.setCameraPosition(distance=3)
@@ -2522,7 +2537,12 @@ class MainWindow(QMainWindow):
             colors[:, 2] = 1.0 - zn                 # blue decreases with altitude
             colors[:, 3] = 1.0                      # alpha
 
-            self.gps_line.setData(pos=pts, color=colors)
+            # update the bundle of lines to simulate a tube
+            for line in self.gps_lines:
+                off = line._tube_offset
+                pts_off = pts + off
+                line.setData(pos=pts_off, color=colors)
+
 
         #if end < len(gps_lat_vals):
         #    # aircraft stays at center
