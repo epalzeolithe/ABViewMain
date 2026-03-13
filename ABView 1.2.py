@@ -1137,27 +1137,34 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
-        grid_vertical_yz = gl.GLGridItem()
-        grid_vertical_yz.setSize(2, 2)
-        grid_vertical_yz.setSpacing(0.25,0.25)
-        grid_vertical_yz.rotate(90, 1, 0, 0)
-        grid_vertical_yz.translate(0, -1, 0)
-        grid_vertical_yz.setColor((150, 150, 150))
-        self.gps_view.addItem(grid_vertical_yz)
+        self.grid_vertical_yz = gl.GLGridItem()
+        self.grid_vertical_yz.setSize(2, 2)
+        self.grid_vertical_yz.setSpacing(0.25,0.25)
+        self.grid_vertical_yz.rotate(90, 1, 0, 0)
+        self.grid_vertical_yz.translate(0, -1, 0)
+        self.grid_vertical_yz.setColor((150, 150, 150))
+        self.gps_view.addItem(self.grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
-        grid_vertical_xz = gl.GLGridItem()
-        grid_vertical_xz.setSize(2, 2)
-        grid_vertical_xz.setSpacing(0.25, 0.25)
-        grid_vertical_xz.rotate(90, 0, 1, 0)
-        grid_vertical_xz.translate(-1,0, 0)
-        grid_vertical_xz.setColor((150, 150, 150))
-        self.gps_view.addItem(grid_vertical_xz)
+        self.grid_vertical_xz = gl.GLGridItem()
+        self.grid_vertical_xz.setSize(2, 2)
+        self.grid_vertical_xz.setSpacing(0.25, 0.25)
+        self.grid_vertical_xz.rotate(90, 0, 1, 0)
+        self.grid_vertical_xz.translate(-1,0, 0)
+        self.grid_vertical_xz.setColor((150, 150, 150))
+        self.gps_view.addItem(self.grid_vertical_xz)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
         self.gps_view.addItem(self.gps_point)
-        # initial zoom level
-        #self.gps_view.setCameraPosition(distance=3)
+        # vertical line from aircraft to ground
+        self.gps_vertical_line = gl.GLLinePlotItem(
+            pos=np.zeros((2, 3)),
+            color=(0, 0, 1, 1),
+            width=3,
+            antialias=True
+        )
+        self.gps_view.addItem(self.gps_vertical_line)
+
 
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
@@ -2522,7 +2529,14 @@ class MainWindow(QMainWindow):
             z = (alt - 1000) / 1000
         # debug: dernière position calculée
         if len(x) > 0:
-            print(x[-1], y[-1], z[-1])
+            #print(x[-1], y[-1], z[-1])
+            # ---- vertical projection to ground ----
+            try:
+                p_air = np.array([x[-1], y[-1], z[-1]])
+                p_ground = np.array([x[-1], y[-1], -1.0])
+                self.gps_vertical_line.setData(pos=np.vstack([p_air, p_ground]))
+            except Exception:
+                pass
 
         pts = np.column_stack([x, y, z])
 
@@ -2561,6 +2575,31 @@ class MainWindow(QMainWindow):
             self.update_altitude_labels()
         except Exception:
             pass
+
+
+        az = -int(row.gps_heading / 45) * 45 - 22.5
+        if az!= self.last_azim:
+            self.last_azim = az
+            self.gps_view.setCameraPosition(azimuth=az)
+
+        # ---- vertical grid (YZ plane) ----
+        print(az)
+        yz=-1
+        if az==-67.5 or az==-22.5 or az==-112.5:
+            yz=1
+
+        self.grid_vertical_yz.resetTransform()
+        self.grid_vertical_yz.rotate(90, 1, 0, 0)
+        self.grid_vertical_yz.translate(0, yz, 0)
+
+        xz = -1
+        if az==-202.5 or az == -247.5 or az == -112.5:
+            xz = 1
+
+        self.grid_vertical_xz.resetTransform()
+        self.grid_vertical_xz.rotate(90, 0, 1, 0)
+        self.grid_vertical_xz.translate(xz,0, 0)
+
 
     def update_matplotlib_gps(self):
         # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
