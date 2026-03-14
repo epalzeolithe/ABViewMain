@@ -992,8 +992,7 @@ class MainWindow(QMainWindow):
             "padding: 12px; "
             "font-family: 'Menlo'; "
             "font-size: 42px; "
-            "font-weight: bold;"
-        )
+            "font-weight: bold;")
         self.bookmark_overlay.setAlignment(Qt.AlignCenter)
         self.bookmark_overlay.hide()
 
