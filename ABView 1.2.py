@@ -28,7 +28,45 @@ from PyQt5.QtWidgets import (
 )
 from pymediainfo import MediaInfo
 from PyQt5.QtGui import QKeySequence
+
 import pyqtgraph.opengl as gl
+
+# ======================================================
+# ScreenCaptureKit sample buffer handler
+# ======================================================
+import CoreMedia
+import AVFoundation
+import ScreenCaptureKit
+from Cocoa import NSObject
+import objc
+
+class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
+
+    def init(self):
+        self = objc.super(SCStreamHandler, self).init()
+        if self is None:
+            return None
+        self.writer = None
+        self.input = None
+        self.started = False
+        return self
+
+    def setWriter_input_(self, writer, input):
+        self.writer = writer
+        self.input = input
+
+    # called by ScreenCaptureKit for each frame
+    def stream_didOutputSampleBuffer_ofType_(self, stream, sampleBuffer, outputType):
+        if self.writer is None or self.input is None:
+            return
+
+        if not self.started:
+            pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            self.writer.startSessionAtSourceTime_(pts)
+            self.started = True
+
+        if self.input.isReadyForMoreMediaData():
+            self.input.appendSampleBuffer_(sampleBuffer)
 
 
 
@@ -74,6 +112,16 @@ def get_mp4_creation_datetime(path):
 # ======================================================
 # DataFrame
 # ======================================================
+import os
+
+# ---- ensure merged CSV exists before loading ----
+if not os.path.exists(MERGED_DATA):
+    print("ERROR: merged data file not found:")
+    print("  ", MERGED_DATA)
+    print("Current working directory:", os.getcwd())
+    print("Hint: verify that the merged CSV was generated or that the 'data' folder path is correct.")
+    sys.exit(1)
+
 df = pd.read_csv(MERGED_DATA, low_memory=False)
 df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", utc=True)
 df = df.sort_values("timestamp").reset_index(drop=True)
@@ -970,6 +1018,8 @@ class MainWindow(QMainWindow):
                     filter, config, None
                 )
 
+                # create stream handler to receive frames
+                self.sc_handler = SCStreamHandler.alloc().init()
                 url = Foundation.NSURL.fileURLWithPath_(output_file)
 
                 self.sc_writer = AVFoundation.AVAssetWriter.alloc().initWithURL_fileType_error_(
@@ -986,10 +1036,25 @@ class MainWindow(QMainWindow):
                     AVFoundation.AVMediaTypeVideo, settings
                 )
 
+                # realtime capture configuration
+                self.sc_input.setExpectsMediaDataInRealTime_(True)
+
                 self.sc_writer.addInput_(self.sc_input)
                 self.sc_writer.startWriting()
-                import CoreMedia
-                self.sc_writer.startSessionAtSourceTime_(CoreMedia.CMTimeMake(0, 1))
+
+                # set handler's writer/input
+                self.sc_handler.setWriter_input_(self.sc_writer, self.sc_input)
+
+                # ScreenCaptureKit requires a GCD dispatch queue
+                import dispatch
+                queue = dispatch.dispatch_get_main_queue()
+
+                self.sc_stream.addStreamOutput_type_sampleHandlerQueue_error_(
+                    self.sc_handler,
+                    ScreenCaptureKit.SCStreamOutputTypeScreen,
+                    queue,
+                    None
+                )
 
             except Exception as e:
                 print("ScreenCaptureKit init failed:", e)
@@ -1008,6 +1073,13 @@ class MainWindow(QMainWindow):
             try:
                 if hasattr(self, "sc_stream"):
                     self.sc_stream.stopCaptureWithCompletionHandler_(None)
+
+                    try:
+                        self.sc_input.markAsFinished()
+                        self.sc_writer.finishWriting()
+                    except Exception:
+                        pass
+
                     print("Recording stop")
             except Exception:
                 pass
