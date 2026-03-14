@@ -1202,7 +1202,7 @@ class MainWindow(QMainWindow):
         self.altitude_scale_labels = []
 
         for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
-            label = QLabel(f"{z}ft", self)
+            label = QLabel(f"{z}ft", self.gps_view)
             label.setStyleSheet("color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
             label.adjustSize()
             label.show()
@@ -1210,13 +1210,13 @@ class MainWindow(QMainWindow):
             self.altitude_scale_labels.append((z, label))
 
         # ---- vertical altitude bar ----
-        self.altitude_bar = QFrame(self)
+        self.altitude_bar = QFrame(self.gps_view)
         self.altitude_bar.setStyleSheet("background-color: rgba(128,128,128,120);")
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
         # moving marker showing current altitude
-        self.altitude_cursor = QFrame(self)
+        self.altitude_cursor = QFrame(self.gps_view)
         self.altitude_cursor.setStyleSheet("background-color: red;")
         self.altitude_cursor.setGeometry(0, 0, 12, 4)
         self.altitude_cursor.show()
@@ -1226,16 +1226,14 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "altitude_scale_labels"):
             return
 
-        gx = self.gps_view.geometry()
-        # position scale on the RIGHT side of the pyqtgraph view
-        right_margin = 10
-        top = gx.y() + 10
-        height = gx.height() - 20
+        # geometry relative to gps_view itself (works even when detached)
+        top = 10
+        height = self.gps_view.height() - 20
 
         max_alt = 5500.0
 
         # position altitude bar near the right edge
-        bar_x = gx.x() + gx.width() - 60
+        bar_x = self.gps_view.width() - 60
         bar_top = top
         bar_height = height
         self.altitude_bar.setGeometry(bar_x, bar_top, 4, bar_height)
