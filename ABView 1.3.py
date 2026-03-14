@@ -1024,17 +1024,35 @@ class MainWindow(QMainWindow):
             self.btn_record.setChecked(False)
             return
 
-        output_file = os.path.join("data", "record.mp4")
+        # Generate a new numbered recording filename (record_001.mp4, record_002.mp4, ...)
+        base_dir = "data"
+        idx = 1
+        while True:
+            candidate = os.path.join(base_dir, f"record_{idx:03d}.mp4")
+            if not os.path.exists(candidate):
+                output_file = candidate
+                break
+            idx += 1
+
         print(output_file)
 
-        # AVAssetWriter cannot overwrite an existing file.
-        # Remove it only when STARTING a new recording.
-        if checked and os.path.exists(output_file):
+        # Each recording uses a new numbered filename, so no overwrite is needed
+
+        # If a previous recording session existed, reset the writer/stream so a new MP4 can be created
+        if checked and hasattr(self, "sc_writer"):
             try:
-                os.remove(output_file)
-                print("Existing record.mp4 removed")
+                if hasattr(self, "sc_stream"):
+                    try:
+                        self.sc_stream.stopCaptureWithCompletionHandler_(None)
+                    except Exception:
+                        pass
+                # remove previous objects so initialization runs again
+                for attr in ("sc_stream", "sc_writer", "sc_input", "sc_adaptor", "sc_handler"):
+                    if hasattr(self, attr):
+                        delattr(self, attr)
+                print("ScreenCaptureKit pipeline reset for new recording")
             except Exception as e:
-                print("Cannot remove existing record.mp4:", e)
+                print("Recorder reset failed:", e)
 
         # lazy initialization of recorder
         if not hasattr(self, "sc_stream"):
