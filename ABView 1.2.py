@@ -791,6 +791,13 @@ class MainWindow(QMainWindow):
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
 
+        # ---- Toggle 3D axes visibility ----
+        self.act_toggle_axes = QAction("Afficher axes 3D", self)
+        self.act_toggle_axes.setCheckable(True)
+        self.act_toggle_axes.setChecked(False)
+        self.act_toggle_axes.triggered.connect(self.toggle_axes_visibility)
+        menu_settings.addAction(self.act_toggle_axes)
+
         # ---- Recalibrate camera mounting from current frame ----
         self.act_recalibrate_sol = QAction("Recalibrer Sol", self)
         self.act_recalibrate_sol.triggered.connect(self.calibrate_gfx_on_current_frame)
@@ -991,6 +998,15 @@ class MainWindow(QMainWindow):
                 self.update_gfx_orientation()
             except Exception:
                 pass
+
+    def toggle_axes_visibility(self):
+        """Show or hide the pygfx world axes."""
+        visible = self.act_toggle_axes.isChecked()
+
+        if hasattr(self, "gfx_axes_x"):
+            self.gfx_axes_x.visible = visible
+            self.gfx_axes_y.visible = visible
+            self.gfx_axes_z.visible = visible
 
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
@@ -1258,6 +1274,10 @@ class MainWindow(QMainWindow):
         self.gfx_scene.add(self.gfx_axes_x)
         self.gfx_scene.add(self.gfx_axes_y)
         self.gfx_scene.add(self.gfx_axes_z)
+        # axes hidden by default (toggle from Settings menu)
+        self.gfx_axes_x.visible = False
+        self.gfx_axes_y.visible = False
+        self.gfx_axes_z.visible = False
 
         light = gfx.DirectionalLight(intensity=3)
         light.local.position = (200, 200, 200)
