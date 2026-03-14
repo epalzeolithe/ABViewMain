@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 
 import av
-import matplotlib
+import time
 import numpy as np
 import pandas as pd
 import pygfx as gfx
@@ -2499,6 +2499,8 @@ class MainWindow(QMainWindow):
         if self.i % 8 != 0:
             return
 
+        t0 = time.perf_counter()
+
         row = self.row
         if self.map_ready:
             lat = row.gps_lat
@@ -2581,25 +2583,25 @@ class MainWindow(QMainWindow):
         if az!= self.last_azim:
             self.last_azim = az
             self.gps_view.setCameraPosition(azimuth=az)
+            #print(az)
+            yz=-1
+            if az==-67.5 or az==-22.5 or az==-112.5 or az==-157.5:
+                yz=1
 
-        # ---- vertical grid (YZ plane) ----
-        print(az)
-        yz=-1
-        if az==-67.5 or az==-22.5 or az==-112.5:
-            yz=1
+            self.grid_vertical_yz.resetTransform()
+            self.grid_vertical_yz.rotate(90, 1, 0, 0)
+            self.grid_vertical_yz.translate(0, yz, 0)
 
-        self.grid_vertical_yz.resetTransform()
-        self.grid_vertical_yz.rotate(90, 1, 0, 0)
-        self.grid_vertical_yz.translate(0, yz, 0)
+            xz = -1
+            if az==-202.5 or az == -247.5 or az == -112.5 or az==-157.5:
+                xz = 1
 
-        xz = -1
-        if az==-202.5 or az == -247.5 or az == -112.5:
-            xz = 1
+            self.grid_vertical_xz.resetTransform()
+            self.grid_vertical_xz.rotate(90, 0, 1, 0)
+            self.grid_vertical_xz.translate(xz,0, 0)
 
-        self.grid_vertical_xz.resetTransform()
-        self.grid_vertical_xz.rotate(90, 0, 1, 0)
-        self.grid_vertical_xz.translate(xz,0, 0)
-
+        t1 = time.perf_counter()
+        print(f"Temps update_gps_pyqtgraph: {(t1 - t0) * 1000:.2f} ms")
 
     def update_matplotlib_gps(self):
         # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
