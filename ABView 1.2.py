@@ -49,7 +49,7 @@ BOOKMARK_FILE=INSV1+".bookmark.csv"
 STL_FILE="data/CAP10.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
 DF_FREQ = 100
-TRACE = 3000 # taille de la trace 6000=1 minute
+TRACE = 6000 # taille de la trace 6000=1 minute
 TRACE_DEFAULT = TRACE
 TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
@@ -1165,13 +1165,22 @@ class MainWindow(QMainWindow):
         )
         self.gps_view.addItem(self.gps_vertical_line)
 
+        # ---- ground projection of trajectory (shadow on ground) ----
+        self.gps_shadow = gl.GLLinePlotItem(
+            pos=np.zeros((2, 3)),
+            color=(0, 0, 1, 0.6),
+            width=2,
+            antialias=True
+        )
+        self.gps_view.addItem(self.gps_shadow)
+
 
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
 
         for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
-            label = QLabel(f"{z} ft", self)
-            label.setStyleSheet("color: black; background-color: rgba(255,255,255,220); padding:2px; font-family:'Menlo'; font-size:12px;")
+            label = QLabel(f"{z}ft", self)
+            label.setStyleSheet("color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
             label.adjustSize()
             label.show()
             label.raise_()
@@ -2541,6 +2550,15 @@ class MainWindow(QMainWindow):
                 pass
 
         pts = np.column_stack([x, y, z])
+
+        # ---- update ground projection (shadow) ----
+        if len(pts) > 1:
+            pts_ground = pts.copy()
+            pts_ground[:, 2] = -1.0
+            try:
+                self.gps_shadow.setData(pos=pts_ground)
+            except Exception:
+                pass
 
         if len(pts) > 1:
             # ---- color segments based on altitude (3000 → 5000 ft) ----
