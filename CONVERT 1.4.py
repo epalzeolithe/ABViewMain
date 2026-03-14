@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 import subprocess
 
-def build_ffmpeg_cmd():
+def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
     return [
         "ffmpeg",
         "-hide_banner",
         "-loglevel", "error",
         "-stats",
         "-y",
-        "-t", "10", "-i", X4_INSV_1,
-        "-t", "10", "-i", X4_INSV_2,
+        "-t", "10", "-i", input1,
+        "-t", "10", "-i", input2,
         "-filter_complex",
         """
 [0:v:0][0:v:1]hstack[v0];
@@ -30,14 +30,14 @@ crop=1200:675,scale=1920:1080:flags=lanczos[front];
 crop=1080:608,scale=1920:1080:flags=lanczos[back]
 """,
         "-map", "[front]", "-map", "[a1]",
-        "-c:v", "h264_videotoolbox", "-b:v", "8M",
+        "-c:v", "h264_videotoolbox", "-b:v", video_bitrate,
         "-c:a", "aac", "-b:a", "192k",
-        "front_merged.mp4",
+        front_out,
 
         "-map", "[back]", "-map", "[a2]",
-        "-c:v", "h264_videotoolbox", "-b:v", "8M",
+        "-c:v", "h264_videotoolbox", "-b:v", video_bitrate,
         "-c:a", "aac", "-b:a", "192k",
-        "back_merged.mp4",
+        back_out,
     ]
 
 # -------- CONFIG --------
@@ -45,12 +45,18 @@ X4_INSV_1 = "data/VID_20260221_091717_00_050.insv"
 X4_INSV_2 = "data/VID_20260221_091717_00_051.insv"
 
 def main():
-    cmd = build_ffmpeg_cmd()
+    cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, "front_merged.mp4", "back_merged.mp4", "8M")
+
+    print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
+    print(cmd)
 
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         print("FFmpeg failed:", e)
+
+    print("Done.")
+
 
 if __name__ == "__main__":
     main()
