@@ -48,25 +48,63 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
             return None
         self.writer = None
         self.input = None
+        self.adaptor = None
         self.started = False
         return self
 
-    def setWriter_input_(self, writer, input):
+    def setWriter_input_adaptor_(self, writer, input, adaptor):
         self.writer = writer
         self.input = input
+        self.adaptor = adaptor
 
     # called by ScreenCaptureKit for each frame
     def stream_didOutputSampleBuffer_ofType_(self, stream, sampleBuffer, outputType):
+        # ensure writer/input exist
         if self.writer is None or self.input is None:
             return
 
-        if not self.started:
-            pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-            self.writer.startSessionAtSourceTime_(pts)
-            self.started = True
+        try:
+            # start session on first received frame
+            if not self.started:
+                pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                if self.writer.status() == AVFoundation.AVAssetWriterStatusWriting:
+                    self.writer.startSessionAtSourceTime_(pts)
+                    self.started = True
+                    print("SCStream: first frame received, session started")
 
-        if self.input.isReadyForMoreMediaData():
-            self.input.appendSampleBuffer_(sampleBuffer)
+            # safer extraction: ignore non‑screen outputs, ensure sampleBuffer valid, ensure pixelBuffer present
+            if self.started and self.input.isReadyForMoreMediaData():
+                try:
+                    # ignore non‑screen outputs
+                    if outputType != ScreenCaptureKit.SCStreamOutputTypeScreen:
+                        return
+
+                    # ensure sample buffer is valid
+                    if not CoreMedia.CMSampleBufferIsValid(sampleBuffer):
+                        return
+
+                    pixel_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sampleBuffer)
+
+                    # ScreenCaptureKit sometimes sends buffers without image data
+                    if pixel_buffer is None:
+                        return
+
+                    pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+
+                    ok = self.adaptor.appendPixelBuffer_withPresentationTime_(pixel_buffer, pts)
+                    if not ok:
+                        status = self.writer.status()
+                        err = None
+                        try:
+                            err = self.writer.error()
+                        except Exception:
+                            pass
+                        print("appendPixelBuffer failed, writer status:", status, "error:", err)
+                except Exception as e:
+                    # Silence "pixelBuffer != NULL" errors and ObjCPointerWarnings from empty buffers
+                    pass
+        except Exception as e:
+            print("SCStream handler error:", e)
 
 
 
@@ -1036,14 +1074,22 @@ class MainWindow(QMainWindow):
                     AVFoundation.AVMediaTypeVideo, settings
                 )
 
+                adaptor_attrs = {
+                    "PixelFormatType": 1111970369  # kCVPixelFormatType_32BGRA
+                }
+
+                self.sc_adaptor = AVFoundation.AVAssetWriterInputPixelBufferAdaptor.alloc().initWithAssetWriterInput_sourcePixelBufferAttributes_(
+                    self.sc_input, adaptor_attrs
+                )
+
                 # realtime capture configuration
                 self.sc_input.setExpectsMediaDataInRealTime_(True)
 
                 self.sc_writer.addInput_(self.sc_input)
                 self.sc_writer.startWriting()
 
-                # set handler's writer/input
-                self.sc_handler.setWriter_input_(self.sc_writer, self.sc_input)
+                # set handler's writer/input/adaptor
+                self.sc_handler.setWriter_input_adaptor_(self.sc_writer, self.sc_input, self.sc_adaptor)
 
                 # ScreenCaptureKit requires a GCD dispatch queue
                 import dispatch
