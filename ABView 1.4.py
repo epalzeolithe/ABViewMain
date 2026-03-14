@@ -47,13 +47,13 @@ from objc import ObjCPointerWarning
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.3 Record MP4"
+__version__ = "1.4 Convert"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 INSV1=MAINDIR+"data/VID_20260221_091717_00_050.insv"
 INSV2=MAINDIR+"data/VID_20260221_091717_00_051.insv"
 MERGED_DATA = INSV1+".merged_data.csv"
-VIDEO1=MAINDIR+"data/video1.mp4"
-VIDEO2=MAINDIR+"data/video2.mp4"
+VIDEO1=MAINDIR+"data/front.mp4"
+VIDEO2=MAINDIR+"data/back.mp4"
 BOOKMARK_FILE=INSV1+".bookmark.csv"
 STL_FILE=MAINDIR+"data/CAP10.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
@@ -993,7 +993,7 @@ class MainWindow(QMainWindow):
             "background-color: rgba(0,0,0,180); "
             "padding: 12px; "
             "font-family: 'Menlo'; "
-            "font-size: 42px; "
+            "font-size: 50px; "
             "font-weight: bold;")
         self.bookmark_overlay.setAlignment(Qt.AlignCenter)
         self.bookmark_overlay.hide()
