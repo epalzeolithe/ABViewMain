@@ -12,3 +12,6 @@ old/
 *.csv
 *.mp4
 *.insv
+/tool/Gyroflow-mac-universal 163.dmg
+/data/LRV_20260221_091717_01_050.lrv
+/data/LRV_20260221_091717_01_051.lrv
