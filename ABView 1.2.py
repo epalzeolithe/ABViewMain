@@ -1540,12 +1540,14 @@ class MainWindow(QMainWindow):
 
         # ---- Artificial Horizon (top-left) ----
         self.hud_horizon = ArtificialHorizon(self.gfx_canvas)
-        self.hud_horizon.setGeometry(10, 10, 130, 125)
+        # slightly larger artificial horizon
+        self.hud_horizon.setGeometry(10, 10, 160, 150)
         self.hud_horizon.show()
 
         # ---- Wingtip Artificial Horizon (left wing triangle reference) ----
         self.hud_horizon_wing = ArtificialHorizon(self.gfx_canvas)
-        self.hud_horizon_wing.setGeometry(10, 140, 130, 125)
+        # slightly larger wingtip artificial horizon
+        self.hud_horizon_wing.setGeometry(10, 170, 160, 150)
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
 
@@ -1656,9 +1658,17 @@ class MainWindow(QMainWindow):
         except RuntimeError:
             return
         self.g_label.adjustSize()
-        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),self.gfx_canvas.height()-100)
+        # place G value below Alt and Vario overlays
+        self.g_label.move(
+            self.gfx_canvas.width() - self.g_label.width(),
+            140
+        )
+
         self.g_label_minmax.adjustSize()
-        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(),self.gfx_canvas.height()-40)
+        self.g_label_minmax.move(
+            self.gfx_canvas.width() - self.g_label_minmax.width(),
+            190
+        )
 
         # update acceleration vector geometry & color
         if self.g > 0.8:
@@ -1773,15 +1783,26 @@ class MainWindow(QMainWindow):
             f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
         )
         self.df_info_label.adjustSize()
-        self.df_info_label.move(0,self.gfx_canvas.height() - self.df_info_label.height())
+        self.df_info_label.move(
+            self.gfx_canvas.width() - self.df_info_label.width() - 10,
+            self.gfx_canvas.height() - self.df_info_label.height() - 10
+        )
 
         self.pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
         self.pitch_label.adjustSize()
-        self.pitch_label.move(0, 260)
+        # position bottom-left
+        self.pitch_label.move(
+            10,
+            self.gfx_canvas.height() - self.pitch_label.height() - 60
+        )
 
         self.roll_label.setText(f"Bank {inclinaison_deg:.1f}°")
         self.roll_label.adjustSize()
-        self.roll_label.move(0, 300)
+        # place just below pitch label (bottom-left)
+        self.roll_label.move(
+            10,
+            self.gfx_canvas.height() - self.roll_label.height() - 20
+        )
 
         # ---- Update GPS speed / altitude overlay ----
         # ---- Update heading overlay on video1 ----
