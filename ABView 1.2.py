@@ -916,25 +916,97 @@ class MainWindow(QMainWindow):
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
     # ==================================================
-    # Screen recording (uses external ScreenCaptureKit bridge)
+    # Screen recording using macOS ScreenCaptureKit (PyObjC)
     # ==================================================
     def toggle_recording(self, checked):
-        import subprocess, os
+        import os
+        try:
+            import AVFoundation
+            import ScreenCaptureKit
+            import Foundation
+            from Cocoa import NSObject
+            import objc
+        except Exception as e:
+            print("ScreenCaptureKit frameworks not available:", e)
+            self.btn_record.setChecked(False)
+            return
 
         output_file = os.path.join("data", "record.mp4")
+        print(output_file)
+
+        # lazy initialization of recorder
+        if not hasattr(self, "sc_stream"):
+            try:
+                # PyObjC exposes ScreenCaptureKit async API via completion handler
+                result_container = {"content": None, "error": None}
+
+                def _handler(content, error):
+                    result_container["content"] = content
+                    result_container["error"] = error
+
+                ScreenCaptureKit.SCShareableContent.getShareableContentWithCompletionHandler_(_handler)
+
+                # wait briefly until callback fills the result
+                import time
+                for _ in range(50):
+                    if result_container["content"] is not None or result_container["error"] is not None:
+                        break
+                    time.sleep(0.01)
+
+                if result_container["error"] is not None:
+                    raise RuntimeError(f"ScreenCaptureKit error: {result_container['error']}")
+
+                content = result_container["content"]
+                display = content.displays()[0]
+
+                config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
+                config.setWidth_(display.width())
+                config.setHeight_(display.height())
+                config.setCapturesAudio_(True)
+
+                filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, [])
+
+                self.sc_stream = ScreenCaptureKit.SCStream.alloc().initWithFilter_configuration_delegate_(
+                    filter, config, None
+                )
+
+                url = Foundation.NSURL.fileURLWithPath_(output_file)
+
+                self.sc_writer = AVFoundation.AVAssetWriter.alloc().initWithURL_fileType_error_(
+                    url, AVFoundation.AVFileTypeMPEG4, None
+                )[0]
+
+                settings = {
+                    AVFoundation.AVVideoCodecKey: AVFoundation.AVVideoCodecTypeH264,
+                    AVFoundation.AVVideoWidthKey: config.width(),
+                    AVFoundation.AVVideoHeightKey: config.height(),
+                }
+
+                self.sc_input = AVFoundation.AVAssetWriterInput.alloc().initWithMediaType_outputSettings_(
+                    AVFoundation.AVMediaTypeVideo, settings
+                )
+
+                self.sc_writer.addInput_(self.sc_input)
+                self.sc_writer.startWriting()
+                import CoreMedia
+                self.sc_writer.startSessionAtSourceTime_(CoreMedia.CMTimeMake(0, 1))
+
+            except Exception as e:
+                print("ScreenCaptureKit init failed:", e)
+                self.btn_record.setChecked(False)
+                return
 
         if checked:
             try:
-                # launch external recorder (Swift ScreenCaptureKit tool)
-                self.rec_proc = subprocess.Popen(["./screenrec", output_file])
+                self.sc_stream.startCaptureWithCompletionHandler_(None)
                 self.btn_record.setText("■ REC")
             except Exception as e:
                 print("Recording start failed:", e)
                 self.btn_record.setChecked(False)
         else:
             try:
-                if hasattr(self, "rec_proc"):
-                    self.rec_proc.terminate()
+                if hasattr(self, "sc_stream"):
+                    self.sc_stream.stopCaptureWithCompletionHandler_(None)
             except Exception:
                 pass
             self.btn_record.setText("● REC")
@@ -2486,7 +2558,7 @@ class MainWindow(QMainWindow):
         if self.i % 8 != 0:
             return
 
-        t0 = time.perf_counter()
+        #t0 = time.perf_counter()
 
         row = self.row
         if self.map_ready:
@@ -2596,8 +2668,8 @@ class MainWindow(QMainWindow):
             self.grid_vertical_xz.rotate(90, 0, 1, 0)
             self.grid_vertical_xz.translate(xz,0, 0)
 
-        t1 = time.perf_counter()
-        print(f"Temps update_gps_pyqtgraph: {(t1 - t0) * 1000:.2f} ms")
+        #t1 = time.perf_counter()
+        #print(f"Temps update_gps_pyqtgraph: {(t1 - t0) * 1000:.2f} ms")
 
 
     def detach_gfx_window(self):
