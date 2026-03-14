@@ -308,7 +308,7 @@ class AnalogBadin(QWidget):
         from PyQt5.QtCore import QRect
 
         def angle_from_speed(v):
-            return (v / max_speed) * 270 - 135
+            return (v / max_speed) * 340 - 135
 
         rect = QRect(cx - r + 6, cy - r + 6, (r - 6) * 2, (r - 6) * 2)
 
@@ -368,7 +368,7 @@ class AnalogBadin(QWidget):
 
         # needle
         v = max(0, min(self.speed, max_speed))
-        angle = (v / max_speed) * 270 - 135
+        angle = angle_from_speed(v)
         rad = math.radians(angle)
 
         pen = QPen(QColor("white"))
