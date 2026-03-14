@@ -996,7 +996,6 @@ class MainWindow(QMainWindow):
         self.bookmark_overlay.setAlignment(Qt.AlignCenter)
         self.bookmark_overlay.hide()
 
-        # ---- matplotlib ----
         # ---- PyQtGraph GPS 3D ----
         self.gps_view = gl.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
