@@ -832,8 +832,8 @@ class MainWindow(QMainWindow):
         self.btn_detach_video2.clicked.connect(self.detach_video2_window)
 
         # ---- Detach Matplotlib window ----
-        self.btn_detach_matplotlib = QPushButton("Detach GPS")
-        self.btn_detach_matplotlib.clicked.connect(self.detach_matplotlib_window)
+        self.btn_detach_pyqtgraph = QPushButton("Detach GPS")
+        self.btn_detach_pyqtgraph.clicked.connect(self.detach_pyqtgraph_window)
 
         # ---- jump buttons (time navigation) ----
         self.btn_back_10 = QPushButton("⏪ 10s")
@@ -882,7 +882,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_detach_gfx)
         buttons_layout.addWidget(self.btn_detach_video1)
         buttons_layout.addWidget(self.btn_detach_video2)
-        buttons_layout.addWidget(self.btn_detach_matplotlib)
+        buttons_layout.addWidget(self.btn_detach_pyqtgraph)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
@@ -1233,50 +1233,6 @@ class MainWindow(QMainWindow):
 
         self.altitude_cursor.move(bar_x - 4, y_cursor - 2)
 
-    def init_gps_matplotlib(self):
-        self.ax = self.fig.add_subplot(111, projection="3d")
-        # verrouillage de l'elevation
-        self.ax.view_init(elev=self.fixed_elev)
-        self.canvas.mpl_connect("motion_notify_event", self.lock_elev)
-        # réduction des marges autour de la figure 3D
-        self.fig.subplots_adjust(
-            left=0.02,
-            right=0.98,
-            bottom=0.02,
-            top=0.98
-        )
-
-        # persistent artists (created once)
-        # trajectoire 3D colorée (créée une seule fois)
-        self.traj_collection = Line3DCollection([], cmap="viridis", linewidth=2)
-        self.traj_collection.set_norm(Normalize(vmin=0, vmax=6000))  # altitude ft
-        self.ax.add_collection(self.traj_collection)
-        (self.line_ground,) = self.ax.plot([], [], [], color="gray")
-        (self.line_traj_ground,) = self.ax.plot([], [], [], color="black", linestyle="dotted", lw=1)
-        (self.line_traj_ground2,) = self.ax.plot([], [], [], color="gray", linestyle="dotted", lw=0.5)
-        self.scatter_pt = self.ax.scatter([], [], [])
-        # north vector (persistent artists)
-        (self.north_line_main,) = self.ax.plot([], [], [], linestyle="dashdot", color="black")
-        (self.north_line_left,) = self.ax.plot([], [], [], color="black")
-        (self.north_line_right,) = self.ax.plot([], [], [], color="black")
-        # HUD texts (screen-space, always horizontal)
-        #self.text_alt = self.ax.text2D(0, 1, "", transform=self.ax.transAxes, fontsize=24, color="green", fontfamily="Menlo")
-        #self.text_speed = self.ax.text2D(0, 0.90, "", transform=self.ax.transAxes, fontsize=24, color="red", fontfamily="Menlo")
-        self.text_taille_box = self.ax.text2D(50, 5, f"Box Width / Trace Length", fontsize=10, color='gray', transform=None)
-        self.ax.set_xlabel("Long");
-        self.ax.set_ylabel("Lat");
-        self.ax.set_zlabel("Z")
-        # reduce tick label font size (graduations)
-        self.ax.tick_params(axis="both", which="major", labelsize=5)
-        self.ax.tick_params(axis="z", which="major", labelsize=10)
-        # voltige 6860 = Axe de 2500m orienté au 050%230° centré sur 43°28'30"N,003°49'58"E.
-        # lat = 43,475 N
-        # long = 3,8328° E
-        # 50/230 degrés 2500m
-        self.ax.plot([3.845, 3.8209], [43.4822, 43.4689], 3000, linestyle='--', color='purple',linewidth=3)
-
-        # autoscale au démarrage
-        self.ax.autoscale()
 
     def init_gfx(self):
         # ---- pygfx ----
@@ -2621,112 +2577,7 @@ class MainWindow(QMainWindow):
         t1 = time.perf_counter()
         print(f"Temps update_gps_pyqtgraph: {(t1 - t0) * 1000:.2f} ms")
 
-    def update_matplotlib_gps(self):
-        # Matplotlib is expensive; update only every 4 frames > pas util il y a un test
-        #if self.i % 4 != 0:
-        #    return
-        if not self.enable_matplotlib_gps:
-            return
 
-        row = self.row
-
-        #test si MàJ GPS (4hz)
-        if  self.firstGPS == True:
-            self.gps_lastrow=row
-            self.firstGPS = False
-        else:
-            if self.gps_lastrow.gps_alt == row.gps_alt:
-                if self.gps_lastrow.gps_lat == row.gps_lat:
-                    if self.gps_lastrow.gps_lon == row.gps_lon:
-                        if self.gps_lastrow.gps_speed == row.gps_speed:
-                            return
-
-        if self.map_ready:
-            lat = row.gps_lat
-            lon = row.gps_lon
-            self.map_view.page().runJavaScript(f"window.updateMarker({lat}, {lon});")
-
-        if row.gps_alt >= 3000:
-            deck=3000
-            sky=5000
-        else:
-            deck=0
-            sky=3000
-
-        #self.traj_collection.set_norm(Normalize(deck, sky))
-
-
-        last = self.idf - TRACE
-        if last < 0:
-            last = 0
-        # Use numpy cached arrays for fast access
-        lx = gps_lon_vals[last:self.idf:TRACE_SLICING_FACTOR]
-        ly = gps_lat_vals[last:self.idf:TRACE_SLICING_FACTOR]
-        lz = gps_alt_vals[last:self.idf:TRACE_SLICING_FACTOR]
-
-        # trajectoire colorée par altitude (Line3DCollection)
-        if len(lx) > 1:
-            points = np.array([lx, ly, lz]).T
-            segments = np.stack([points[:-1], points[1:]], axis=1)
-            self.traj_collection.set_segments(segments)
-            self.traj_collection.set_array(lz[:-1])
-        # ground projection
-        self.line_ground.set_data(lx, ly)
-        self.line_ground.set_3d_properties([deck] * len(lx))
-
-        # trajectory to ground projection
-        tx = [row.gps_lon,row.gps_lon]
-        ty = [row.gps_lat,row.gps_lat]
-        tz = [row.gps_alt,deck]
-        self.line_traj_ground.set_data(tx, ty)
-        self.line_traj_ground.set_3d_properties(tz)
-
-        #line_traj_ground2
-        if last > 0:
-            idx_prev = self.idf - TRACE_BEFORE
-            tx = gps_lon_vals[idx_prev]
-            ty = gps_lat_vals[idx_prev]
-            tz = gps_alt_vals[idx_prev]
-            tx = [tx, tx]
-            ty = [ty, ty]
-            tz = [tz, deck]
-            self.line_traj_ground2.set_data(tx, ty)
-            self.line_traj_ground2.set_3d_properties(tz)
-
-        # current point
-        self.scatter_pt._offsets3d = ([row.gps_lon],[row.gps_lat],[row.gps_alt],)
-
-        # HUD texts (screen-space)
-        #self.text_alt.set_text(f"ALT {row.gps_alt:.0f} ft   FPM {row.gps_fpm:.0f}")
-        #self.text_speed.set_text(f"SPD {row.gps_speed:.0f} km/h")
-
-        cBOX = BOX / math.cos(math.radians(row.gps_lat))  # corrige en fonction de la latitude
-        self.ax.set_xlim(row.gps_lon - cBOX*self.box_zoom, row.gps_lon + cBOX*self.box_zoom)  # latitude en X
-        self.ax.set_ylim(row.gps_lat - BOX*self.box_zoom, row.gps_lat + BOX*self.box_zoom)  # longitude en Y
-        self.ax.set_zlim(deck, sky)
-
-        # update north vector (incremental update)
-        x_main = [row.gps_lon - BOX, row.gps_lon - BOX]
-        y_main = [row.gps_lat + BOX / 2, row.gps_lat + BOX]
-        x_left = [row.gps_lon - BOX / 8 - BOX, row.gps_lon - BOX]
-        y_left = [row.gps_lat - BOX / 8 + BOX, row.gps_lat + BOX]
-        x_right = [row.gps_lon + BOX / 8 - BOX, row.gps_lon - BOX]
-        y_right = [row.gps_lat - BOX / 8 + BOX, row.gps_lat + BOX]
-        self.north_line_main.set_data(x_main, y_main)
-        self.north_line_main.set_3d_properties([deck, deck])
-        self.north_line_left.set_data(x_left, y_left)
-        self.north_line_left.set_3d_properties([deck, deck])
-        self.north_line_right.set_data(x_right, y_right)
-        self.north_line_right.set_3d_properties([deck, deck])
-
-        az = -int(row.gps_heading / 45) * 45 - 22.5
-        if az!= self.last_azim:
-            self.last_azim = az
-            self.ax.view_init(azim=az)
-
-        self.text_taille_box.set_text(f"Box Width {round((2 * self.box_zoom * BOX * 111320.0)/1000.0,2):.1f} km / Trace Length {TRACE/DF_FREQ:.0f}s")
-        self.canvas.draw_idle()
-        self.gps_lastrow=row
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
         if getattr(self, "gfx_detached", False):
@@ -2836,39 +2687,39 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-    def detach_matplotlib_window(self):
+    def detach_pyqtgraph_window(self):
         """Toggle detach/close for matplotlib GPS canvas."""
-        if getattr(self, "matplotlib_detached", False):
-            if hasattr(self, "matplotlib_window"):
-                self.matplotlib_window.close()
+        if getattr(self, "pyqtgraph_detached", False):
+            if hasattr(self, "pyqtgraph_window"):
+                self.pyqtgraph_window.close()
             return
 
-        self.matplotlib_detached = True
+        self.pyqtgraph_detached = True
 
         # remove from layout
-        self.grid.removeWidget(self.canvas)
+        self.grid.removeWidget(self.gps_view)
 
         # create detached window
-        self.matplotlib_window = QMainWindow(self)
-        self.matplotlib_window.setWindowTitle("GPS Graph")
-        self.matplotlib_window.setCentralWidget(self.canvas)
-        self.matplotlib_window.resize(900, 700)
+        self.pyqtgraph_window = QMainWindow(self)
+        self.pyqtgraph_window.setWindowTitle("GPS Graph")
+        self.pyqtgraph_window.setCentralWidget(self.gps_view)
+        self.pyqtgraph_window.resize(900, 700)
 
-        self.btn_detach_matplotlib.setText("Close GPS")
+        self.btn_detach_pyqtgraph.setText("Close GPS")
 
         # detect close
-        self.matplotlib_window.closeEvent = self._on_matplotlib_window_closed
+        self.pyqtgraph_window.closeEvent = self._on_pyqtgraph_window_closed
 
-        self.matplotlib_window.show()
+        self.pyqtgraph_window.show()
 
 
-    def _on_matplotlib_window_closed(self, event):
+    def _on_pyqtgraph_window_closed(self, event):
         """Restore matplotlib canvas back into the grid when the detached window closes."""
         try:
-            self.canvas.setParent(None)
-            self.grid.addWidget(self.canvas, 1, 2, 1, 1)
-            self.matplotlib_detached = False
-            self.btn_detach_matplotlib.setText("Detach GPS")
+            self.gps_view.setParent(None)
+            self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
+            self.pyqtgraph_detached = False
+            self.btn_detach_pyqtgraph.setText("Detach GPS")
         except Exception:
             pass
 
