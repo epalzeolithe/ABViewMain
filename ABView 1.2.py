@@ -1126,7 +1126,22 @@ class MainWindow(QMainWindow):
 
                     try:
                         self.sc_input.markAsFinished()
-                        self.sc_writer.finishWriting()
+
+                        # Apple recommends finishing AVAssetWriter off the main thread
+                        import dispatch
+
+                        def _finish():
+                            try:
+                                self.sc_writer.finishWriting()
+                                print("MP4 finalized")
+                            except Exception as e:
+                                print("finishWriting error:", e)
+
+                        dispatch.dispatch_async(
+                            dispatch.dispatch_get_global_queue(0, 0),
+                            _finish
+                        )
+
                     except Exception:
                         pass
 
