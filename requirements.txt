@@ -3,7 +3,14 @@ pyqtwebengine
 scipy
 pandas
 trimesh
-matplotlib
 pygfx
 pymediainfo
 av
+pyqtgraph
+OpenGL
+CoreMedia
+AVFoundation
+ScreenCaptureKit
+pyobjc-framework-screencapturekit
+dispatch
+py2app
