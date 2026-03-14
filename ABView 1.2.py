@@ -303,7 +303,7 @@ class AnalogBadin(QWidget):
         painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
 
         # scale and colored arcs
-        max_speed = 400
+        max_speed = 360
 
         from PyQt5.QtCore import QRect
 
@@ -328,16 +328,16 @@ class AnalogBadin(QWidget):
         end = angle_from_speed(340)
         painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
 
-        # ---- red arc (340‑400 km/h) ----
+        # ---- red arc (340‑360 km/h) ----
         pen = QPen(QColor(220, 0, 0))
         pen.setWidth(6)
         painter.setPen(pen)
         start = angle_from_speed(340)
-        end = angle_from_speed(400)
+        end = angle_from_speed(360)
         painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
 
         # ---- tick marks every 20 km/h (major ticks thicker) ----
-        for v in range(0, max_speed + 1, 20):
+        for v in range(0, max_speed + 1, 10):
             angle = angle_from_speed(v)
             rad = math.radians(angle)
 
