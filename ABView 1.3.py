@@ -82,57 +82,57 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
         self.started = False
         return self
 
-    def setWriter_input_adaptor_(self, writer, input, adaptor):
+    def setWriter_input_adaptor_(self, writer, input, adaptor, audio_input=None):
         self.writer = writer
         self.input = input
         self.adaptor = adaptor
+        self.audio_input = audio_input
 
-    # called by ScreenCaptureKit for each frame
+    # called by ScreenCaptureKit for each buffer (video or audio)
     def stream_didOutputSampleBuffer_ofType_(self, stream, sampleBuffer, outputType):
-        # ensure writer/input exist
-        if self.writer is None or self.input is None:
+        if self.writer is None:
             return
 
         try:
-            # start session on first received frame
+            # start writer session on first received buffer
             if not self.started:
                 pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
                 if self.writer.status() == AVFoundation.AVAssetWriterStatusWriting:
                     self.writer.startSessionAtSourceTime_(pts)
                     self.started = True
-                    print("SCStream: first frame received, session started")
+                    print("SCStream: first buffer received, session started")
 
-            # safer extraction: ignore non‑screen outputs, ensure sampleBuffer valid, ensure pixelBuffer present
-            if self.started and self.input.isReadyForMoreMediaData():
-                try:
-                    # ignore non‑screen outputs
-                    if outputType != ScreenCaptureKit.SCStreamOutputTypeScreen:
-                        return
+            if not self.started:
+                return
 
-                    # ensure sample buffer is valid
-                    if not CoreMedia.CMSampleBufferIsValid(sampleBuffer):
-                        return
+            # ---- VIDEO ----
+            if outputType == ScreenCaptureKit.SCStreamOutputTypeScreen:
+                if self.input is None or not self.input.isReadyForMoreMediaData():
+                    return
 
-                    pixel_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sampleBuffer)
+                if not CoreMedia.CMSampleBufferIsValid(sampleBuffer):
+                    return
 
-                    # ScreenCaptureKit sometimes sends buffers without image data
-                    if pixel_buffer is None:
-                        return
+                pixel_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sampleBuffer)
+                if pixel_buffer is None:
+                    return
 
-                    pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
-                    ok = self.adaptor.appendPixelBuffer_withPresentationTime_(pixel_buffer, pts)
-                    if not ok:
-                        status = self.writer.status()
-                        err = None
+                ok = self.adaptor.appendPixelBuffer_withPresentationTime_(pixel_buffer, pts)
+                if not ok:
+                    status = self.writer.status()
+                    print("appendPixelBuffer failed, writer status:", status)
+
+            # ---- AUDIO ----
+            elif outputType == ScreenCaptureKit.SCStreamOutputTypeAudio:
+                if hasattr(self, "audio_input") and self.audio_input is not None:
+                    if self.audio_input.isReadyForMoreMediaData():
                         try:
-                            err = self.writer.error()
+                            self.audio_input.appendSampleBuffer_(sampleBuffer)
                         except Exception:
                             pass
-                        print("appendPixelBuffer failed, writer status:", status, "error:", err)
-                except Exception as e:
-                    # Silence "pixelBuffer != NULL" errors and ObjCPointerWarnings from empty buffers
-                    pass
+
         except Exception as e:
             print("SCStream handler error:", e)
 
@@ -1103,6 +1103,21 @@ class MainWindow(QMainWindow):
                     AVFoundation.AVMediaTypeVideo, settings
                 )
 
+                # ---- audio writer input ----
+                audio_settings = {
+                    AVFoundation.AVFormatIDKey: 1633772320,  # kAudioFormatMPEG4AAC
+                    AVFoundation.AVNumberOfChannelsKey: 2,
+                    AVFoundation.AVSampleRateKey: 44100,
+                    AVFoundation.AVEncoderBitRateKey: 128000,
+                }
+
+                self.sc_audio_input = AVFoundation.AVAssetWriterInput.alloc().initWithMediaType_outputSettings_(
+                    AVFoundation.AVMediaTypeAudio,
+                    audio_settings
+                )
+
+                self.sc_audio_input.setExpectsMediaDataInRealTime_(True)
+
                 adaptor_attrs = {
                     "PixelFormatType": 1111970369  # kCVPixelFormatType_32BGRA
                 }
@@ -1115,10 +1130,11 @@ class MainWindow(QMainWindow):
                 self.sc_input.setExpectsMediaDataInRealTime_(True)
 
                 self.sc_writer.addInput_(self.sc_input)
+                self.sc_writer.addInput_(self.sc_audio_input)
                 self.sc_writer.startWriting()
 
                 # set handler's writer/input/adaptor
-                self.sc_handler.setWriter_input_adaptor_(self.sc_writer, self.sc_input, self.sc_adaptor)
+                self.sc_handler.setWriter_input_adaptor_(self.sc_writer, self.sc_input, self.sc_adaptor, self.sc_audio_input)
 
                 # ScreenCaptureKit requires a GCD dispatch queue
                 import dispatch
@@ -1127,6 +1143,12 @@ class MainWindow(QMainWindow):
                 self.sc_stream.addStreamOutput_type_sampleHandlerQueue_error_(
                     self.sc_handler,
                     ScreenCaptureKit.SCStreamOutputTypeScreen,
+                    queue,
+                    None
+                )
+                self.sc_stream.addStreamOutput_type_sampleHandlerQueue_error_(
+                    self.sc_handler,
+                    ScreenCaptureKit.SCStreamOutputTypeAudio,
                     queue,
                     None
                 )
