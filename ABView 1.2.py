@@ -806,6 +806,11 @@ class MainWindow(QMainWindow):
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
 
+        # ---- Screen recording button (ScreenCaptureKit bridge) ----
+        self.btn_record = QPushButton("● REC")
+        self.btn_record.setCheckable(True)
+        self.btn_record.clicked.connect(self.toggle_recording)
+
 
         # ---- Open pygfx window in separate window ----
         self.btn_detach_gfx = QPushButton("↗ 3D")
@@ -867,6 +872,8 @@ class MainWindow(QMainWindow):
 
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.btn_pause)
+        buttons_layout.addWidget(self.btn_record)
+
         buttons_layout.addWidget(self.btn_detach_gfx)
         buttons_layout.addWidget(self.btn_detach_video1)
         buttons_layout.addWidget(self.btn_detach_video2)
@@ -908,27 +915,29 @@ class MainWindow(QMainWindow):
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
+    # ==================================================
+    # Screen recording (uses external ScreenCaptureKit bridge)
+    # ==================================================
+    def toggle_recording(self, checked):
+        import subprocess, os
 
-    def lock_elev(self, event):
-        if not self.elev_locked:
-            return
-        if event.inaxes != self.ax:
-            return
-        # force uniquement l'elevation, laisse azim libre
-        self.ax.view_init(elev=self.fixed_elev, azim=self.ax.azim)
+        output_file = os.path.join("data", "record.mp4")
 
-    def toggle_elev_lock(self):
-        self.elev_locked = not self.elev_locked
-
-        if self.elev_locked:
-            # réappliquer immédiatement l’élévation verrouillée
-            self.ax.view_init(elev=self.fixed_elev, azim=self.ax.azim)
-
-        # synchronisation avec le menu Settings
-        if hasattr(self, "act_lock_elev"):
-            self.act_lock_elev.setChecked(self.elev_locked)
-
-
+        if checked:
+            try:
+                # launch external recorder (Swift ScreenCaptureKit tool)
+                self.rec_proc = subprocess.Popen(["./screenrec", output_file])
+                self.btn_record.setText("■ REC")
+            except Exception as e:
+                print("Recording start failed:", e)
+                self.btn_record.setChecked(False)
+        else:
+            try:
+                if hasattr(self, "rec_proc"):
+                    self.rec_proc.terminate()
+            except Exception:
+                pass
+            self.btn_record.setText("● REC")
     def update_pitch_cam_menu(self):
         """Update menu text showing current camera mounting pitch."""
         if hasattr(self, "act_pitch_cam_plus"):
