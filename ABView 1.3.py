@@ -1059,14 +1059,29 @@ class MainWindow(QMainWindow):
                     raise RuntimeError(f"ScreenCaptureKit error: {result_container['error']}")
 
                 content = result_container["content"]
-                display = content.displays()[0]
+
+                # --- Find our Qt window inside shareable windows ---
+                target_window = None
+                for w in content.windows():
+                    try:
+                        title = str(w.title())
+                    except Exception:
+                        title = ""
+                    if title and title in self.windowTitle():
+                        target_window = w
+                        break
+
+                # fallback: use first window if not found
+                if target_window is None:
+                    target_window = content.windows()[0]
 
                 config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
-                config.setWidth_(display.width())
-                config.setHeight_(display.height())
+                config.setWidth_(target_window.frame().size.width)
+                config.setHeight_(target_window.frame().size.height)
                 config.setCapturesAudio_(True)
 
-                filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, [])
+                # capture only this window (not the full display)
+                filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDesktopIndependentWindow_(target_window)
 
                 self.sc_stream = ScreenCaptureKit.SCStream.alloc().initWithFilter_configuration_delegate_(
                     filter, config, None
