@@ -542,7 +542,6 @@ class AnalogAltimeter(QWidget):
         x = cx + (r - 30) * math.cos(rad)
         y = cy + (r - 30) * math.sin(rad)
         painter.drawLine(cx, cy, int(x), int(y))
-
         painter.end()
 
 # ======================================================
