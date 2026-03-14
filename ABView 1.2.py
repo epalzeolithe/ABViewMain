@@ -1204,17 +1204,21 @@ class MainWindow(QMainWindow):
             return
 
         gx = self.gps_view.geometry()
-        x_left = gx.x() + 8
+        # position scale on the RIGHT side of the pyqtgraph view
+        right_margin = 10
         top = gx.y() + 10
         height = gx.height() - 20
 
         max_alt = 5500.0
 
-        # position altitude bar next to the scale
-        bar_x = gx.x() + 60
+        # position altitude bar near the right edge
+        bar_x = gx.x() + gx.width() - 60
         bar_top = top
         bar_height = height
         self.altitude_bar.setGeometry(bar_x, bar_top, 4, bar_height)
+
+        # labels placed to the RIGHT of the bar
+        x_left = bar_x + 8
 
         for z, label in self.altitude_scale_labels:
             t = z / max_alt
