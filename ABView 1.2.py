@@ -1596,7 +1596,9 @@ class MainWindow(QMainWindow):
         else:
             a = self.g_filter_alpha
             self.acc_vec_filtered = (1 - a) * self.acc_vec_filtered + a * self.acc_vec
-        self.acc_geom.positions.data[1] = self.acc_vec
+        # display smoothed G vector
+        vec_display = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
+        self.acc_geom.positions.data[1] = vec_display
         self.acc_geom.positions.update_range(0, 2)
 
         # ---- Update G vector trail ----
@@ -1623,9 +1625,10 @@ class MainWindow(QMainWindow):
         self.gfx_nose_trail.geometry.positions.data[:] = self.nose_trail
         self.gfx_nose_trail.geometry.positions.update_range(0, len(self.nose_trail))
 
-        # ---- Update arrow head position and orientation ----
-        direction = self.acc_vec / (np.linalg.norm(self.acc_vec) + 1e-9)
-        pos = self.acc_vec
+        # ---- Update arrow head position and orientation (use smoothed vector) ----
+        vec_arrow = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
+        direction = vec_arrow / (np.linalg.norm(vec_arrow) + 1e-9)
+        pos = vec_arrow
 
         # compute quaternion rotating +Z to direction
         z_axis = np.array([0.0, 0.0, 1.0])
