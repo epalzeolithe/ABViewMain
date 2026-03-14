@@ -1000,6 +1000,7 @@ class MainWindow(QMainWindow):
             try:
                 self.sc_stream.startCaptureWithCompletionHandler_(None)
                 self.btn_record.setText("■ REC")
+                print("Recording start")
             except Exception as e:
                 print("Recording start failed:", e)
                 self.btn_record.setChecked(False)
@@ -1007,6 +1008,7 @@ class MainWindow(QMainWindow):
             try:
                 if hasattr(self, "sc_stream"):
                     self.sc_stream.stopCaptureWithCompletionHandler_(None)
+                    print("Recording stop")
             except Exception:
                 pass
             self.btn_record.setText("● REC")
