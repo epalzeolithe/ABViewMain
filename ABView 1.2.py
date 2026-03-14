@@ -2,8 +2,6 @@ import math
 import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-
-
 import av
 import time
 import numpy as np
@@ -28,10 +26,8 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QInputDialog
 )
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from pymediainfo import MediaInfo
 from PyQt5.QtGui import QKeySequence
-import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 
 
@@ -54,7 +50,7 @@ TRACE_DEFAULT = TRACE
 TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
 VITESSE_MISE_EN_LIGNE = 80 #km/h
-PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, ecran face à soi, légerement inclinée vers soi
+PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
 OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
 R_recalage_repere=3 # données issues BB
 #R_recalage_repere=1 # données issues computed VQF
