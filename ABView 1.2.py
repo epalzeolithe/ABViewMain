@@ -1024,6 +1024,15 @@ class MainWindow(QMainWindow):
         output_file = os.path.join("data", "record.mp4")
         print(output_file)
 
+        # AVAssetWriter cannot overwrite an existing file.
+        # Remove it only when STARTING a new recording.
+        if checked and os.path.exists(output_file):
+            try:
+                os.remove(output_file)
+                print("Existing record.mp4 removed")
+            except Exception as e:
+                print("Cannot remove existing record.mp4:", e)
+
         # lazy initialization of recorder
         if not hasattr(self, "sc_stream"):
             try:
