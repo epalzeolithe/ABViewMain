@@ -1,32 +1,54 @@
 from setuptools import setup
 
-APP = ['ABView 1.3.py']
+APP = ["ABView 1.3.py"]
 
 OPTIONS = {
     "argv_emulation": True,
 
-
+    # modules dynamiques que py2app ne détecte pas toujours
     "includes": [
         "objc",
+        "Foundation",
+        "CoreFoundation",
+        "CoreMedia",
+        "AVFoundation",
+        "ScreenCaptureKit",
+
+        "rubicon",
         "rubicon.objc",
-        "rubicon.objc.runtime",
         "rubicon.objc.api",
+        "rubicon.objc.runtime",
+
+        "wgpu.backends.auto",
+        "wgpu.backends.wgpu_native",
+
+        "rendercanvas.qt",
     ],
 
+    # packages lourds mais nécessaires
+    "packages": [
+        "numpy",
+        "pandas",
+        "pygfx",
+        "wgpu",
+        "rubicon",
+    ],
 
-    "frameworks": [],   # important
-    "excludes": ["rubicon", "py2app.bootstrap.rubicon", "objc", "py2app.bootstrap.objc"],
+    # modules inutiles dans une app macOS
+    "excludes": [
+        "tkinter",
+        "pytest",
+        "test",
+        "unittest",
+    ],
+
     "plist": {
         "CFBundleName": "ABView",
-        "CFBundleDocumentTypes": [
-            {
-                "CFBundleTypeName": "ABView Project",
-                "CFBundleTypeExtensions": ["abview"],
-                "CFBundleTypeRole": "Editor",
-                "LSTypeIsPackage": True,
-            }
-        ],
-    }
+        "CFBundleIdentifier": "com.drax.abview",
+        "CFBundleShortVersionString": "1.3",
+        "CFBundleVersion": "1.3",
+        "NSHighResolutionCapable": True,
+    },
 }
 
 setup(
