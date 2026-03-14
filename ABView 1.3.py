@@ -1162,6 +1162,7 @@ class MainWindow(QMainWindow):
             try:
                 self.sc_stream.startCaptureWithCompletionHandler_(None)
                 self.btn_record.setText("■ REC")
+                self.btn_record.setStyleSheet("background-color: red; color: white; font-weight: bold;")
                 print("Recording start")
             except Exception as e:
                 print("Recording start failed:", e)
@@ -1208,6 +1209,7 @@ class MainWindow(QMainWindow):
                 pass
 
             self.btn_record.setText("● REC")
+            self.btn_record.setStyleSheet("")
     def update_pitch_cam_menu(self):
         """Update menu text showing current camera mounting pitch."""
         if hasattr(self, "act_pitch_cam_plus"):
@@ -2698,7 +2700,7 @@ class MainWindow(QMainWindow):
         self.slider.setValue(self.i)
         self.slider.blockSignals(False)
 
-        self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+        self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
     # ==================================================
     # 🔑 SYNCHRO VIDEO ← DF
