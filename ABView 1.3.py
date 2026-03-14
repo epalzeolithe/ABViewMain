@@ -102,8 +102,8 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
                     self.started = True
                     print("SCStream: first frame received, session started")
 
-            # safer extraction: ignore non‑screen outputs, ensure sampleBuffer valid, ensure pixelBuffer present
-            if self.started and self.input.isReadyForMoreMediaData():
+            # write sample buffer using pixel buffer adaptor to avoid AVFoundation error -16122
+            if self.started:
                 try:
                     # ignore non‑screen outputs
                     if outputType != ScreenCaptureKit.SCStreamOutputTypeScreen:
@@ -113,15 +113,18 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
                     if not CoreMedia.CMSampleBufferIsValid(sampleBuffer):
                         return
 
+                    # Extract pixel buffer from sample
                     pixel_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sampleBuffer)
-
-                    # ScreenCaptureKit sometimes sends buffers without image data
                     if pixel_buffer is None:
+                        return
+
+                    if not self.input.isReadyForMoreMediaData():
                         return
 
                     pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
                     ok = self.adaptor.appendPixelBuffer_withPresentationTime_(pixel_buffer, pts)
+
                     if not ok:
                         status = self.writer.status()
                         err = None
@@ -131,7 +134,7 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
                             pass
                         print("appendPixelBuffer failed, writer status:", status, "error:", err)
                 except Exception as e:
-                    # Silence "pixelBuffer != NULL" errors and ObjCPointerWarnings from empty buffers
+                    # Silence errors from empty buffers or pointer issues
                     pass
         except Exception as e:
             print("SCStream handler error:", e)
@@ -1056,14 +1059,71 @@ class MainWindow(QMainWindow):
                     raise RuntimeError(f"ScreenCaptureKit error: {result_container['error']}")
 
                 content = result_container["content"]
-                display = content.displays()[0]
 
-                config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
-                config.setWidth_(display.width())
-                config.setHeight_(display.height())
-                config.setCapturesAudio_(True)
+                # try to find this application's window
+                import os
+                target_window = None
+                pid = os.getpid()
 
-                filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, [])
+                for w in content.windows():
+                    try:
+                        app = w.owningApplication()
+                        if app and app.processID() == pid:
+                            target_window = w
+                            break
+                    except Exception:
+                        pass
+
+                # fallback to full display if window not found
+                if target_window is not None:
+                    frame = target_window.frame()
+
+                    # Window frame is in logical points. ScreenCaptureKit delivers buffers in
+                    # display pixels, so we must scale by the display backing scale factor.
+                    scale = 2.0  # Retina typical scale
+
+                    cap_width = int(frame.size.width * scale)
+                    cap_height = int(frame.size.height * scale)
+
+                    # Safety: AVAssetWriter requires strictly positive dimensions
+                    if cap_width <= 0 or cap_height <= 0:
+                        try:
+                            bounds = target_window.bounds()
+                            cap_width = int(bounds.size.width * scale)
+                            cap_height = int(bounds.size.height * scale)
+                        except Exception:
+                            cap_width = 1280
+                            cap_height = 720
+
+                    # Final safety clamp
+                    cap_width = max(cap_width, 2)
+                    cap_height = max(cap_height, 2)
+
+                    config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
+                    config.setWidth_(cap_width)
+                    config.setHeight_(cap_height)
+                    config.setCapturesAudio_(True)
+
+                    # ScreenCaptureKit provides its native pixel format; do not override
+
+                    filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDesktopIndependentWindow_(target_window)
+                    print("ScreenCaptureKit: capturing application window only")
+
+                else:
+                    display = content.displays()[0]
+
+                    cap_width = int(display.width())
+                    cap_height = int(display.height())
+
+                    config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
+                    config.setWidth_(cap_width)
+                    config.setHeight_(cap_height)
+                    config.setCapturesAudio_(True)
+
+                    # ScreenCaptureKit provides its native pixel format; do not override
+
+                    filter = ScreenCaptureKit.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, [])
+                    print("ScreenCaptureKit: window not found, fallback to full display")
 
                 self.sc_stream = ScreenCaptureKit.SCStream.alloc().initWithFilter_configuration_delegate_(
                     filter, config, None
@@ -1077,18 +1137,30 @@ class MainWindow(QMainWindow):
                     url, AVFoundation.AVFileTypeMPEG4, None
                 )[0]
 
+                # use explicit capture dimensions (config.width() is unreliable in PyObjC)
+                if 'cap_width' not in locals():
+                    cap_width = config.width()
+                    cap_height = config.height()
+
+                # Configure H264 encoder explicitly (MP4 requires encoder settings
+                # if no sourceFormatHint is provided).
                 settings = {
                     AVFoundation.AVVideoCodecKey: AVFoundation.AVVideoCodecTypeH264,
-                    AVFoundation.AVVideoWidthKey: config.width(),
-                    AVFoundation.AVVideoHeightKey: config.height(),
+                    AVFoundation.AVVideoWidthKey: int(cap_width),
+                    AVFoundation.AVVideoHeightKey: int(cap_height),
                 }
 
                 self.sc_input = AVFoundation.AVAssetWriterInput.alloc().initWithMediaType_outputSettings_(
-                    AVFoundation.AVMediaTypeVideo, settings
+                    AVFoundation.AVMediaTypeVideo,
+                    settings
                 )
 
+                # Pixel buffer adaptor configuration must match encoder size
                 adaptor_attrs = {
-                    "PixelFormatType": 1111970369  # kCVPixelFormatType_32BGRA
+                    "kCVPixelBufferPixelFormatTypeKey": 1111970369,  # BGRA
+                    "kCVPixelBufferWidthKey": int(cap_width),
+                    "kCVPixelBufferHeightKey": int(cap_height),
+                    "kCVPixelBufferIOSurfacePropertiesKey": {},
                 }
 
                 self.sc_adaptor = AVFoundation.AVAssetWriterInputPixelBufferAdaptor.alloc().initWithAssetWriterInput_sourcePixelBufferAttributes_(
@@ -1141,8 +1213,19 @@ class MainWindow(QMainWindow):
 
                         def _finish():
                             try:
-                                self.sc_writer.finishWriting()
-                                print("MP4 finalized")
+                                status = self.sc_writer.status()
+
+                                # 1 = writing, 2 = completed, 3 = failed, 4 = cancelled
+                                if status == AVFoundation.AVAssetWriterStatusWriting:
+                                    self.sc_writer.finishWriting()
+                                    print("MP4 finalized")
+
+                                elif status == AVFoundation.AVAssetWriterStatusCompleted:
+                                    print("MP4 already finalized")
+
+                                else:
+                                    print("finishWriting skipped, writer status:", status)
+
                             except Exception as e:
                                 print("finishWriting error:", e)
 
