@@ -555,6 +555,10 @@ class MainWindow(QMainWindow):
         self.smooth_speed = None
         self.smooth_alt = None
         self.instrument_alpha = 0.2  # smoothing factor (0=slow, 1=no smoothing)
+
+        # ---- filtered acceleration vector for smoother G trail ----
+        self.acc_vec_filtered = None
+        self.g_filter_alpha = 0.15
         # ---- bookmarks ----
         self.bookmarks = []
         self.bookmarks_df = None
@@ -1586,16 +1590,22 @@ class MainWindow(QMainWindow):
         acc = acc / np.linalg.norm(acc) # normer vecteur
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
         self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
+        # ---- low-pass filter to smooth G vector trail ----
+        if self.acc_vec_filtered is None:
+            self.acc_vec_filtered = self.acc_vec.copy()
+        else:
+            a = self.g_filter_alpha
+            self.acc_vec_filtered = (1 - a) * self.acc_vec_filtered + a * self.acc_vec
         self.acc_geom.positions.data[1] = self.acc_vec
         self.acc_geom.positions.update_range(0, 2)
 
         # ---- Update G vector trail ----
-        # If trail is empty (after seek/reset), initialize it with the current vector
+        # If trail is empty (after seek/reset), initialize it with the current filtered vector
         if not np.any(self.g_trail):
-            self.g_trail[:] = self.acc_vec
+            self.g_trail[:] = self.acc_vec_filtered
         else:
             self.g_trail[:-1] = self.g_trail[1:]
-            self.g_trail[-1] = self.acc_vec
+            self.g_trail[-1] = self.acc_vec_filtered
 
         self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
         self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
