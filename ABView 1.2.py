@@ -39,6 +39,10 @@ import AVFoundation
 import ScreenCaptureKit
 from Cocoa import NSObject
 import objc
+# silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
+import warnings
+from objc import ObjCPointerWarning
+warnings.filterwarnings("ignore", category=ObjCPointerWarning)
 
 class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
 
