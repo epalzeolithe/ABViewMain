@@ -807,20 +807,20 @@ class MainWindow(QMainWindow):
         self.btn_pause.clicked.connect(self.toggle_play)
 
 
-        # ---- Detach pygfx window ----
-        self.btn_detach_gfx = QPushButton("Detach 3D")
+        # ---- Open pygfx window in separate window ----
+        self.btn_detach_gfx = QPushButton("↗ 3D")
         self.btn_detach_gfx.clicked.connect(self.detach_gfx_window)
 
-        # ---- Detach Video1 window ----
-        self.btn_detach_video1 = QPushButton("Detach Video 1")
+        # ---- Open Video1 in separate window ----
+        self.btn_detach_video1 = QPushButton("↗ Video 1")
         self.btn_detach_video1.clicked.connect(self.detach_video1_window)
 
-        # ---- Detach Video2 window ----
-        self.btn_detach_video2 = QPushButton("Detach Video 2")
+        # ---- Open Video2 in separate window ----
+        self.btn_detach_video2 = QPushButton("↗ Video 2")
         self.btn_detach_video2.clicked.connect(self.detach_video2_window)
 
-        # ---- Detach Matplotlib window ----
-        self.btn_detach_pyqtgraph = QPushButton("Detach GPS")
+        # ---- Open GPS window in separate window ----
+        self.btn_detach_pyqtgraph = QPushButton("↗ GPS")
         self.btn_detach_pyqtgraph.clicked.connect(self.detach_pyqtgraph_window)
 
         # ---- jump buttons (time navigation) ----
@@ -2624,7 +2624,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
-            self.btn_detach_gfx.setText("Detach 3D")
+            self.btn_detach_gfx.setText("↗ 3D")
         except Exception:
             pass
 
@@ -2659,7 +2659,7 @@ class MainWindow(QMainWindow):
             self.video1.setParent(None)
             self.grid.addWidget(self.video1, 0, 0, 1, 2)
             self.video1_detached = False
-            self.btn_detach_video1.setText("Detach Video 1")
+            self.btn_detach_video1.setText("↗ Video 1")
         except Exception:
             pass
 
@@ -2693,7 +2693,7 @@ class MainWindow(QMainWindow):
             self.video2.setParent(None)
             self.grid.addWidget(self.video2, 0, 2, 1, 2)
             self.video2_detached = False
-            self.btn_detach_video2.setText("Detach Video 2")
+            self.btn_detach_video2.setText("↗ Video 2")
         except Exception:
             pass
 
@@ -2732,7 +2732,7 @@ class MainWindow(QMainWindow):
             self.gps_view.setParent(None)
             self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
             self.pyqtgraph_detached = False
-            self.btn_detach_pyqtgraph.setText("Detach GPS")
+            self.btn_detach_pyqtgraph.setText("↗ GPS")
         except Exception:
             pass
 
