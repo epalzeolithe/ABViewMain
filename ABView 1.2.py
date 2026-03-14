@@ -570,8 +570,6 @@ class MainWindow(QMainWindow):
         self.last_azim = 0
         self.fixed_elev = 20  # angle d'inclinaison verrouillé
         self.elev_locked = True
-        self.box_zoom = 1.0
-        self.update_zoom_menu() # Affichage initial du facteur de zoom dans le menu Settings
 
         self.init_UI()
 
@@ -762,32 +760,8 @@ class MainWindow(QMainWindow):
         self.grid.addWidget(self.video1, 0, 0, 1, 2)  # colonnes 0-1
         self.grid.addWidget(self.video2, 0, 2, 1, 2)  # colonnes 2-3
 
-        # Blocage élévation action (menu Settings)
-        self.act_lock_elev = QAction("Bloquer GPS élévation", self)
-        self.act_lock_elev.setCheckable(True)
-        self.act_lock_elev.setChecked(self.elev_locked)
-        self.act_lock_elev.triggered.connect(self.toggle_elev_lock)
-        menu_settings.addAction(self.act_lock_elev)
 
-        # ---- Pause / Resume GPS matplotlib updates ----
-        self.act_pause_gps_update = QAction("Pause Update GPS", self)
-        self.act_pause_gps_update.setCheckable(True)
-        self.act_pause_gps_update.setChecked(False)
-        self.act_pause_gps_update.triggered.connect(self.toggle_matplotlib_gps)
-        menu_settings.addAction(self.act_pause_gps_update)
 
-        # Actions Zoom (menu Settings)
-        self.act_zoom_out = QAction("Zoom -", self)
-        self.act_zoom_out.triggered.connect(self.zoom_box_out)
-        menu_settings.addAction(self.act_zoom_out)
-
-        self.act_zoom_in = QAction("Zoom +", self)
-        self.act_zoom_in.triggered.connect(self.zoom_box_in)
-        menu_settings.addAction(self.act_zoom_in)
-
-        self.act_zoom_reset = QAction("Reset Zoom", self)
-        self.act_zoom_reset.triggered.connect(self.reset_zoom)
-        menu_settings.addAction(self.act_zoom_reset)
 
         # Actions Trace (menu Settings)
         self.act_trace_minus = QAction("Trace -", self)
@@ -854,16 +828,16 @@ class MainWindow(QMainWindow):
         self.btn_detach_pyqtgraph.clicked.connect(self.detach_pyqtgraph_window)
 
         # ---- jump buttons (time navigation) ----
-        self.btn_back_10 = QPushButton("⏪ 10s")
+        self.btn_back_10 = QPushButton("⏪10s")
         self.btn_back_10.clicked.connect(self.jump_back_10s)
 
-        self.btn_back_2 = QPushButton("◀ 2s")
+        self.btn_back_2 = QPushButton("◀2s")
         self.btn_back_2.clicked.connect(self.jump_back_2s)
 
-        self.btn_fwd_2 = QPushButton("2s ▶")
+        self.btn_fwd_2 = QPushButton("2s▶")
         self.btn_fwd_2.clicked.connect(self.jump_fwd_2s)
 
-        self.btn_fwd_10 = QPushButton("10s ⏩")
+        self.btn_fwd_10 = QPushButton("10s⏩")
         self.btn_fwd_10.clicked.connect(self.jump_fwd_10s)
 
 
@@ -876,13 +850,13 @@ class MainWindow(QMainWindow):
         self.btn_start = QPushButton("⏮ Start")
         self.btn_start.clicked.connect(self.goto_start)
 
-        self.btn_mise_en_ligne = QPushButton("Mise en ligne")
+        self.btn_mise_en_ligne = QPushButton("En ligne")
         self.btn_mise_en_ligne.clicked.connect(self.goto_mise_en_ligne)
 
 
-        self.btn_misedos_securite = QPushButton("Mise dos sécurité")
+        self.btn_misedos_securite = QPushButton("Mise dos sécu")
         self.btn_misedos_securite.clicked.connect(self.goto_misedos_securite)
-        self.btn_enchainement = QPushButton("Enchaînement")
+        self.btn_enchainement = QPushButton("Enchaîn.")
         self.btn_enchainement.clicked.connect(self.goto_enchainement)
 
 
@@ -958,26 +932,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "act_lock_elev"):
             self.act_lock_elev.setChecked(self.elev_locked)
 
-    def zoom_box_out(self):
-        """Zoom  : agrandit la box matplotlib"""
-        self.box_zoom *= 1.25
-        self.update_zoom_menu()
-
-    def zoom_box_in(self):
-        """Zoom  : agrandit la box matplotlib"""
-        self.box_zoom /= 1.25
-        self.update_zoom_menu()
-
-    def reset_zoom(self):
-        """Reset du zoom : remet la box matplotlib à la valeur par défaut"""
-        self.box_zoom = 1.0
-        self.update_zoom_menu()
-
-    def update_zoom_menu(self):
-        """Met à jour l'affichage du facteur de zoom dans le menu Settings"""
-        factor = f"×{self.box_zoom:.2f}"
-        if hasattr(self, "act_zoom_reset"):
-            self.act_zoom_reset.setText(f"Reset Zoom (Actual = {factor})")
 
     def update_pitch_cam_menu(self):
         """Update menu text showing current camera mounting pitch."""
