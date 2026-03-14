@@ -336,18 +336,25 @@ class AnalogBadin(QWidget):
         end = angle_from_speed(400)
         painter.drawArc(rect, int(-end * 16), int((end - start) * 16))
 
-        # ---- tick marks every 20 km/h ----
-        pen = QPen(QColor("white"))
-        pen.setWidth(2)
-        painter.setPen(pen)
-
+        # ---- tick marks every 20 km/h (major ticks thicker) ----
         for v in range(0, max_speed + 1, 20):
             angle = angle_from_speed(v)
             rad = math.radians(angle)
+
             x1 = cx + (r - 12) * math.cos(rad)
             y1 = cy + (r - 12) * math.sin(rad)
             x2 = cx + r * math.cos(rad)
             y2 = cy + r * math.sin(rad)
+
+            # major ticks
+            if v in (50, 100, 150, 200, 250, 300):
+                pen = QPen(QColor("white"))
+                pen.setWidth(4)
+            else:
+                pen = QPen(QColor("white"))
+                pen.setWidth(1)
+
+            painter.setPen(pen)
             painter.drawLine(int(x1), int(y1), int(x2), int(y2))
 
         # ---- numeric labels ----
