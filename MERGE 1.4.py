@@ -207,7 +207,7 @@ def get_datas_from_gns3000(log):
         gdf['gps_fpm'] = np.gradient(gdf['gps_alt'], GNS3000_PERIOD)
         gdf['gps_fpm'] = gdf['gps_fpm'] * 60
 
-        gdf.to_csv(TMP+"gps.csv", index=True, encoding="utf-8")
+        gdf.to_csv(TMP+"gps.csv", index=False, encoding="utf-8")
         return gdf
     else:
         gdf = pd.read_csv(TMP+"gps.csv", low_memory=False)
@@ -355,6 +355,9 @@ if __name__ == "__main__":
     # force iphone timestamp dtype si lecture csv
     idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
 
+    # force gps timestamp dtype si lecture csv
+    gdf["timestamp"] = pd.to_datetime(gdf["timestamp"]).astype("datetime64[us]")
+
     # check start time
     print("GPS start time", gdf['timestamp'][0])
     print("IPHONE start time", idf['timestamp'][0])
@@ -378,7 +381,7 @@ if __name__ == "__main__":
     'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed','iphone_heading',
     'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
 
-    gdf.to_csv("data/gdf.csv", index=True,encoding="utf-8")
+    #gdf.to_csv("data/gdf.csv", index=True,encoding="utf-8")
     #idf.to_csv("data/idf.csv", index=True,encoding="utf-8")
     #xdf.to_csv("data/xdf.csv", index=True,encoding="utf-8")
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
