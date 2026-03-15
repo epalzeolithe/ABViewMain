@@ -2,6 +2,12 @@ import math
 import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
+# ---- Enable HiDPI scaling via environment variables BEFORE Qt loads ----
+import os
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+os.environ["QT_LOGGING_RULES"] = "*.warning=false"
 import av
 import time
 import numpy as np
@@ -27,6 +33,7 @@ from PyQt5.QtWidgets import (
     QInputDialog
 )
 from pymediainfo import MediaInfo
+
 from PyQt5.QtGui import QKeySequence
 
 import pyqtgraph.opengl as gl
@@ -170,9 +177,9 @@ df = pd.read_csv(MERGED_DATA, low_memory=False)
 df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", utc=True)
 df = df.sort_values("timestamp").reset_index(drop=True)
 frames_df = len(df)
-print(MERGED_DATA," START @",df['timestamp'][0])
-print(MERGED_DATA," END @",df['timestamp'].iat[-1])
-print(MERGED_DATA," FRAMES = ", frames_df)
+#print(MERGED_DATA," START @",df['timestamp'][0])
+#print(MERGED_DATA," END @",df['timestamp'].iat[-1])
+#print(MERGED_DATA," FRAMES = ", frames_df)
 
 # ---- numpy caches for fast access inside the realtime loop ----
 gps_lat_vals = df["gps_lat"].to_numpy()
@@ -187,7 +194,7 @@ container_probe = av.open(VIDEO1)
 stream_probe = container_probe.streams.video[0]
 
 frames_video = stream_probe.frames
-print(VIDEO1," FRAMES = ", frames_video)
+#print(VIDEO1," FRAMES = ", frames_video)
 
 N = frames_video
 container_probe.close()
