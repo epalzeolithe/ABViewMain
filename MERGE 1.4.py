@@ -38,7 +38,7 @@ def get_bundle_name_from_insv(path):
     parts = name.split("_")
     date = parts[1]  # 20260221
     time = parts[2]  # 091717
-    return f"V_{date[:4]}_{date[4:6]}_{date[6:8]}.abv"
+    return f"Vol_{date[:4]}_{date[4:6]}_{date[6:8]}.abv"
 
 OUTPUT = "data/"+get_bundle_name_from_insv(X4_INSV_1)+"/merged_data.csv"
 
