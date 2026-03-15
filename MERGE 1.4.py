@@ -8,12 +8,15 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
+from pathlib import Path
 
 # -------- CONFIG --------
-X4_INSV_1 = "data/raw/VID_20260221_091717_00_050.insv"
-X4_INSV_2 = "data/raw/VID_20260221_091717_00_051.insv"
-GPS_GNS3000 = "data/raw/LOG00003.TXT"
-IPHONE_SENSORLOG = "data/raw/sensorlog.csv"
+SUBDIR="data/raw/"
+TMP=SUBDIR+"temp/"
+X4_INSV_1 = "VID_20260221_091717_00_050.insv"
+X4_INSV_2 = "VID_20260221_091717_00_051.insv"
+GPS_GNS3000 = "LOG00003.TXT"
+IPHONE_SENSORLOG = "sensorlog.csv"
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
 WINDOW_ACCX4 = 50 # taille moyenne glissante pour lissage accéléros X4
@@ -76,18 +79,26 @@ def nmea_time_to_time(nmea_time):
 
 def export_GYROFLOW_CLI(insv_path):
     CURRENT_PATH=os.getcwd()+"/"
+
     cmd = [GYROFLOW_BIN,
-        str(CURRENT_PATH+insv_path),"--export-metadata","3:"+str(CURRENT_PATH+insv_path+".cli.csv")]
+        str(CURRENT_PATH+SUBDIR+insv_path),"--export-metadata","3:"+str(CURRENT_PATH+TMP+insv_path+".cli.csv")]
     print(cmd)
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
 def export_GYRO2BB_gyro_acc_from_insv(insv_path):
     PATH=os.getcwd()+"/"
-    cmd = [PATH+GYRO2BB,str(PATH+insv_path)]
+    cmd = [PATH+GYRO2BB,str(PATH+SUBDIR+insv_path)]
     print(cmd)
     print("Running GYRO2BB :", " ".join(cmd))
     subprocess.run(cmd, check=True)
+
+    fn=insv_path+".csv"
+    nf=PATH+SUBDIR+fn
+    import shutil
+    shutil.move(nf,TMP+fn)
+
+
 
 def read_GYROFLOW_CLI_export_CSV(gyro):
     gf = pd.read_csv(gyro, low_memory=False)
@@ -112,7 +123,7 @@ def get_datas_from_insv(insv):
         print("Export CLI done")
     else:
         print(".....Skipping CLI export")
-    cli_df = read_GYROFLOW_CLI_export_CSV(insv+".cli.csv") # 30 fps
+    cli_df = read_GYROFLOW_CLI_export_CSV(TMP+insv+".cli.csv") # 30 fps
 
     # insv > BB tool > export csv > bb_df
     if not SKIP_X4_EXPORT:
@@ -120,7 +131,7 @@ def get_datas_from_insv(insv):
         print("Export BB done")
     else:
         print(".....Skipping BB export")
-    bb_df = read_GYRO2BB_CSV(insv+".csv")
+    bb_df = read_GYRO2BB_CSV(TMP+insv+".csv")
 
     # interpolation CLI datas car 30 FPS
     import numpy as np
@@ -185,7 +196,7 @@ def get_datas_from_gns3000(log):
 
 
         # ajout date à gdf et décaler en GMT
-        st1 = get_mp4_creation_datetime(X4_INSV_1)
+        st1 = get_mp4_creation_datetime(SUBDIR+X4_INSV_1)
         print(st1)
         offset = st1.replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
         # offset = idf['timestamp'][0].replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
@@ -196,10 +207,10 @@ def get_datas_from_gns3000(log):
         gdf['gps_fpm'] = np.gradient(gdf['gps_alt'], GNS3000_PERIOD)
         gdf['gps_fpm'] = gdf['gps_fpm'] * 60
 
-        gdf.to_csv(log+".csv", index=True, encoding="utf-8")
+        gdf.to_csv(TMP+"gps.csv", index=True, encoding="utf-8")
         return gdf
     else:
-        gdf = pd.read_csv(log+".csv", low_memory=False)
+        gdf = pd.read_csv(TMP+"gps.csv", low_memory=False)
         return gdf
 
 def get_datas_from_iphone_sensorlog(log):
@@ -231,37 +242,41 @@ def get_datas_from_iphone_sensorlog(log):
                                   'motionQuaternionZ(R)': 'iphone_quat_z', 'motionQuaternionW(R)': 'iphone_quat_w'})
         idf['iphone_alt'] = idf['iphone_alt'] * 3.28084  # conversion en feet
         idf['iphone_speed'] = idf['iphone_speed'] * 3.6  # conversion en km/h
-        idf.to_csv(log + ".formatted.csv", index=True, encoding="utf-8")
+        idf.to_csv(TMP+"sensorlog.formatted.csv", index=True, encoding="utf-8")
         return idf
     else:
         print(".....Skipping Iphone Sensorlog direct parsing")
-        idf = pd.read_csv(log + ".formatted.csv", low_memory=False)
+        idf = pd.read_csv(TMP+"sensorlog.formatted.csv", low_memory=False)
         return idf
 
 
 if __name__ == "__main__":
+
+    print(TMP)
+    Path(TMP).mkdir(parents=True, exist_ok=True)
+
     print("#####################################################################")
     print("Start Merging for ABView : X4 datas + GPS datas + iPhone sensorlog...")
 
     xloaded=x2loaded=gloaded=iloaded=False
 
-    if os.path.exists(GPS_GNS3000):
+    if os.path.exists(SUBDIR+GPS_GNS3000):
         print("Loading Datas from gns3000")
-        gdf = get_datas_from_gns3000(GPS_GNS3000)
+        gdf = get_datas_from_gns3000(SUBDIR+GPS_GNS3000)
         print("Datas from gns3000 loaded")
         gloaded=True
     else:
         print("GNS3000 log file not found")
 
-    if os.path.exists(IPHONE_SENSORLOG):
+    if os.path.exists(SUBDIR+IPHONE_SENSORLOG):
         print("Loading Datas from iPhone sensorlog")
-        idf = get_datas_from_iphone_sensorlog(IPHONE_SENSORLOG)
+        idf = get_datas_from_iphone_sensorlog(SUBDIR+IPHONE_SENSORLOG)
         print("Datas from iPhone sensorlog loaded")
         iloaded=True
     else:
         print("iPhone sensorslog file not found")
 
-    if os.path.exists(X4_INSV_1):
+    if os.path.exists(SUBDIR+X4_INSV_1):
         print("Loading Datas from .insv")
         xdf = get_datas_from_insv(X4_INSV_1)
         print("Datas from .insv loaded")
@@ -269,7 +284,7 @@ if __name__ == "__main__":
     else:
         print(".insv file not found")
 
-    if os.path.exists(X4_INSV_2):
+    if os.path.exists(SUBDIR+X4_INSV_2):
         print("Loading Datas from 2nd insv")
         xdf2 = get_datas_from_insv(X4_INSV_2)
         print("Datas from 2nd .insv loaded")
@@ -281,7 +296,7 @@ if __name__ == "__main__":
         # xdf process
         xdf = xdf[xdf["timestamp_ms"] >= 0]  # filtrage données à temps négatif
         xdf = xdf.reset_index(drop=True)
-        st1 = get_mp4_creation_datetime(X4_INSV_1)
+        st1 = get_mp4_creation_datetime(SUBDIR+X4_INSV_1)
         xdf['timestamp'] = st1 + pd.to_timedelta(xdf['timestamp_ms'], unit='ms')
         xdf["timestamp"] = xdf["timestamp"].dt.tz_convert("Etc/GMT-1")
         xdf['timestamp'] = xdf['timestamp'].dt.tz_localize(None)
@@ -300,7 +315,7 @@ if __name__ == "__main__":
         # xdf2 process
         xdf2 = xdf2[xdf2["timestamp_ms"] >= 0]  # filtrage données à temps négatif
         xdf2 = xdf2.reset_index(drop=True)
-        st2=get_mp4_creation_datetime(X4_INSV_2)
+        st2=get_mp4_creation_datetime(SUBDIR+X4_INSV_2)
         #end1=xdf['timestamp'].iloc[-1]
         #print(st2,end1)
         xdf2['timestamp'] = st2 + pd.to_timedelta(xdf2['timestamp_ms'], unit='ms')
