@@ -49,11 +49,13 @@ from objc import ObjCPointerWarning
 # MAJOR.MINOR.PATCH
 __version__ = "1.4 Convert"
 MAINDIR="/Users/drax/Down/ABViewMain/"
+BDL="data/V_2026_02_21.abv/"
+PDL=MAINDIR+BDL
 INSV1=MAINDIR+"data/VID_20260221_091717_00_050.insv"
 INSV2=MAINDIR+"data/VID_20260221_091717_00_051.insv"
 MERGED_DATA = INSV1+".merged_data.csv"
-VIDEO1=MAINDIR+"data/front.mp4"
-VIDEO2=MAINDIR+"data/back.mp4"
+VIDEO1=PDL+"front.mp4"
+VIDEO2=PDL+"back.mp4"
 BOOKMARK_FILE=INSV1+".bookmark.csv"
 STL_FILE=MAINDIR+"data/CAP10.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
