@@ -1464,6 +1464,15 @@ class MainWindow(QMainWindow):
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
+        # ---- altitude colored zones (Red Bull style) ----
+        self.altitude_green_zone = QFrame(self.gps_view)
+        self.altitude_green_zone.setStyleSheet("background-color: rgba(0,120,0,160);")  # dark green
+        self.altitude_green_zone.show()
+
+        self.altitude_orange_zone = QFrame(self.gps_view)
+        self.altitude_orange_zone.setStyleSheet("background-color: rgba(255,140,0,180);")  # orange warning zone
+        self.altitude_orange_zone.show()
+
         # moving marker showing current altitude (red triangle pointer)
         self.altitude_cursor = QLabel(self.gps_view)
         self.altitude_cursor.setStyleSheet(
@@ -1497,6 +1506,35 @@ class MainWindow(QMainWindow):
         bar_top = top
         bar_height = height
         self.altitude_bar.setGeometry(bar_x, bar_top, 4, bar_height)
+
+        # ---- altitude colored zones positioning ----
+        alt_green_min = 3000.0
+        alt_green_max = 5000.0
+
+        t1 = alt_green_min / max_alt
+        t2 = alt_green_max / max_alt
+
+        y_green_top = int(top + height * (1.0 - t2))
+        y_green_bottom = int(top + height * (1.0 - t1))
+
+        self.altitude_green_zone.setGeometry(
+            bar_x,
+            y_green_top,
+            4,
+            y_green_bottom - y_green_top
+        )
+
+        # orange zone above 5000 ft
+        t3 = 5000.0 / max_alt
+        y_orange_top = top
+        y_orange_bottom = int(top + height * (1.0 - t3))
+
+        self.altitude_orange_zone.setGeometry(
+            bar_x,
+            y_orange_top,
+            4,
+            y_orange_bottom - y_orange_top
+        )
 
         # labels placed to the RIGHT of the bar
         x_left = bar_x + 8
