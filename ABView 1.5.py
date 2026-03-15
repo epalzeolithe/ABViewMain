@@ -723,8 +723,8 @@ class MainWindow(QMainWindow):
         t_start = df['timestamp'][0]
         print(t_start)
         metar_row = find_metar_for_time(metar_df, t_start)
-        print(f"Metar at start: {metar_row.metar}")
-
+        self.last_metar=metar_row.metar
+        print(f"Metar at start: {self.last_metar}")
 
     def init_UI(self):
         # ---- UI ----
