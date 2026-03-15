@@ -1464,11 +1464,22 @@ class MainWindow(QMainWindow):
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
-        # moving marker showing current altitude
-        self.altitude_cursor = QFrame(self.gps_view)
-        self.altitude_cursor.setStyleSheet("background-color: red;")
-        self.altitude_cursor.setGeometry(0, 0, 24, 8)
+        # moving marker showing current altitude (red triangle pointer)
+        self.altitude_cursor = QLabel(self.gps_view)
+        self.altitude_cursor.setStyleSheet(
+            """
+            background: transparent;
+            border-left: 12px solid red;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            """
+        )
+        self.altitude_cursor.setGeometry(0, 0, 12, 16)
         self.altitude_cursor.show()
+
+        # blinking state for fast altitude change
+        self.altitude_cursor_visible = True
+        self.altitude_last_blink = 0
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
@@ -1505,7 +1516,26 @@ class MainWindow(QMainWindow):
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
-        self.altitude_cursor.move(bar_x - 10, y_cursor - 4)
+        # center the triangle on the altitude bar
+        self.altitude_cursor.move(bar_x - 12, y_cursor - 8)
+
+        # blink triangle if climb/descent rate is high
+        try:
+            fpm = abs(float(self.row.gps_fpm))
+        except Exception:
+            fpm = 0
+
+        blink_threshold = 2500  # ft/min
+
+        if fpm > blink_threshold:
+            now = time.time()
+            if now - self.altitude_last_blink > 0.25:
+                self.altitude_cursor_visible = not self.altitude_cursor_visible
+                self.altitude_last_blink = now
+                self.altitude_cursor.setVisible(self.altitude_cursor_visible)
+        else:
+            self.altitude_cursor.setVisible(True)
+            self.altitude_cursor_visible = True
 
 
     def init_gfx(self):
