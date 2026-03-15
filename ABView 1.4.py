@@ -1749,6 +1749,7 @@ class MainWindow(QMainWindow):
 
         # ajout du groupe à la scène
         self.gfx_scene.add(self.gfx_object)
+        self.gfx_scene.background = gfx.Background(None, gfx.BackgroundMaterial((1, 1, 1, 1)))
         self.gfx_display.show(self.gfx_scene)
 
         # ---- Camera configuration : Z axis up ----
