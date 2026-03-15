@@ -16,3 +16,4 @@ dispatch
 py2app
 psutil
 pyobjc>=10
+requests
