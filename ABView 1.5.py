@@ -187,6 +187,28 @@ gps_lon_vals = df["gps_lon"].to_numpy()
 gps_alt_vals = df["gps_alt"].to_numpy()
 timestamp_vals = df["timestamp"].to_numpy()
 
+INPUT_METAR = BDL + "metar.csv"
+metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+metar_df["time"] = pd.to_datetime(metar_df["time"])
+
+def find_metar_for_time(df, t):
+
+    idx = df["time"].searchsorted(t)
+
+    if idx == 0:
+        return df.iloc[0]
+
+    if idx >= len(df):
+        return df.iloc[-1]
+
+    before = df.iloc[idx - 1]
+    after = df.iloc[idx]
+
+    if abs(t - before.time) < abs(after.time - t):
+        return before
+    else:
+        return after
+
 # ======================================================
 # VIDEO ANALYSIS
 # ======================================================
@@ -695,6 +717,14 @@ class MainWindow(QMainWindow):
             self.audio_timer = QTimer()
             self.audio_timer.timeout.connect(self.update_audio)
             self.audio_timer.start(10)  # ~100 Hz audio servicing
+
+        # Metar management
+
+        t_start = df['timestamp'][0]
+        print(t_start)
+        metar_row = find_metar_for_time(metar_df, t_start)
+        print(f"Metar at start: {metar_row.metar}")
+
 
     def init_UI(self):
         # ---- UI ----
