@@ -1490,6 +1490,14 @@ class MainWindow(QMainWindow):
         self.altitude_cursor_visible = True
         self.altitude_last_blink = 0
 
+        # ---- horizontal altitude reference line (bright line across scale) ----
+        self.altitude_cursor_line = QFrame(self.gps_view)
+        self.altitude_cursor_line.setStyleSheet(
+            "background-color: rgba(255,255,255,200);"
+        )
+        self.altitude_cursor_line.setGeometry(0, 0, 40, 2)
+        self.altitude_cursor_line.show()
+
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
         if not hasattr(self, "altitude_scale_labels"):
@@ -1556,6 +1564,15 @@ class MainWindow(QMainWindow):
 
         # center the triangle on the altitude bar
         self.altitude_cursor.move(bar_x - 12, y_cursor - 8)
+
+        # horizontal reference line aligned with cursor
+        if hasattr(self, "altitude_cursor_line"):
+            self.altitude_cursor_line.setGeometry(
+                bar_x - 40,
+                y_cursor - 1,
+                40,
+                2
+            )
 
         # blink triangle if climb/descent rate is high, and color by climb/descent
         try:
@@ -2153,6 +2170,7 @@ class MainWindow(QMainWindow):
             x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
             self.video1_heading_label.move(x, 5)
 
+
         # ---- Update pitch overlay on video1 (above bank) ----
         if hasattr(self, "video1_pitch_label"):
             self.video1_pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
@@ -2219,6 +2237,7 @@ class MainWindow(QMainWindow):
             x_alt = self.video1.width() - self.video1_alt_label.width() - 10
             y_alt = y_fpm - self.video1_alt_label.height() - 5
             self.video1_alt_label.move(x_alt, y_alt)
+
 
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
