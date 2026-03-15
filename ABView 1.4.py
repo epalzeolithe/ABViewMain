@@ -943,6 +943,10 @@ class MainWindow(QMainWindow):
         self.btn_pallier = QPushButton("Palier")
         self.btn_pallier.clicked.connect(self.seek_palier)
 
+        # bouton bookmark précédent
+        self.btn_prev = QPushButton("Previous")
+        self.btn_prev.clicked.connect(self.goto_previous_bookmark)
+
         self.btn_next = QPushButton("Next")
         self.btn_next.clicked.connect(self.goto_next_bookmark)
 
@@ -984,6 +988,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_fwd_2)
         buttons_layout.addWidget(self.btn_fwd_10)
         buttons_layout.addWidget(self.btn_pallier)
+        buttons_layout.addWidget(self.btn_prev)
         buttons_layout.addWidget(self.btn_next)
         buttons_layout.addWidget(self.btn_add_bookmark)
         buttons_layout.addWidget(self.btn_start)
@@ -2562,6 +2567,38 @@ class MainWindow(QMainWindow):
                 name = str(row.iloc[0]["name"])
                 self.show_bookmark_overlay(name)
 
+    def goto_previous_bookmark(self):
+        """Jump to the previous bookmark before the current frame.
+        If called again within 2 seconds, jump one bookmark further back."""
+
+        if self.bookmarks_df is None or self.bookmarks_df.empty:
+            return
+
+        import time
+        now = time.time()
+
+        # bookmarks before current frame
+        past = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
+
+        if past.empty:
+            print("No previous bookmark")
+            return
+
+        # detect rapid consecutive press
+        rapid = False
+        if hasattr(self, "_last_prev_time"):
+            if now - self._last_prev_time < 2.0:
+                rapid = True
+
+        # choose which bookmark to jump to
+        if rapid and len(past) >= 2:
+            frame = int(past.iloc[-2]["frame"])
+        else:
+            frame = int(past.iloc[-1]["frame"])
+
+        self._last_prev_time = now
+        self.goto_bookmark(frame)
+
     def goto_next_bookmark(self):
         """Jump to the next bookmark after the current frame."""
 
@@ -2586,9 +2623,10 @@ class MainWindow(QMainWindow):
         self.bookmark_overlay.setText(name)
         self.bookmark_overlay.adjustSize()
 
-        # centrer en haut de la fenêtre
+        # center overlay roughly in the middle of the video area
         x = int((self.width() - self.bookmark_overlay.width()) / 2)
-        self.bookmark_overlay.move(x, 20)
+        y = int((self.height() - self.bookmark_overlay.height()) / 6)
+        self.bookmark_overlay.move(x, y)
 
         self.bookmark_overlay.show()
 
