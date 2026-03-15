@@ -2630,8 +2630,13 @@ class MainWindow(QMainWindow):
 
         self.bookmark_overlay.show()
 
-        # disparaît après 3 secondes
-        QTimer.singleShot(3000, self.bookmark_overlay.hide)
+        # restart overlay timer so rapid Next/Previous presses don't shorten display time
+        if not hasattr(self, "bookmark_overlay_timer"):
+            self.bookmark_overlay_timer = QTimer(self)
+            self.bookmark_overlay_timer.setSingleShot(True)
+            self.bookmark_overlay_timer.timeout.connect(self.bookmark_overlay.hide)
+
+        self.bookmark_overlay_timer.start(4000)
 
     # ==================================================
     def toggle_play(self):
