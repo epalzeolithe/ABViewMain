@@ -38,6 +38,7 @@ OPTIONS = {
         "pytest",
         "test",
         "unittest",
+        "rubicon"   # ← IMPORTAN
     ],
 
     "iconfile": "ABVDocument.icns",
