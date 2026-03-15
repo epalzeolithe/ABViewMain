@@ -1,39 +1,39 @@
-import os
-import json
-import shutil
-import subprocess
+import sys
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
+from PyQt5.QtCore import QTimer, Qt
+from datetime import datetime
 
 
-def create_abv_project(path, name="MyProject"):
-    bundle = os.path.join(path, f"{name}.abv")
+class Clock(QWidget):
 
-    os.makedirs(bundle, exist_ok=True)
-    os.makedirs(os.path.join(bundle, "media"), exist_ok=True)
+    def __init__(self):
+        super().__init__()
 
-    project = {
-        "name": name,
-        "version": "1.0",
-        "media": []
-    }
+        self.setWindowTitle("Horloge")
 
-    with open(os.path.join(bundle, "project.json"), "w") as f:
-        json.dump(project, f, indent=2)
+        self.label = QLabel()
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setStyleSheet("font-size: 40px;")
 
-    # ----- Optional Finder icon for the bundle -----
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    icon_source = os.path.join(script_dir, "ABVDocument.icns")
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        self.setLayout(layout)
 
-    if os.path.exists(icon_source):
-        icon_dest = os.path.join(bundle, ".VolumeIcon.icns")
-        shutil.copy(icon_source, icon_dest)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_time)
+        self.timer.start(1000)
 
-        try:
-            subprocess.run(["SetFile", "-a", "C", bundle], check=False)
-        except Exception:
-            pass
+        self.update_time()
 
-    print("ABView project created:", bundle)
+    def update_time(self):
+        now = datetime.now().strftime("%H:%M:%S")
+        self.label.setText(now)
 
 
-if __name__ == "__main__":
-    create_abv_project(".")
+app = QApplication(sys.argv)
+
+window = Clock()
+window.resize(300, 120)
+window.show()
+
+sys.exit(app.exec_())
