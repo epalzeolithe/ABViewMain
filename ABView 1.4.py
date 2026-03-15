@@ -943,6 +943,9 @@ class MainWindow(QMainWindow):
         self.btn_pallier = QPushButton("Palier")
         self.btn_pallier.clicked.connect(self.seek_palier)
 
+        self.btn_next = QPushButton("Next")
+        self.btn_next.clicked.connect(self.goto_next_bookmark)
+
         self.btn_add_bookmark = QPushButton("Bookmark")
         self.btn_add_bookmark.clicked.connect(self.add_bookmark)
 
@@ -981,6 +984,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_fwd_2)
         buttons_layout.addWidget(self.btn_fwd_10)
         buttons_layout.addWidget(self.btn_pallier)
+        buttons_layout.addWidget(self.btn_next)
         buttons_layout.addWidget(self.btn_add_bookmark)
         buttons_layout.addWidget(self.btn_start)
         buttons_layout.addWidget(self.btn_mise_en_ligne)
@@ -2558,6 +2562,22 @@ class MainWindow(QMainWindow):
                 name = str(row.iloc[0]["name"])
                 self.show_bookmark_overlay(name)
 
+    def goto_next_bookmark(self):
+        """Jump to the next bookmark after the current frame."""
+
+        if self.bookmarks_df is None or self.bookmarks_df.empty:
+            return
+
+        # chercher les bookmarks après la frame actuelle
+        future = self.bookmarks_df[self.bookmarks_df["frame"] > self.i]
+
+        if future.empty:
+            print("No next bookmark")
+            return
+
+        frame = int(future.iloc[0]["frame"])
+        self.goto_bookmark(frame)
+
     def show_bookmark_overlay(self, name):
 
         if self.bookmark_overlay is None:
@@ -2653,16 +2673,16 @@ class MainWindow(QMainWindow):
         Cherche un pallier :
         |gps_fpm| < 100 ft/min
         gps_speed > 150 km/h
-        pendant 10 secondes
+        pendant 2 secondes
         """
 
-        window = int(DF_FREQ * 2)  # 5 secondes
+        window = int(DF_FREQ * 2)  # 2 secondes
 
         fpm = df["gps_fpm"].to_numpy()
         speed = df["gps_speed"].to_numpy()
 
-        # start searching from current dataframe position
-        start_idx = getattr(self, "idf", 0)
+        # start searching AFTER the current dataframe position (next palier behavior)
+        start_idx = getattr(self, "idf", 0) + 1
         for i in range(start_idx, len(df) - window):
 
             seg_fpm = fpm[i:i + window]
