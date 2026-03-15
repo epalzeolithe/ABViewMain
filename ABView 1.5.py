@@ -719,7 +719,6 @@ class MainWindow(QMainWindow):
             self.audio_timer.start(10)  # ~100 Hz audio servicing
 
         # Metar management
-
         t_start = df['timestamp'][0]
         print(t_start)
         metar_row = find_metar_for_time(metar_df, t_start)
