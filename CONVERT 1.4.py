@@ -3,13 +3,16 @@ from pymediainfo import MediaInfo
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import subprocess,os
+import psutil
+import time
+import sys
 from pathlib import Path
 
 # -------- CONFIG --------
-X4_INSV_1 = "data/VID_20260221_091717_00_050.insv"
-X4_INSV_2 = "data/VID_20260221_091717_00_051.insv"
+X4_INSV_1 = "data/raw/VID_20260221_091717_00_050.insv"
+X4_INSV_2 = "data/raw/VID_20260221_091717_00_051.insv"
 
-SKIP_CONVERSION = True
+SKIP_CONVERSION = False
 
 def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
     return [
@@ -64,8 +67,7 @@ crop=1080:608,scale=1920:1080:flags=lanczos[back]
         "-allow_sw", "1",
         "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
-        back_out,
-    ]
+        back_out,]
 
 def get_mp4_creation_datetime(path):
     media_info = MediaInfo.parse(path)
@@ -81,12 +83,9 @@ def set_mp4_creation_datetime(path, dt):
     # si pas de fuseau → on suppose Europe/Paris
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo("Europe/Paris"))
-
     # FFmpeg attend généralement UTC → on encode explicitement en UTC avec Z
     ts = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
     tmp = path + ".tmp.mp4"
-
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -96,25 +95,18 @@ def set_mp4_creation_datetime(path, dt):
         "-map_metadata", "0",
         "-metadata", f"creation_time={ts}",
         "-codec", "copy",
-        tmp
-    ]
-    print(cmd)
-
+        tmp]
     subprocess.run(cmd, check=True)
-
     # remplace le fichier original
     import os
     os.replace(tmp, path)
 
 def get_bundle_name_from_insv(path):
     name = os.path.basename(path)
-
     # attendu : VID_20260221_091717_00_050.insv
     parts = name.split("_")
-
     date = parts[1]  # 20260221
     time = parts[2]  # 091717
-
     return f"V_{date[:4]}_{date[4:6]}_{date[6:8]}.abv"
 
 def main():
@@ -129,24 +121,42 @@ def main():
     back=pdl+"back.mp4"
     cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
     print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
-    print(cmd)
+    #print(cmd)
 
     if not SKIP_CONVERSION:
         try:
-            subprocess.run(cmd, check=True)
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+
+            # initialise la mesure CPU
+            psutil.cpu_percent(None)
+
+            start = time.time()
+
+            while process.poll() is None:
+                cpu = psutil.cpu_percent(None)
+                ram = psutil.virtual_memory().used / (1024**3)
+                elapsed = int(time.time() - start)
+
+                msg = f"Conversion... CPU {cpu:5.1f}% | RAM {ram:4.1f} GB | t={elapsed:4d}s"
+                sys.stdout.write("\r" + msg)
+                sys.stdout.flush()
+
+                time.sleep(1)
+
+            process.wait()
         except subprocess.CalledProcessError as e:
             print("FFmpeg failed:", e)
 
-    d = get_mp4_creation_datetime(X4_INSV_2)
-    print(d)
+    print()  # retour à la ligne après la barre dynamique
+
+    #transfer date de création
     d= get_mp4_creation_datetime(X4_INSV_1)
-    print(d)
     set_mp4_creation_datetime(front,d)
-    d = get_mp4_creation_datetime(front)
-    print(d)
     set_mp4_creation_datetime(back,d)
-    d = get_mp4_creation_datetime(back)
-    print(d)
 
     print("Done.")
 

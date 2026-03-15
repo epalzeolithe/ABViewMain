@@ -51,13 +51,11 @@ __version__ = "1.4 Convert"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/V_2026_02_21.abv/"
 PDL=MAINDIR+BDL
-INSV1=MAINDIR+"data/VID_20260221_091717_00_050.insv"
-INSV2=MAINDIR+"data/VID_20260221_091717_00_051.insv"
-MERGED_DATA = INSV1+".merged_data.csv"
+MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
 VIDEO2=PDL+"back.mp4"
-BOOKMARK_FILE=INSV1+".bookmark.csv"
-STL_FILE=MAINDIR+"data/CAP10.STL"
+BOOKMARK_FILE=PDL+"bookmark.csv"
+STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
 DF_FREQ = 100
 TRACE = 6000 # taille de la trace 6000=1 minute

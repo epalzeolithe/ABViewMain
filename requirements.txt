@@ -14,3 +14,4 @@ ScreenCaptureKit
 pyobjc-framework-screencapturekit
 dispatch
 py2app
+psutil
