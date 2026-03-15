@@ -1,5 +1,4 @@
 from setuptools import setup
-
 APP = ["ABView 1.4.py"]
 
 OPTIONS = {
