@@ -2656,12 +2656,14 @@ class MainWindow(QMainWindow):
         pendant 10 secondes
         """
 
-        window = int(DF_FREQ * 5)  # 5 secondes
+        window = int(DF_FREQ * 2)  # 5 secondes
 
         fpm = df["gps_fpm"].to_numpy()
         speed = df["gps_speed"].to_numpy()
 
-        for i in range(0, len(df) - window):
+        # start searching from current dataframe position
+        start_idx = getattr(self, "idf", 0)
+        for i in range(start_idx, len(df) - window):
 
             seg_fpm = fpm[i:i + window]
             seg_speed = speed[i:i + window]
