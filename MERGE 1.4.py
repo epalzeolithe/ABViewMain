@@ -10,11 +10,10 @@ from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
 
 # -------- CONFIG --------
-X4_INSV_1 = "data/VID_20260221_091717_00_050.insv"
-X4_INSV_2 = "data/VID_20260221_091717_00_051.insv"
-GPS_GNS3000 = "data/LOG00003.TXT"
-IPHONE_SENSORLOG = "data/sensorlog.csv"
-OUTPUT = X4_INSV_1+".merged_data.csv"
+X4_INSV_1 = "data/raw/VID_20260221_091717_00_050.insv"
+X4_INSV_2 = "data/raw/VID_20260221_091717_00_051.insv"
+GPS_GNS3000 = "data/raw/LOG00003.TXT"
+IPHONE_SENSORLOG = "data/raw/sensorlog.csv"
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
 WINDOW_ACCX4 = 50 # taille moyenne glissante pour lissage accéléros X4
@@ -23,11 +22,23 @@ X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
 
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
-GYRO2BB = "tool/gyro2bb-mac-arm64"
+GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
+MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
-SKIP_X4_EXPORT = True
-SKIP_GNS3000_IMPORT = True
-SKIP_IPHONE_IMPORT = True
+SKIP_X4_EXPORT = False
+SKIP_GNS3000_IMPORT = False
+SKIP_IPHONE_IMPORT = False
+
+def get_bundle_name_from_insv(path):
+    name = os.path.basename(path)
+    # attendu : VID_20260221_091717_00_050.insv
+    parts = name.split("_")
+    date = parts[1]  # 20260221
+    time = parts[2]  # 091717
+    return f"V_{date[:4]}_{date[4:6]}_{date[6:8]}.abv"
+
+OUTPUT = "data/"+get_bundle_name_from_insv(X4_INSV_1)+"/merged_data.csv"
+
 
 # ======================================================
 # MP4 creation date (UTC)
