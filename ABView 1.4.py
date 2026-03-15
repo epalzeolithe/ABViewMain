@@ -1473,30 +1473,16 @@ class MainWindow(QMainWindow):
         self.altitude_orange_zone.setStyleSheet("background-color: rgba(255,140,0,180);")  # orange warning zone
         self.altitude_orange_zone.show()
 
-        # moving marker showing current altitude (red triangle pointer)
-        self.altitude_cursor = QLabel(self.gps_view)
-        self.altitude_cursor.setStyleSheet(
-            """
-            background: transparent;
-            border-left: 12px solid red;
-            border-top: 8px solid transparent;
-            border-bottom: 8px solid transparent;
-            """
-        )
-        self.altitude_cursor.setGeometry(0, 0, 12, 16)
+        # moving marker showing current altitude (rectangle cursor like speed bar)
+        self.altitude_cursor = QFrame(self.gps_view)
+        self.altitude_cursor.setStyleSheet("background-color: red;")
+        self.altitude_cursor.setGeometry(0, 0, 12, 6)
         self.altitude_cursor.show()
 
         # blinking state for fast altitude change
         self.altitude_cursor_visible = True
         self.altitude_last_blink = 0
 
-        # ---- horizontal altitude reference line (bright line across scale) ----
-        self.altitude_cursor_line = QFrame(self.gps_view)
-        self.altitude_cursor_line.setStyleSheet(
-            "background-color: rgba(255,255,255,200);"
-        )
-        self.altitude_cursor_line.setGeometry(0, 0, 40, 2)
-        self.altitude_cursor_line.show()
 
         # ---- horizontal speed bar (top of GPS view) ----
         self.speed_bar = QFrame(self.gps_view)
@@ -1595,17 +1581,9 @@ class MainWindow(QMainWindow):
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
-        # center the triangle on the altitude bar
-        self.altitude_cursor.move(bar_x - 12, y_cursor - 8)
+        # center rectangular cursor on altitude bar
+        self.altitude_cursor.move(bar_x - 4, y_cursor - 3)
 
-        # horizontal reference line aligned with cursor
-        if hasattr(self, "altitude_cursor_line"):
-            self.altitude_cursor_line.setGeometry(
-                bar_x - 40,
-                y_cursor - 1,
-                40,
-                2
-            )
 
         # blink triangle if climb/descent rate is high, and color by climb/descent
         try:
@@ -1621,14 +1599,8 @@ class MainWindow(QMainWindow):
         else:
             color = "red"    # descent
 
-        self.altitude_cursor.setStyleSheet(
-            f"""
-            background: transparent;
-            border-left: 12px solid {color};
-            border-top: 8px solid transparent;
-            border-bottom: 8px solid transparent;
-            """
-        )
+        # change cursor color depending on climb / descent
+        self.altitude_cursor.setStyleSheet(f"background-color: {color};")
 
         blink_threshold = 2500  # ft/min
 
