@@ -3226,7 +3226,7 @@ class MainWindow(QMainWindow):
 # ======================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
+    #app.setStyle("Fusion")
     app.setPalette(app.style().standardPalette())
     win = MainWindow()
     win.show()

@@ -12,6 +12,17 @@ from pathlib import Path
 X4_INSV_1 = "data/raw/VID_20260221_091717_00_050.insv"
 X4_INSV_2 = "data/raw/VID_20260221_091717_00_051.insv"
 
+CROP_FRONT = "1200:675" #default 1200:675
+CROP_BACK = "960:540" #default 1080:608
+
+#Très large 1280:720
+#Large 1200:675
+#Moyen 1080:608
+#Moyen+ 960:540
+#Zoom 840:472
+#Zoom fort 720:405
+#Très zoom 640:360
+
 SKIP_CONVERSION = False
 
 def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
@@ -27,7 +38,7 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         #"-t", "10",
         "-i", input2,
         "-filter_complex",
-        """
+        f"""
 [0:v:0][0:v:1]hstack[v0];
 [1:v:0][1:v:1]hstack[v1];
 
@@ -40,10 +51,10 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
 [vh]split=2[vf][vb];
 
 [vf]v360=input=hammer:output=hammer:yaw=0:w=1920:h=1080,
-crop=1200:675,scale=1920:1080:flags=lanczos[front];
+crop={CROP_FRONT},scale=1920:1080:flags=lanczos[front];
 
 [vb]v360=input=hammer:output=hammer:yaw=180:w=1920:h=1080,
-crop=1080:608,scale=1920:1080:flags=lanczos[back]
+crop={CROP_BACK},scale=1920:1080:flags=lanczos[back]
 """,
         "-map", "[front]", "-map", "[a1]",
         "-c:v", "h264_videotoolbox",
