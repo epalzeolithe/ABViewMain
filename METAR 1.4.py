@@ -44,19 +44,20 @@ def download_metar_history(icao, start, end):
         print(text[:500])
         raise
 
-    # Build datetime column
+    # Build datetime column (Ogimet returns Spanish column names)
+    # ESTACION,ANO,MES,DIA,HORA,MINUTO,PARTE
     df["time"] = pd.to_datetime(
         dict(
-            year=df["YEAR"],
-            month=df["MONTH"],
-            day=df["DAY"],
-            hour=df["HOUR"],
-            minute=df["MIN"],
+            year=df["ANO"],
+            month=df["MES"],
+            day=df["DIA"],
+            hour=df["HORA"],
+            minute=df["MINUTO"],
         ),
         utc=True,
     )
 
-    df = df.rename(columns={"REPORT": "metar"})
+    df = df.rename(columns={"PARTE": "metar"})
 
     df = df[["time", "metar"]].sort_values("time").reset_index(drop=True)
 
