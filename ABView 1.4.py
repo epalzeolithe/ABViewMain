@@ -2973,7 +2973,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "speed_bar") and hasattr(self, "speed_cursor"):
             bar_margin = 20
             bar_width = self.gps_view.width() - bar_margin * 2
-            bar_y = 6
+            bar_y = 16  # move speed bar slightly lower from top
 
             self.speed_bar.setGeometry(bar_margin, bar_y, bar_width, 6)
 
@@ -2983,7 +2983,8 @@ class MainWindow(QMainWindow):
                 for v, label in self.speed_scale_labels:
                     t = v / max_speed
                     x = int(bar_margin + t * bar_width)
-                    label.move(x - label.width() // 2, bar_y + 8)
+                    # place graduations above the speed bar
+                    label.move(x - label.width() // 2, bar_y - label.height() - 4)
 
             # speed scaling (same logical ranges as badin)
             try:
