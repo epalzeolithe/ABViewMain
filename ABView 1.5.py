@@ -1398,6 +1398,46 @@ class MainWindow(QMainWindow):
                 </html>
                 """)
         self.grid.addWidget(self.map_view, 1, 3, 1, 1)
+        # ---- METAR overlay (bottom of OSM map) ----
+        # attach overlay to the central widget so it can appear above the grid layout
+        parent_widget = self.centralWidget() if self.centralWidget() is not None else self
+        self.map_metar_label = QLabel("", parent_widget)
+        self.map_metar_label.setAlignment(Qt.AlignCenter)
+        self.map_metar_label.setWordWrap(True)
+        self.map_metar_label.setStyleSheet(
+            "color: black; background-color: white; padding: 6px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
+        )
+        self.map_metar_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.map_metar_label.setText(getattr(self, "last_metar", ""))
+        self.map_metar_label.adjustSize()
+        self.map_metar_label.raise_()
+        # initial position of METAR label (bottom center of map)
+        self._position_map_metar_label()
+
+    def _position_map_metar_label(self):
+        """Position the METAR label centered at the bottom of the OSM map."""
+        if not hasattr(self, "map_metar_label") or not hasattr(self, "map_view"):
+            return
+
+        geom = self.map_view.geometry()
+
+        # limit label width to map width so text wraps instead of overflowing
+        self.map_metar_label.setMaximumWidth(geom.width() - 20)
+        self.map_metar_label.adjustSize()
+
+        # map_view geometry is relative to the central widget
+        x = geom.x() + (geom.width() - self.map_metar_label.width()) // 2
+        y = geom.y() + geom.height() - self.map_metar_label.height() - 10
+
+        self.map_metar_label.move(x, y)
+        self.map_metar_label.raise_()
+        self.map_metar_label.show()
+
+    def resizeEvent(self, event):
+        """Keep METAR label correctly positioned when window resizes."""
+        super().resizeEvent(event)
+        if hasattr(self, "map_metar_label"):
+            self._position_map_metar_label()
 
     def init_gps_pyqtgraph(self):
 
@@ -3051,6 +3091,14 @@ class MainWindow(QMainWindow):
             lon = row.gps_lon
             self.map_view.page().runJavaScript(f"window.updateMarker({lat}, {lon});")
 
+        # keep METAR overlay visible and correctly positioned
+        if hasattr(self, "map_metar_label"):
+            try:
+                self.map_metar_label.setText(getattr(self, "last_metar", ""))
+                self._position_map_metar_label()
+            except Exception:
+                pass
+
         end = self.idf
         start = end - TRACE
         if start < 0:
@@ -3425,5 +3473,3 @@ if __name__ == "__main__":
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
-
-
