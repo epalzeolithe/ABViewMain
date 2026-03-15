@@ -1479,7 +1479,7 @@ class MainWindow(QMainWindow):
         self.altitude_green_zone.show()
 
         self.altitude_orange_zone = QFrame(self.gps_view)
-        self.altitude_orange_zone.setStyleSheet("background-color: rgba(120,120,120,160);")  # grey above 5000 ft
+        self.altitude_orange_zone.setStyleSheet("background-color: rgba(128,128,128,80);")  # grey above 5000 ft
         self.altitude_orange_zone.show()
 
         # moving marker showing current altitude (rectangle cursor like speed bar)
@@ -1534,6 +1534,49 @@ class MainWindow(QMainWindow):
             tick.setGeometry(0, 0, 2, 6)
             tick.show()
             self.speed_scale_ticks.append(tick)
+
+        # ---- G force bar (bottom of GPS view) ----
+        self.g_bar = QFrame(self.gps_view)
+        self.g_bar.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            " stop:0 rgba(0,120,255,200),"      # blue (-4G to -1G)
+            " stop:0.30 rgba(0,120,255,200),"   # -1G position
+            " stop:0.45 rgba(0,200,0,200),"     # start green (0.5G)
+            " stop:0.55 rgba(0,200,0,200),"     # end green (1.5G)
+            " stop:0.60 rgba(255,220,0,200),"   # yellow ~2G
+            " stop:0.80 rgba(255,0,0,220),"     # red up to 4G
+            " stop:1 rgba(160,0,255,220));"     # violet 4–6G
+        )
+        self.g_bar.setGeometry(0, 0, 200, 6)
+        self.g_bar.show()
+
+        # moving cursor for G force (same style as speed cursor)
+        self.g_cursor = QFrame(self.gps_view)
+        self.g_cursor.setStyleSheet("background-color: red;")
+        self.g_cursor.setGeometry(0, 0, 10, 16)
+        self.g_cursor.show()
+
+        # ---- G scale graduations ----
+        self.g_scale_labels = []
+        for g in (-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6):
+            text = "1G" if g == 1 else str(g)
+            label = QLabel(text, self.gps_view)
+            label.setStyleSheet(
+                "color: black; background-color: transparent; font-family:'Menlo'; font-size:10px;"
+            )
+            label.adjustSize()
+            label.show()
+            label.raise_()
+            self.g_scale_labels.append((g, label))
+
+        # vertical ticks for G scale
+        self.g_scale_ticks = []
+        for _ in (-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6):
+            tick = QFrame(self.gps_view)
+            tick.setStyleSheet("background-color: black;")
+            tick.setGeometry(0, 0, 2, 6)
+            tick.show()
+            self.g_scale_ticks.append(tick)
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
@@ -2997,7 +3040,8 @@ class MainWindow(QMainWindow):
         # ---- update horizontal GPS speed bar ----
         if hasattr(self, "speed_bar") and hasattr(self, "speed_cursor"):
             bar_margin = 20
-            bar_width = self.gps_view.width() - bar_margin * 2
+            # stop the speed bar before the altitude scale area on the right
+            bar_width = self.gps_view.width() - bar_margin * 2 - 80
             bar_y = 16  # move speed bar slightly lower from top
 
             self.speed_bar.setGeometry(bar_margin, bar_y, bar_width, 6)
@@ -3049,6 +3093,61 @@ class MainWindow(QMainWindow):
                 color = "rgb(255,0,0)"
 
             self.speed_cursor.setStyleSheet(f"background-color: {color};")
+
+        # ---- update G force bar (bottom of GPS view) ----
+        if hasattr(self, "g_bar") and hasattr(self, "g_cursor"):
+            bar_margin = 20
+            # stop the G bar before the altitude scale area on the right
+            bar_width = self.gps_view.width() - bar_margin * 2 - 80
+            bar_y = self.gps_view.height() - 18
+
+            self.g_bar.setGeometry(bar_margin, bar_y, bar_width, 6)
+
+            # position G scale labels and ticks
+            if hasattr(self, "g_scale_labels"):
+                g_min = -4.0
+                g_max = 6.0
+                for idx, (gv, label) in enumerate(self.g_scale_labels):
+                    t = (gv - g_min) / (g_max - g_min)
+                    x = int(bar_margin + t * bar_width)
+
+                    # labels above the bar
+                    label.move(x - label.width() // 2, bar_y - label.height() - 4)
+
+                    # small vertical tick
+                    if hasattr(self, "g_scale_ticks") and idx < len(self.g_scale_ticks):
+                        tick = self.g_scale_ticks[idx]
+                        tick.setGeometry(x - 1, bar_y - 2, 2, 6)
+
+            # get current G value
+            try:
+                g_val = float(self.g)
+            except Exception:
+                g_val = 0.0
+
+            # clamp between -4 and +6
+            g_min = -4.0
+            g_max = 6.0
+            g_val = max(g_min, min(g_max, g_val))
+
+            # normalize to 0..1
+            t = (g_val - g_min) / (g_max - g_min)
+
+            x_cursor = int(bar_margin + t * bar_width)
+
+            self.g_cursor.setGeometry(x_cursor - 5, bar_y - 5, 10, 16)
+
+            # color depending on G magnitude
+            if g_val < 0:
+                color = "rgb(0,120,255)"
+            elif g_val < 3:
+                color = "rgb(0,255,0)"
+            elif g_val < 5:
+                color = "rgb(255,200,0)"
+            else:
+                color = "rgb(255,0,0)"
+
+            self.g_cursor.setStyleSheet(f"background-color: {color};")
 
 
         az = -int(row.gps_heading / 45) * 45 - 22.5
