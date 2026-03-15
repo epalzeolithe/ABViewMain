@@ -1389,11 +1389,16 @@ class MainWindow(QMainWindow):
             self.gps_view.addItem(line)
             self.gps_lines.append(line)
 
-        # point avion
+        # aircraft position marker
         self.gps_point = gl.GLScatterPlotItem(
             pos=np.zeros((1, 3)),
-            size=10,
-            color=(1, 0, 0, 1))
+            size=15,              # screen pixels
+            pxMode=True,          # keep constant size on screen
+            color=(1.0, 0.0, 0.0, 1.0)
+        )
+
+        # ensure the point is rendered normally and not blended like a large sphere
+        self.gps_point.setGLOptions('opaque')
 
         # ground grid (visual reference in meters)
         grid = gl.GLGridItem()
@@ -1462,7 +1467,7 @@ class MainWindow(QMainWindow):
         # moving marker showing current altitude
         self.altitude_cursor = QFrame(self.gps_view)
         self.altitude_cursor.setStyleSheet("background-color: red;")
-        self.altitude_cursor.setGeometry(0, 0, 12, 4)
+        self.altitude_cursor.setGeometry(0, 0, 24, 8)
         self.altitude_cursor.show()
 
     def update_altitude_labels(self):
@@ -1500,7 +1505,7 @@ class MainWindow(QMainWindow):
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
-        self.altitude_cursor.move(bar_x - 4, y_cursor - 2)
+        self.altitude_cursor.move(bar_x - 10, y_cursor - 4)
 
 
     def init_gfx(self):
@@ -2097,7 +2102,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_badin"):
             self.video1_badin.speed = self.smooth_speed
             self.video1_badin.update()
-            yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 40
+            yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 80
             self.video1_badin.move(10, yb)
 
         # ---- Update analog altimeter with smoothing ----
@@ -2110,7 +2115,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_altimeter"):
             self.video1_altimeter.alt = self.smooth_alt
             self.video1_altimeter.update()
-            ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 40
+            ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 80
             xa = self.video1.width() - self.video1_altimeter.width() - 10
             self.video1_altimeter.move(xa, ya)
 
@@ -2845,9 +2850,9 @@ class MainWindow(QMainWindow):
                 line.setData(pos=pts_off, color=colors)
 
 
-        #if end < len(gps_lat_vals):
-        #    # aircraft stays at center
-        #    self.gps_point.setData(pos=[[0.0, 0.0, 0.0]])
+        if end < len(gps_lat_vals):
+            # aircraft stays at center
+            self.gps_point.setData(pos=[[0.0, 0.0, z[-1]]])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
         try:
