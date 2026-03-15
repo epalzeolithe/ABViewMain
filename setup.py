@@ -1,6 +1,6 @@
 from setuptools import setup
 
-APP = ["ABView 1.3.py"]
+APP = ["ABView 1.4.py"]
 
 OPTIONS = {
     "argv_emulation": True,
@@ -44,9 +44,9 @@ OPTIONS = {
 
     "plist": {
         "CFBundleName": "ABView",
-        "CFBundleIdentifier": "com.drax.abview",
-        "CFBundleShortVersionString": "1.3",
-        "CFBundleVersion": "1.3",
+        "CFBundleIdentifier": "com.drax.abv",
+        "CFBundleShortVersionString": "1.4",
+        "CFBundleVersion": "1.4",
         "NSHighResolutionCapable": True,
     },
 }
