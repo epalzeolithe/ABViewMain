@@ -1519,11 +1519,28 @@ class MainWindow(QMainWindow):
         # center the triangle on the altitude bar
         self.altitude_cursor.move(bar_x - 12, y_cursor - 8)
 
-        # blink triangle if climb/descent rate is high
+        # blink triangle if climb/descent rate is high, and color by climb/descent
         try:
-            fpm = abs(float(self.row.gps_fpm))
+            fpm_raw = float(self.row.gps_fpm)
         except Exception:
-            fpm = 0
+            fpm_raw = 0.0
+
+        fpm = abs(fpm_raw)
+
+        # change triangle color depending on climb / descent
+        if fpm_raw >= 0:
+            color = "lime"   # climb
+        else:
+            color = "red"    # descent
+
+        self.altitude_cursor.setStyleSheet(
+            f"""
+            background: transparent;
+            border-left: 12px solid {color};
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            """
+        )
 
         blink_threshold = 2500  # ft/min
 
