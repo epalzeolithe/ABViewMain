@@ -9,10 +9,13 @@ import pandas as pd
 from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
 from pathlib import Path
+import requests
 
 # -------- CONFIG --------
-SUBDIR="data/raw/"
-TMP=SUBDIR+"temp/"
+SKIP_X4_EXPORT = True
+SKIP_GNS3000_IMPORT = True
+SKIP_IPHONE_IMPORT = True
+SKIP_METAR = True
 X4_INSV_1 = "VID_20260221_091717_00_050.insv"
 X4_INSV_2 = "VID_20260221_091717_00_051.insv"
 GPS_GNS3000 = "LOG00003.TXT"
@@ -24,13 +27,13 @@ GNS3000_PERIOD = 0.25 # 4 Hz
 X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
 
+SUBDIR="data/raw/"
+TMP=SUBDIR+"temp/"
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
 GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
-SKIP_X4_EXPORT = False
-SKIP_GNS3000_IMPORT = False
-SKIP_IPHONE_IMPORT = False
+
 
 def get_bundle_name_from_insv(path):
     name = os.path.basename(path)
@@ -249,6 +252,86 @@ def get_datas_from_iphone_sensorlog(log):
         idf = pd.read_csv(TMP+"sensorlog.formatted.csv", low_memory=False)
         return idf
 
+def download_metar_history(icao, start, end):
+    """
+    Télécharge les METAR historiques depuis Ogimet.
+
+    start / end : datetime UTC
+    """
+
+    begin = start.strftime("%Y%m%d%H%M")
+    end_s = end.strftime("%Y%m%d%H%M")
+
+    url = (
+        "https://www.ogimet.com/cgi-bin/getmetar"
+        f"?icao={icao}"
+        f"&begin={begin}"
+        f"&end={end_s}"
+        "&lang=eng"
+        "&header=yes"
+    )
+
+    print("Downloading:", url)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    r = requests.get(url, headers=headers, timeout=30)
+    print("HTTP status:", r.status_code)
+    text = r.text
+
+    from io import StringIO
+
+    csv_buffer = StringIO(text)
+
+    try:
+        df = pd.read_csv(csv_buffer)
+    except Exception:
+        print("Returned data:")
+        print(text[:500])
+        raise
+
+    # Build datetime column (Ogimet returns Spanish column names)
+    # ESTACION,ANO,MES,DIA,HORA,MINUTO,PARTE
+    df["time"] = pd.to_datetime(
+        dict(
+            year=df["ANO"],
+            month=df["MES"],
+            day=df["DIA"],
+            hour=df["HORA"],
+            minute=df["MINUTO"],
+        ),
+        utc=True,
+    )
+    # convert from UTC to Paris timezone
+    df["time"] = df["time"].dt.tz_convert("Europe/Paris")
+
+    df = df.rename(columns={"PARTE": "metar"})
+
+    df = df[["time", "metar"]].sort_values("time").reset_index(drop=True)
+
+    return df
+
+
+def find_metar_for_time(df, t):
+
+    idx = df["time"].searchsorted(t)
+
+    if idx == 0:
+        return df.iloc[0]
+
+    if idx >= len(df):
+        return df.iloc[-1]
+
+    before = df.iloc[idx - 1]
+    after = df.iloc[idx]
+
+    if abs(t - before.time) < abs(after.time - t):
+        return before
+    else:
+        return after
+
 
 if __name__ == "__main__":
 
@@ -366,16 +449,6 @@ if __name__ == "__main__":
 
     merged = pd.merge_asof(xdf, idf, on="timestamp", direction="nearest")
     merged = pd.merge_asof(merged, gdf, on="timestamp", direction="nearest")
-    #print("Merging from ",xdf.shape," to ",merged.shape)
-
-    # rearrange
-    #merged = merged['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w',
-    #   'x4_quat_x', 'x4_quat_y', 'x4_quat_z',
-    #   'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed',
-    #   'iphone_heading', 'iphone_acc_x', 'iphone_acc_y', 'iphone_acc_z',
-    #   'iphone_yawrad', 'iphone_rollrad', 'iphone_pitchrad', 'iphone_quat_x',
-    #   'iphone_quat_y', 'iphone_quat_z', 'iphone_quat_w', 'Unnamed: 0_y',
-    #   'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']
 
     merged = merged[['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w','x4_quat_x', 'x4_quat_y', 'x4_quat_z',
     'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed','iphone_heading',
@@ -385,12 +458,31 @@ if __name__ == "__main__":
     #idf.to_csv("data/idf.csv", index=True,encoding="utf-8")
     #xdf.to_csv("data/xdf.csv", index=True,encoding="utf-8")
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
-    print("\nMerged for ABView :"+OUTPUT+"\nDone.")
+    print("\nMerged for ABView :"+OUTPUT)
 
-    import matplotlib.pyplot as plt
+    # extract METAR
 
-    # merged[['gps_alt','iphone_alt']].plot(figsize=(10,5))
-    # merged[['gps_lon','iphone_lon']].plot(figsize=(10,5))
-    # plt.show()
+    if not SKIP_METAR:
+        # start / end time of the video from merged dataframe
+        start = pd.to_datetime(merged["timestamp"].iloc[0], utc=True)
+        # round start down to previous 3‑hour boundary (00,03,06,09,12,15,18,21 UTC)
+        h = (start.hour // 3) * 3 -3
+        start = start.replace(hour=h, minute=0, second=0, microsecond=0)
+        end = start + timedelta(hours=8)
+        print("Start time", start)
+        print("End time", end)
+
+        metar_df = download_metar_history("LFMT", start, end)
+        print(metar_df)
+        OUTPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
+        metar_df.to_csv(OUTPUT_METAR, index=False, encoding="utf-8")
+    else:
+        print(".....Skipping METAR export")
+        INPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
+        metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+        print(metar_df)
+
+    print("Done.")
+
 
 
