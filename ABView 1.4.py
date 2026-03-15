@@ -1498,6 +1498,39 @@ class MainWindow(QMainWindow):
         self.altitude_cursor_line.setGeometry(0, 0, 40, 2)
         self.altitude_cursor_line.show()
 
+        # ---- horizontal speed bar (top of GPS view) ----
+        self.speed_bar = QFrame(self.gps_view)
+        self.speed_bar.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            " stop:0 rgba(0,180,0,180),"
+            " stop:0.75 rgba(0,180,0,180),"   # up to 300 km/h (300/400)
+            " stop:0.75 rgba(255,220,0,200),"
+            " stop:0.85 rgba(255,220,0,200)," # 300–340 km/h (340/400)
+            " stop:0.85 rgba(255,0,0,200),"
+            " stop:1 rgba(255,0,0,200));"
+        )
+        self.speed_bar.setGeometry(0, 0, 200, 6)
+        self.speed_bar.show()
+
+        # moving cursor for speed
+        self.speed_cursor = QFrame(self.gps_view)
+        self.speed_cursor.setStyleSheet("background-color: red;")
+        self.speed_cursor.setGeometry(0, 0, 6, 12)
+        self.speed_cursor.show()
+
+        # ---- speed scale graduations ----
+        self.speed_scale_labels = []
+        for v in (50, 100, 150, 200, 250, 300, 350, 400):
+            text = f"{v} km/h" if v == 50 else str(v)
+            label = QLabel(text, self.gps_view)
+            label.setStyleSheet(
+                "color: black; background-color: transparent; font-family:'Menlo'; font-size:10px;"
+            )
+            label.adjustSize()
+            label.show()
+            label.raise_()
+            self.speed_scale_labels.append((v, label))
+
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
         if not hasattr(self, "altitude_scale_labels"):
@@ -2963,6 +2996,55 @@ class MainWindow(QMainWindow):
             self.update_altitude_labels()
         except Exception:
             pass
+
+        # ---- update horizontal GPS speed bar ----
+        if hasattr(self, "speed_bar") and hasattr(self, "speed_cursor"):
+            bar_margin = 20
+            bar_width = self.gps_view.width() - bar_margin * 2
+            bar_y = 6
+
+            self.speed_bar.setGeometry(bar_margin, bar_y, bar_width, 6)
+
+            # position speed graduations
+            if hasattr(self, "speed_scale_labels"):
+                max_speed = 400.0
+                for v, label in self.speed_scale_labels:
+                    t = v / max_speed
+                    x = int(bar_margin + t * bar_width)
+                    label.move(x - label.width() // 2, bar_y + 8)
+
+            # speed scaling (same logical ranges as badin)
+            try:
+                speed = float(self.row.gps_speed)
+            except Exception:
+                speed = 0.0
+            max_speed = 400.0
+            s = max(0.0, min(speed, max_speed))
+            t = s / max_speed
+
+            x_cursor = int(bar_margin + t * bar_width)
+
+            self.speed_cursor.setGeometry(x_cursor - 3, bar_y - 3, 6, 12)
+
+            # same color logic as speed vector
+            if speed < 113:
+                color = "rgb(0,0,255)"
+            elif speed < 236:
+                color = "rgb(0,255,0)"
+            elif speed < 350:
+                # 236-349: green to yellow, then to orange
+                # 236-300: green to yellow, 300-350: yellow to orange
+                if speed < 300:
+                    r = int((speed - 235) / (300 - 235) * 255)
+                    g = 255 - r
+                else:
+                    r = 255
+                    g = max(0, 255 - int((speed - 300) / (350 - 300) * 255))
+                color = f"rgb({r},{g},0)"
+            else:
+                color = "rgb(255,0,0)"
+
+            self.speed_cursor.setStyleSheet(f"background-color: {color};")
 
 
         az = -int(row.gps_heading / 45) * 45 - 22.5
