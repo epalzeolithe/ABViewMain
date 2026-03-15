@@ -1,55 +1,39 @@
 import os
-import plistlib
+import json
+import shutil
 import subprocess
 
 
-def create_abv_bundle(path, name="MyABView"):
-    bundle_path = os.path.join(path, f"{name}.abv")
-    contents = os.path.join(bundle_path, "Contents")
-    macos = os.path.join(contents, "MacOS")
-    resources = os.path.join(contents, "Resources")
+def create_abv_project(path, name="MyProject"):
+    bundle = os.path.join(path, f"{name}.abv")
 
-    os.makedirs(macos, exist_ok=True)
-    os.makedirs(resources, exist_ok=True)
+    os.makedirs(bundle, exist_ok=True)
+    os.makedirs(os.path.join(bundle, "media"), exist_ok=True)
 
-    info = {
-        "CFBundleName": name,
-        "CFBundleDisplayName": name,
-        "CFBundleIdentifier": "com.example.abview",
-        "CFBundleVersion": "1.0",
-        "CFBundleShortVersionString": "1.0",
-        "CFBundlePackageType": "APPL",
-        "CFBundleExecutable": name,
-        "CFBundleInfoDictionaryVersion": "6.0",
-        "LSMinimumSystemVersion": "11.0",
+    project = {
+        "name": name,
+        "version": "1.0",
+        "media": []
     }
 
-    info_plist_path = os.path.join(contents, "Info.plist")
-    with open(info_plist_path, "wb") as f:
-        plistlib.dump(info, f)
+    with open(os.path.join(bundle, "project.json"), "w") as f:
+        json.dump(project, f, indent=2)
 
-    # executable placeholder
-    exe_path = os.path.join(macos, name)
-    with open(exe_path, "w") as f:
-        f.write("#!/bin/bash\n")
-        f.write("echo 'ABView bundle launched'\n")
+    # ----- Optional Finder icon for the bundle -----
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icon_source = os.path.join(script_dir, "ABVDocument.icns")
 
-    os.chmod(exe_path, 0o755)
+    if os.path.exists(icon_source):
+        icon_dest = os.path.join(bundle, ".VolumeIcon.icns")
+        shutil.copy(icon_source, icon_dest)
 
-    # Force Finder to treat the extension as a package (bundle)
-    try:
-        subprocess.run([
-            "xattr",
-            "-w",
-            "com.apple.FinderInfo",
-            "00000000000000000010000000000000",
-            bundle_path
-        ], check=False)
-    except Exception:
-        pass
+        try:
+            subprocess.run(["SetFile", "-a", "C", bundle], check=False)
+        except Exception:
+            pass
 
-    print("Bundle created:", bundle_path)
+    print("ABView project created:", bundle)
 
 
 if __name__ == "__main__":
-    create_abv_bundle(".")
+    create_abv_project(".")

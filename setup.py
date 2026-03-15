@@ -14,7 +14,6 @@ OPTIONS = {
         "AVFoundation",
         "ScreenCaptureKit",
 
-        "rubicon",
         "rubicon.objc",
         "rubicon.objc.api",
         "rubicon.objc.runtime",
@@ -31,7 +30,6 @@ OPTIONS = {
         "pandas",
         "pygfx",
         "wgpu",
-        "rubicon",
     ],
 
     # modules inutiles dans une app macOS
@@ -42,13 +40,36 @@ OPTIONS = {
         "unittest",
     ],
 
+    "iconfile": "ABVDocument.icns",
+    "strip": True,
+    "optimize": 2,
+
     "plist": {
-        "CFBundleName": "ABView",
-        "CFBundleIdentifier": "com.drax.abv",
-        "CFBundleShortVersionString": "1.4",
-        "CFBundleVersion": "1.4",
-        "NSHighResolutionCapable": True,
-    },
+    "CFBundleName": "ABView",
+    "CFBundleIdentifier": "com.drax.abv",
+    "CFBundleShortVersionString": "1.4",
+    "CFBundleVersion": "1.4",
+    "NSHighResolutionCapable": True,
+
+    "CFBundleDocumentTypes": [
+        {
+            "CFBundleTypeName": "ABView Project",
+            "CFBundleTypeRole": "Editor",
+            "LSItemContentTypes": ["com.drax.abv.project"],
+        }
+    ],
+
+    "UTExportedTypeDeclarations": [
+        {
+            "UTTypeIdentifier": "com.drax.abv.project",
+            "UTTypeDescription": "ABView Project",
+            "UTTypeConformsTo": ["public.data", "com.apple.package"],
+            "UTTypeTagSpecification": {
+                "public.filename-extension": ["abv"]
+            }
+        }
+    ]
+},
 }
 
 setup(
