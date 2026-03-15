@@ -1458,6 +1458,15 @@ class MainWindow(QMainWindow):
             label.raise_()
             self.altitude_scale_labels.append((z, label))
 
+        # small horizontal ticks for altitude graduations
+        self.altitude_scale_ticks = []
+        for _ in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
+            tick = QFrame(self.gps_view)
+            tick.setStyleSheet("background-color: black;")
+            tick.setGeometry(0, 0, 6, 2)
+            tick.show()
+            self.altitude_scale_ticks.append(tick)
+
         # ---- vertical altitude bar ----
         self.altitude_bar = QFrame(self.gps_view)
         self.altitude_bar.setStyleSheet("background-color: rgba(128,128,128,80);")
@@ -1470,13 +1479,13 @@ class MainWindow(QMainWindow):
         self.altitude_green_zone.show()
 
         self.altitude_orange_zone = QFrame(self.gps_view)
-        self.altitude_orange_zone.setStyleSheet("background-color: rgba(255,140,0,180);")  # orange warning zone
+        self.altitude_orange_zone.setStyleSheet("background-color: rgba(120,120,120,160);")  # grey above 5000 ft
         self.altitude_orange_zone.show()
 
         # moving marker showing current altitude (rectangle cursor like speed bar)
         self.altitude_cursor = QFrame(self.gps_view)
         self.altitude_cursor.setStyleSheet("background-color: red;")
-        self.altitude_cursor.setGeometry(0, 0, 12, 6)
+        self.altitude_cursor.setGeometry(0, 0, 18, 8)
         self.altitude_cursor.show()
 
         # blinking state for fast altitude change
@@ -1501,7 +1510,7 @@ class MainWindow(QMainWindow):
         # moving cursor for speed
         self.speed_cursor = QFrame(self.gps_view)
         self.speed_cursor.setStyleSheet("background-color: red;")
-        self.speed_cursor.setGeometry(0, 0, 6, 12)
+        self.speed_cursor.setGeometry(0, 0, 10, 16)
         self.speed_cursor.show()
 
         # ---- speed scale graduations ----
@@ -1516,6 +1525,15 @@ class MainWindow(QMainWindow):
             label.show()
             label.raise_()
             self.speed_scale_labels.append((v, label))
+
+        # small vertical ticks under each speed graduation
+        self.speed_scale_ticks = []
+        for _ in (50, 100, 150, 200, 250, 300, 350, 400):
+            tick = QFrame(self.gps_view)
+            tick.setStyleSheet("background-color: black;")
+            tick.setGeometry(0, 0, 2, 6)
+            tick.show()
+            self.speed_scale_ticks.append(tick)
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
@@ -1566,10 +1584,16 @@ class MainWindow(QMainWindow):
         # labels placed to the RIGHT of the bar
         x_left = bar_x + 8
 
-        for z, label in self.altitude_scale_labels:
+        for idx, (z, label) in enumerate(self.altitude_scale_labels):
             t = z / max_alt
             y = int(top + height * (1.0 - t))
+
             label.move(x_left, y - label.height() // 2)
+
+            # horizontal tick aligned with altitude bar (to the right)
+            if hasattr(self, "altitude_scale_ticks") and idx < len(self.altitude_scale_ticks):
+                tick = self.altitude_scale_ticks[idx]
+                tick.setGeometry(bar_x + 4, y - 1, 6, 2)
 
         # ---- altitude cursor position ----
         try:
@@ -1582,7 +1606,7 @@ class MainWindow(QMainWindow):
         y_cursor = int(top + height * (1.0 - t))
 
         # center rectangular cursor on altitude bar
-        self.altitude_cursor.move(bar_x - 4, y_cursor - 3)
+        self.altitude_cursor.move(bar_x - 7, y_cursor - 4)
 
 
         # blink triangle if climb/descent rate is high, and color by climb/descent
@@ -2980,11 +3004,17 @@ class MainWindow(QMainWindow):
             # position speed graduations
             if hasattr(self, "speed_scale_labels"):
                 max_speed = 400.0
-                for v, label in self.speed_scale_labels:
+                for idx, (v, label) in enumerate(self.speed_scale_labels):
                     t = v / max_speed
                     x = int(bar_margin + t * bar_width)
+
                     # place graduations above the speed bar
                     label.move(x - label.width() // 2, bar_y - label.height() - 4)
+
+                    # vertical tick just above the bar
+                    if hasattr(self, "speed_scale_ticks") and idx < len(self.speed_scale_ticks):
+                        tick = self.speed_scale_ticks[idx]
+                        tick.setGeometry(x - 1, bar_y - 2, 2, 6)
 
             # speed scaling (same logical ranges as badin)
             try:
@@ -2997,7 +3027,7 @@ class MainWindow(QMainWindow):
 
             x_cursor = int(bar_margin + t * bar_width)
 
-            self.speed_cursor.setGeometry(x_cursor - 3, bar_y - 3, 6, 12)
+            self.speed_cursor.setGeometry(x_cursor - 5, bar_y - 5, 10, 16)
 
             # same color logic as speed vector
             if speed < 113:
