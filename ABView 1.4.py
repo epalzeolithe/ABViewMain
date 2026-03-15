@@ -1460,7 +1460,7 @@ class MainWindow(QMainWindow):
 
         # ---- vertical altitude bar ----
         self.altitude_bar = QFrame(self.gps_view)
-        self.altitude_bar.setStyleSheet("background-color: rgba(128,128,128,120);")
+        self.altitude_bar.setStyleSheet("background-color: rgba(128,128,128,80);")
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
