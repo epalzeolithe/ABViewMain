@@ -46,7 +46,6 @@ import AVFoundation
 import ScreenCaptureKit
 from Cocoa import NSObject
 import objc
-import wgpu.backends.wgpu_native
 # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 import warnings
 from objc import ObjCPointerWarning

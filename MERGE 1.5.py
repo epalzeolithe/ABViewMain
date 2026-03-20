@@ -34,7 +34,6 @@ GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
 
-
 def get_bundle_name_from_insv(path):
     name = os.path.basename(path)
     # attendu : VID_20260221_091717_00_050.insv
