@@ -643,11 +643,8 @@ class MainWindow(QMainWindow):
             self.audio_output = QAudioOutput(fmt)
             self.audio_device = self.audio_output.start()
 
-            self.audio_buffer = QByteArray()
-            # ~2 seconds buffer target (rate * channels * bytes_per_sample * seconds)
-            self.audio_buffer_target = self.audio_rate * self.audio_channels * 2 * 2  # ~2 seconds buffer (rate * channels * bytes_per_sample * seconds)
-            # start playback only once buffer is sufficiently filled
-            self.audio_started = False
+            self.audio_buffer = bytearray()
+            self.audio_started = True
             self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
         except Exception:
             self.audio_stream = None
@@ -2639,8 +2636,9 @@ class MainWindow(QMainWindow):
                 self.audio_packets = self.audio_container.demux(self.audio_stream)
 
                 # clear buffered audio and restart buffering
-                self.audio_buffer.clear()
-                self.audio_started = False
+                self.audio_buffer = bytearray()
+                self.audio_clock_sec = 0.0
+                self.audio_started = True
 
             except Exception:
                 pass
@@ -2850,80 +2848,55 @@ class MainWindow(QMainWindow):
     # AUDIO
     # ==================================================
     def update_audio(self):
+        if self.audio_stream is None:
+            return
 
-        # fill buffer (decode ahead)
-        target = self.audio_buffer_target if not self.audio_started else int(self.audio_buffer_target * 0.75)
-        packets_decoded = 0
-        while self.audio_buffer.size() < target and packets_decoded < 48:
-            try:
+        if self.current_video_time_utc is None:
+            return
+
+        video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
+
+        try:
+            # 🔑 bootstrap pour démarrer l’audio
+            if self.audio_clock_sec == 0.0:
+                self.audio_clock_sec = video_time
+
+            max_ahead = 0.5
+
+            while self.audio_clock_sec < video_time + max_ahead:
                 packet = next(self.audio_packets)
-            except StopIteration:
-                break
 
-            packets_decoded += 1
+                for frame in packet.decode():
+                    frames = self.audio_resampler.resample(frame)
 
-            if packet.dts is None:
-                continue
+                    # 🔑 resample peut retourner une liste
+                    if not isinstance(frames, (list, tuple)):
+                        frames = [frames]
 
-            frames_decoded = packet.decode()
-            if not frames_decoded:
-                continue
+                    for f in frames:
+                        if f is None:
+                            continue
 
-            for frame in frames_decoded:
-                # update audio clock from original frame PTS
-                if frame.pts is not None and frame.time_base is not None:
-                    try:
-                        self.audio_clock_sec = float(frame.pts * frame.time_base)
-                    except Exception:
-                        pass
+                        if f.pts is not None:
+                            self.audio_clock_sec = float(f.pts * f.time_base)
 
-                # resample frame to s16 stereo
-                frames = self.audio_resampler.resample(frame)
+                        data = f.to_ndarray().tobytes()
+                        self.audio_buffer += data
 
-                if not isinstance(frames, (list, tuple)):
-                    frames = [frames]
+        except StopIteration:
+            return
+        except Exception as e:
+            print("audio error:", e)
+            return
 
-                for f in frames:
-                    samples = f.to_ndarray()
+        # 🔊 sortie audio
+        chunk_size = 4096
 
-                    # ensure interleaved layout
-                    if samples.ndim == 2:
-                        samples = samples.T.reshape(-1)
+        if len(self.audio_buffer) > chunk_size:
+            chunk = self.audio_buffer[:chunk_size]
+            self.audio_device.write(chunk)
+            self.audio_buffer = self.audio_buffer[chunk_size:]
 
-                    pcm = samples.astype(np.int16).tobytes()
-                    self.audio_buffer.append(pcm)
-
-            # continue filling buffer
-            continue
-
-        # feed Qt audio device according to available space
-        free = self.audio_output.bytesFree()
-
-        # start audio only when ~1s buffer ready
-        if not self.audio_started:
-            if self.audio_buffer.size() >= self.audio_buffer_target:
-                self.audio_started = True
-            else:
-                return
-
-        # avoid very small writes which can create micro‑stutters
-        MIN_CHUNK = 1024  # smaller chunks reduce dropouts when video frames are skipped
-
-        # continuously feed the audio device while it has space
-        while True:
-            free = self.audio_output.bytesFree()
-
-            if free < MIN_CHUNK or self.audio_buffer.size() < MIN_CHUNK:
-                break
-
-            to_write = min(free, self.audio_buffer.size(), 16384)
-            chunk = self.audio_buffer[:to_write]
-
-            written = self.audio_device.write(chunk)
-            if written <= 0:
-                break
-
-            self.audio_buffer.remove(0, written)
 
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
