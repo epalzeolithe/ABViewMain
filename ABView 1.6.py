@@ -53,7 +53,7 @@ from objc import ObjCPointerWarning
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.6 Audio Synced"
+__version__ = "1.5 Tuning"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 #BDL="data/Vol_2026_03_20.abv/"
