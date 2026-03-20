@@ -2865,7 +2865,6 @@ class MainWindow(QMainWindow):
             return
 
         max_ahead = 0.2
-
         if sync_error < -0.3:
             max_ahead = 0.6
 
