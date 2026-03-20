@@ -2596,6 +2596,9 @@ class MainWindow(QMainWindow):
     def seek_video(self, frame):
 
         self.i = int(frame)
+
+
+        # TO FIX A DEPLACER AU BON ENDROIT
         # ---- Reset trails when seeking (nose + G vector history) ----
         if hasattr(self, "nose_trail"):
             self.nose_trail[:] = 0
@@ -2758,24 +2761,36 @@ class MainWindow(QMainWindow):
         frame = max(0, int(self.i - fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
+        # force refresh when paused
+        #if not self.playing:
+        #    self.update_all()
 
     def jump_back_2s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = max(0, int(self.i - fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
+        # force refresh when paused
+        #if not self.playing:
+        #    self.update_all()
 
     def jump_fwd_2s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = min(N - 1, int(self.i + fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
+        # force refresh when paused
+        #if not self.playing:
+        #    self.update_all()
 
     def jump_fwd_10s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = min(N - 1, int(self.i + fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
+        # force refresh when paused
+        #if not self.playing:
+        #    self.update_all()
 
     def goto_mise_en_ligne(self):
         self.seek_video(self.get_video_frame_from_df_index(index_enligne_devol))
@@ -3086,7 +3101,8 @@ class MainWindow(QMainWindow):
             self.act_pause_gps_update.setChecked(not self.enable_matplotlib_gps)
 
     def update_gps_pyqtgraph(self):
-        if self.i % 8 != 0:
+        # skip updates only during playback
+        if self.playing and self.i % 8 != 0:
             return
 
         #t0 = time.perf_counter()
