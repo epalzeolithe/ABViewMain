@@ -2856,12 +2856,23 @@ class MainWindow(QMainWindow):
 
         video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
 
+        # 🔑 calcul erreur sync
+        sync_error = self.audio_clock_sec - video_time
+
+        sync_error = self.audio_clock_sec - video_time
+
+        if sync_error > 0.3:
+            return
+
+        max_ahead = 0.2
+
+        if sync_error < -0.3:
+            max_ahead = 0.6
+
         try:
             # 🔑 bootstrap pour démarrer l’audio
             if self.audio_clock_sec == 0.0:
                 self.audio_clock_sec = video_time
-
-            max_ahead = 0.5
 
             while self.audio_clock_sec < video_time + max_ahead:
                 packet = next(self.audio_packets)
@@ -2892,7 +2903,7 @@ class MainWindow(QMainWindow):
         # 🔊 sortie audio
         chunk_size = 4096
 
-        if len(self.audio_buffer) > chunk_size:
+        while len(self.audio_buffer) > chunk_size:
             chunk = self.audio_buffer[:chunk_size]
             self.audio_device.write(chunk)
             self.audio_buffer = self.audio_buffer[chunk_size:]
