@@ -14,11 +14,11 @@ import requests
 # -------- CONFIG --------
 SKIP_X4_EXPORT = True
 SKIP_GNS3000_IMPORT = True
-SKIP_IPHONE_IMPORT = True
-SKIP_METAR = True
-X4_INSV_1 = "VID_20260221_091717_00_050.insv"
-X4_INSV_2 = "VID_20260221_091717_00_051.insv"
-GPS_GNS3000 = "LOG00003.TXT"
+SKIP_IPHONE_IMPORT = False
+SKIP_METAR = False
+X4_INSV_1 = "VID_20260320_131559_00_053.insv"
+X4_INSV_2 = "VID_20260320_131559_00_054.insv"
+GPS_GNS3000 = "LOG00005.TXT"
 IPHONE_SENSORLOG = "sensorlog.csv"
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
@@ -305,7 +305,8 @@ def download_metar_history(icao, start, end):
         utc=True,
     )
     # convert from UTC to Paris timezone
-    df["time"] = df["time"].dt.tz_convert("Europe/Paris")
+    df["time"] = df["time"].dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+    #df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
 
     df = df.rename(columns={"PARTE": "metar"})
 
@@ -431,28 +432,38 @@ if __name__ == "__main__":
     xdf = xdf.iloc[::X4_DEC].reset_index(drop=True)
 
     # sort for merge
-    for df in [gdf, idf, xdf]:
+    for df in [gdf, xdf]:
         df.sort_values("timestamp", inplace=True)
 
-
-    # force iphone timestamp dtype si lecture csv
-    idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
+    if iloaded:
+        idf.sort_values("timestamp", inplace=True)
+        # force iphone timestamp dtype si lecture csv
+        idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
 
     # force gps timestamp dtype si lecture csv
     gdf["timestamp"] = pd.to_datetime(gdf["timestamp"]).astype("datetime64[us]")
 
     # check start time
     print("GPS start time", gdf['timestamp'][0])
-    print("IPHONE start time", idf['timestamp'][0])
+    if iloaded:
+        print("IPHONE start time", idf['timestamp'][0])
     print("X4 start time", xdf['timestamp'][0])
     #print(gdf["timestamp"].dtype, idf["timestamp"].dtype, xdf["timestamp"].dtype)
 
-    merged = pd.merge_asof(xdf, idf, on="timestamp", direction="nearest")
-    merged = pd.merge_asof(merged, gdf, on="timestamp", direction="nearest")
+    if iloaded:
+        merged = pd.merge_asof(xdf, idf, on="timestamp", direction="nearest")
+        merged = pd.merge_asof(merged, gdf, on="timestamp", direction="nearest")
+        merged = merged[
+            ['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w', 'x4_quat_x', 'x4_quat_y', 'x4_quat_z',
+             'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed', 'iphone_heading',
+             'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
+    else:
+        merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
+        merged = merged[
+            ['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w', 'x4_quat_x', 'x4_quat_y', 'x4_quat_z',
+             'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
 
-    merged = merged[['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w','x4_quat_x', 'x4_quat_y', 'x4_quat_z',
-    'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed','iphone_heading',
-    'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
+
 
     #gdf.to_csv("data/gdf.csv", index=True,encoding="utf-8")
     #idf.to_csv("data/idf.csv", index=True,encoding="utf-8")
@@ -467,8 +478,8 @@ if __name__ == "__main__":
         start = pd.to_datetime(merged["timestamp"].iloc[0], utc=True)
         # round start down to previous 3‑hour boundary (00,03,06,09,12,15,18,21 UTC)
         h = (start.hour // 3) * 3 -3
-        start = start.replace(hour=h, minute=0, second=0, microsecond=0)
-        end = start + timedelta(hours=8)
+        start = start.replace(hour=6, minute=0, second=0, microsecond=0)
+        end = start + timedelta(hours=12)
         print("Start time", start)
         print("End time", end)
 

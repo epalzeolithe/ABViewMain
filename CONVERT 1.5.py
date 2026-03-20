@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 # -------- CONFIG --------
-X4_INSV_1 = "data/raw/VID_20260221_091717_00_050.insv"
-X4_INSV_2 = "data/raw/VID_20260221_091717_00_051.insv"
+X4_INSV_1 = "data/raw/VID_20260320_131559_00_053.insv"
+X4_INSV_2 = "data/raw/VID_20260320_131559_00_054.insv"
 
 CROP_FRONT = "1200:675" #default 1200:675
 CROP_BACK = "960:540" #default 1080:608

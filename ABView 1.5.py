@@ -56,7 +56,8 @@ from objc import ObjCPointerWarning
 # MAJOR.MINOR.PATCH
 __version__ = "1.4 Convert"
 MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol_2026_02_21.abv/"
+#BDL="data/Vol_2026_02_21.abv/"
+BDL="data/Vol_2026_03_20.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
@@ -189,7 +190,8 @@ timestamp_vals = df["timestamp"].to_numpy()
 
 INPUT_METAR = BDL + "metar.csv"
 metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
-metar_df["time"] = pd.to_datetime(metar_df["time"])
+#metar_df["time"] = pd.to_datetime(metar_df["time"])
+metar_df["time"] = pd.to_datetime(metar_df["time"], format="mixed", utc=True)
 
 def find_metar_for_time(df, t):
 
@@ -2473,6 +2475,25 @@ class MainWindow(QMainWindow):
             self.map_ready = True
             #print("Map ready")
 
+    def update_metar(self):
+        if self.i % 30 != 0:
+            return
+        # ---- Update METAR overlay if needed ----
+        try:
+            current_time = self.row.timestamp
+            metar_row = find_metar_for_time(metar_df, current_time)
+            new_metar = metar_row.metar
+
+            if new_metar != self.last_metar:
+                self.last_metar = new_metar
+
+                if hasattr(self, "map_metar_label"):
+                    self.map_metar_label.setText(self.last_metar)
+                    self.map_metar_label.adjustSize()
+                    self._position_map_metar_label()
+
+        except Exception:
+            pass
 
     # ==================================================
     # Real-time compensated main loop (absolute scheduling)
@@ -2794,7 +2815,7 @@ class MainWindow(QMainWindow):
         speed = df["gps_speed"].to_numpy()
 
         # start searching AFTER the current dataframe position (next palier behavior)
-        start_idx = getattr(self, "idf", 0) + 1
+        start_idx = getattr(self, "idf", 0) + 1000
         for i in range(start_idx, len(df) - window):
 
             seg_fpm = fpm[i:i + window]
@@ -2949,6 +2970,8 @@ class MainWindow(QMainWindow):
             self.sync_dataframe_on_video()
 
         self.update_gps_pyqtgraph()
+
+        self.update_metar()
 
         # synchronisation orientation pygfx ← DataFrame
         #row = df.iloc[self.idf]
