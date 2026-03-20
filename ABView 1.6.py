@@ -53,10 +53,10 @@ from objc import ObjCPointerWarning
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.5 Tuning"
+__version__ = "1.6 Audio Synced Metar Fixed"
 MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol_2026_02_21.abv/"
-#BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_02_21.abv/"
+BDL="data/Vol_2026_03_20.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
@@ -2899,8 +2899,9 @@ class MainWindow(QMainWindow):
 
         # 🔊 sortie audio
         chunk_size = 4096
+        min_buffer = chunk_size * 4
 
-        if len(self.audio_buffer) < 8192:
+        if len(self.audio_buffer) < min_buffer:
             return
 
         chunk = self.audio_buffer[:chunk_size]
