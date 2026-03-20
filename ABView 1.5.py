@@ -2859,14 +2859,16 @@ class MainWindow(QMainWindow):
         # 🔑 calcul erreur sync
         sync_error = self.audio_clock_sec - video_time
 
-        sync_error = self.audio_clock_sec - video_time
+        # slight bias to delay video feeling (audio catch-up)
+        video_time -= 0.05
 
-        if sync_error > 0.3:
+        if sync_error > 0.15:
+            # audio too far ahead → pause pushing but keep buffer
             return
 
-        max_ahead = 0.2
-        if sync_error < -0.3:
-            max_ahead = 0.6
+        max_ahead = 0.1
+        if sync_error < -0.2:
+            max_ahead = 0.3
 
         try:
             # 🔑 bootstrap pour démarrer l’audio
@@ -2902,10 +2904,15 @@ class MainWindow(QMainWindow):
         # 🔊 sortie audio
         chunk_size = 4096
 
-        while len(self.audio_buffer) > chunk_size:
+        # smoother output: avoid draining too aggressively
+        max_write = chunk_size * 3
+        written = 0
+
+        while len(self.audio_buffer) > chunk_size and written < max_write:
             chunk = self.audio_buffer[:chunk_size]
             self.audio_device.write(chunk)
             self.audio_buffer = self.audio_buffer[chunk_size:]
+            written += chunk_size
 
 
     # 🔑 SYNCHRO VIDEO ← DF
