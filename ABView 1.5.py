@@ -55,8 +55,8 @@ from objc import ObjCPointerWarning
 # MAJOR.MINOR.PATCH
 __version__ = "1.5 Tuning"
 MAINDIR="/Users/drax/Down/ABViewMain/"
-#BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_20.abv/"
+BDL="data/Vol_2026_02_21.abv/"
+#BDL="data/Vol_2026_03_20.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
