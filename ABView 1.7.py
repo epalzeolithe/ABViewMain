@@ -53,7 +53,7 @@ from objc import ObjCPointerWarning
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.6 Audio Synced Metar Fixed"
+__version__ = "1.7 Audio Master"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 #BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_21.abv/"
@@ -145,9 +145,6 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
         except Exception as e:
             print("SCStream handler error:", e)
 
-
-
-
 # ======================================================
 # MP4 creation date (UTC)
 # ======================================================
@@ -177,9 +174,6 @@ df = pd.read_csv(MERGED_DATA, low_memory=False)
 df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", utc=True)
 df = df.sort_values("timestamp").reset_index(drop=True)
 frames_df = len(df)
-#print(MERGED_DATA," START @",df['timestamp'][0])
-#print(MERGED_DATA," END @",df['timestamp'].iat[-1])
-#print(MERGED_DATA," FRAMES = ", frames_df)
 
 # ---- numpy caches for fast access inside the realtime loop ----
 gps_lat_vals = df["gps_lat"].to_numpy()
@@ -217,8 +211,6 @@ container_probe = av.open(VIDEO1)
 stream_probe = container_probe.streams.video[0]
 
 frames_video = stream_probe.frames
-#print(VIDEO1," FRAMES = ", frames_video)
-
 N = frames_video
 container_probe.close()
 
@@ -711,11 +703,10 @@ class MainWindow(QMainWindow):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.main_loop)
-        self.timer.start(0)  # controlled manually
+        self.timer.start(1)  # controlled manually
 
         # Metar management
         t_start = df['timestamp'][0]
-        print(t_start)
         metar_row = find_metar_for_time(metar_df, t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
@@ -2251,7 +2242,7 @@ class MainWindow(QMainWindow):
             f"Frame: {self.i}"
             f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
             f"\nElapsed: {em:02d}:{es:02d}"
-            f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
+            #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
         )
         self.df_info_label.adjustSize()
         self.df_info_label.move(
@@ -2433,7 +2424,6 @@ class MainWindow(QMainWindow):
     def on_map_loaded(self, ok):
         if ok:
             self.map_ready = True
-            #print("Map ready")
 
     def update_metar(self):
         if self.i % 30 != 0:
@@ -3122,7 +3112,6 @@ class MainWindow(QMainWindow):
             z = (alt - 1000) / 1000
         # debug: dernière position calculée
         if len(x) > 0:
-            #print(x[-1], y[-1], z[-1])
             # ---- vertical projection to ground ----
             try:
                 p_air = np.array([x[-1], y[-1], z[-1]])
@@ -3295,7 +3284,6 @@ class MainWindow(QMainWindow):
         if az!= self.last_azim:
             self.last_azim = az
             self.gps_view.setCameraPosition(azimuth=az)
-            #print(az)
             yz=-1
             if az==-67.5 or az==-22.5 or az==-112.5 or az==-157.5:
                 yz=1
@@ -3311,10 +3299,6 @@ class MainWindow(QMainWindow):
             self.grid_vertical_xz.resetTransform()
             self.grid_vertical_xz.rotate(90, 0, 1, 0)
             self.grid_vertical_xz.translate(xz,0, 0)
-
-        #t1 = time.perf_counter()
-        #print(f"Temps update_gps_pyqtgraph: {(t1 - t0) * 1000:.2f} ms")
-
 
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
