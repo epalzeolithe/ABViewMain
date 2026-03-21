@@ -2468,24 +2468,39 @@ class MainWindow(QMainWindow):
             self.next_frame_time = now
 
         if self.playing:
-            # stronger audio warmup to avoid startup desync
-            if self.i < 20:
-                self.update_audio()
+            # 🔊 audio ALWAYS runs
+            self.update_audio()
+
+            # si audio pas encore prêt → fallback
+            if not hasattr(self, "audio_clock_sec") or self.audio_clock_sec <= 0:
+                self.update_all()
             else:
-                # ensure steady audio feed without overdriving
-                self.update_audio()
-                # LESS aggressive audio fill (prevents video starvation)
-                if len(self.audio_buffer) < 4000:
-                    self.update_audio()
+                # temps cible dicté par l’audio
+                target_time = self.audio_clock_sec
 
-            self.update_all()
+                # temps actuel vidéo
+                if self.current_video_time_utc is not None:
+                    video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
+                else:
+                    video_time = 0.0
 
-        # schedule next frame using absolute timing
-        self.next_frame_time += self.frame_period_ms
+                # New sync logic with margin
+                margin = 0.03  # 30 ms tolerance
 
-        # skip frames if we are late (prevents backlog)
-        while now > self.next_frame_time + self.frame_period_ms:
-            self.next_frame_time += self.frame_period_ms
+                if video_time < target_time - margin:
+                    # video late → catch up
+                    self.update_all()
+
+                elif video_time > target_time + margin:
+                    # video ahead → WAIT (do not advance video)
+                    pass
+
+                else:
+                    # in sync → normal playback
+                    self.update_all()
+
+        # audio-driven → on tick très vite
+        self.next_frame_time = now + 5
 
         delay = int(self.next_frame_time - now)
         self.frame_last_delay = delay
@@ -2626,6 +2641,7 @@ class MainWindow(QMainWindow):
 
             except Exception:
                 pass
+        self.next_frame_time = self.clock.elapsed()
 
     def goto_bookmark(self, frame):
         self.seek_video(frame)
@@ -2953,22 +2969,21 @@ class MainWindow(QMainWindow):
 
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            sync_error = video_time_sec - self.audio_clock_sec + 0.010
+            sync_error = video_time_sec - self.audio_clock_sec
 
-            if sync_error > 0.5:
-                sync_error = 0.5
-            if sync_error < -0.5:
-                sync_error = -0.5
+            sync_error = max(min(sync_error, 0.5), -0.5)
 
-            if sync_error > 0.10:
+            # vidéo en avance → ne pas afficher
+            if sync_error > 0.02:
+                # do not block display → avoid freeze
                 pass
 
-            if sync_error < -0.04:
+            # vidéo en retard → skip
+            if sync_error < -0.05:
                 try:
-                    if abs(sync_error) > 0.08:
-                        next(self.decoder1, None)
-                        next(self.decoder2, None)
-                        self.i += 1
+                    next(self.decoder1, None)
+                    next(self.decoder2, None)
+                    self.i += 1
                 except:
                     pass
 
