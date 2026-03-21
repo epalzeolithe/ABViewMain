@@ -748,19 +748,9 @@ class MainWindow(QMainWindow):
         act_play_pause.setShortcut("Space")
         act_play_pause.triggered.connect(self.toggle_play)
 
-        # --- Action Start ---
-        act_start = QAction("Start", self)
-        act_start.setShortcut("Home")
-        act_start.triggered.connect(self.goto_start)
-
         act_mise_en_ligne = QAction("Mise en ligne", self)
         act_mise_en_ligne.setShortcut("Ctrl+M")
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
-
-        act_entree_box = QAction("Entrée BOX", self)
-        act_entree_box.setShortcut("Ctrl+B")
-        act_entree_box.triggered.connect(self.goto_entree_box)
-
 
         # Ajout des actions aux menus
         menu_fichier.addAction(act_quitter)
@@ -980,24 +970,8 @@ class MainWindow(QMainWindow):
         self.btn_add_bookmark = QPushButton("Bookmark")
         self.btn_add_bookmark.clicked.connect(self.add_bookmark)
 
-        self.btn_start = QPushButton("⏮ Start")
-        self.btn_start.clicked.connect(self.goto_start)
-
         self.btn_mise_en_ligne = QPushButton("En ligne")
         self.btn_mise_en_ligne.clicked.connect(self.goto_mise_en_ligne)
-
-
-        self.btn_misedos_securite = QPushButton("Mise dos sécu")
-        self.btn_misedos_securite.clicked.connect(self.goto_misedos_securite)
-        self.btn_enchainement = QPushButton("Enchaîn.")
-        self.btn_enchainement.clicked.connect(self.goto_enchainement)
-
-
-        # self.btn_lock_elev = QPushButton("🔒 Elev")
-        # self.btn_lock_elev.clicked.connect(self.toggle_elev_lock)
-
-
-
 
         self.btn_quitter = QPushButton("Quitter")
         self.btn_quitter.clicked.connect(self.close)
@@ -1018,11 +992,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_prev)
         buttons_layout.addWidget(self.btn_next)
         buttons_layout.addWidget(self.btn_add_bookmark)
-        buttons_layout.addWidget(self.btn_start)
         buttons_layout.addWidget(self.btn_mise_en_ligne)
-        buttons_layout.addWidget(self.btn_misedos_securite)
-        buttons_layout.addWidget(self.btn_enchainement)
-        # buttons_layout.addWidget(self.btn_lock_elev)
         buttons_layout.addWidget(self.btn_quitter)
 
         self.layout.addWidget(self.slider)
@@ -2503,6 +2473,7 @@ class MainWindow(QMainWindow):
             self.next_frame_time = now
 
         if self.playing:
+            self.update_audio()
             self.update_all()
 
         # schedule next frame using absolute timing
@@ -2761,56 +2732,27 @@ class MainWindow(QMainWindow):
         frame = max(0, int(self.i - fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
-        # force refresh when paused
-        #if not self.playing:
-        #    self.update_all()
 
     def jump_back_2s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = max(0, int(self.i - fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
-        # force refresh when paused
-        #if not self.playing:
-        #    self.update_all()
 
     def jump_fwd_2s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = min(N - 1, int(self.i + fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
-        # force refresh when paused
-        #if not self.playing:
-        #    self.update_all()
 
     def jump_fwd_10s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = min(N - 1, int(self.i + fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
-        # force refresh when paused
-        #if not self.playing:
-        #    self.update_all()
 
     def goto_mise_en_ligne(self):
         self.seek_video(self.get_video_frame_from_df_index(index_enligne_devol))
-        self.slider.setValue(self.i)
-
-
-    def goto_entree_box(self):
-        self.seek_video(self.get_video_frame_from_df_index(index_entree_3000))
-        self.slider.setValue(self.i)
-
-    def goto_start(self):
-        self.seek_video(9900)
-        self.slider.setValue(self.i)
-
-    def goto_misedos_securite(self):
-        self.seek_video(33700)
-        self.slider.setValue(self.i)
-
-    def goto_enchainement(self):
-        self.seek_video(61117)
         self.slider.setValue(self.i)
 
     def seek_palier(self):
@@ -2866,45 +2808,24 @@ class MainWindow(QMainWindow):
         if self.audio_stream is None:
             return
 
-        if self.current_video_time_utc is None:
-            return
-
-        video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
-        video_time -= 0.03
-
-        sync_error = self.audio_clock_sec - video_time
-
-        max_ahead = 0.1
-
-        if sync_error > 0.15:
-            max_ahead = 0.0
-        elif sync_error < -0.2:
-            max_ahead = 0.3
-
         try:
-            # 🔑 bootstrap pour démarrer l’audio
-            if self.audio_clock_sec == 0.0:
-                self.audio_clock_sec = video_time
+            packet = next(self.audio_packets)
 
-            while self.audio_clock_sec < video_time + max_ahead:
-                packet = next(self.audio_packets)
+            for frame in packet.decode():
+                frames = self.audio_resampler.resample(frame)
 
-                for frame in packet.decode():
-                    frames = self.audio_resampler.resample(frame)
+                if not isinstance(frames, (list, tuple)):
+                    frames = [frames]
 
-                    # 🔑 resample peut retourner une liste
-                    if not isinstance(frames, (list, tuple)):
-                        frames = [frames]
+                for f in frames:
+                    if f is None:
+                        continue
 
-                    for f in frames:
-                        if f is None:
-                            continue
+                    if f.pts is not None:
+                        self.audio_clock_sec = float(f.pts * f.time_base)
 
-                        if f.pts is not None:
-                            self.audio_clock_sec = float(f.pts * f.time_base)
-
-                        data = f.to_ndarray().tobytes()
-                        self.audio_buffer += data
+                    data = f.to_ndarray().tobytes()
+                    self.audio_buffer += data
 
         except StopIteration:
             return
@@ -2912,7 +2833,7 @@ class MainWindow(QMainWindow):
             print("audio error:", e)
             return
 
-        # 🔊 sortie audio
+        # 🔊 sortie stable (critique)
         chunk_size = 4096
         min_buffer = chunk_size * 4
 
@@ -3010,6 +2931,18 @@ class MainWindow(QMainWindow):
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
 
+        # 🔑 AUDIO MASTER SYNC
+        if hasattr(self, "audio_clock_sec") and self.audio_clock_sec > 0:
+
+            video_time_sec = (video_time_utc - start_dt).total_seconds()
+            sync_error = video_time_sec - self.audio_clock_sec
+
+            # vidéo en avance → on drop la frame
+            if sync_error > 0.03:
+                return
+
+            # vidéo en retard → on laisse passer (rattrapage naturel)
+
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
 
         plane = frame.planes[0]
@@ -3088,6 +3021,7 @@ class MainWindow(QMainWindow):
 
         # force an immediate refresh when paused
         if not self.playing:
+            self.update_audio()
             self.update_all()
 
 
