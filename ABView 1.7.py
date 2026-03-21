@@ -1528,10 +1528,12 @@ class MainWindow(QMainWindow):
         self.speed_bar = QFrame(self.gps_view)
         self.speed_bar.setStyleSheet(
             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            " stop:0 rgba(0,180,0,180),"
-            " stop:0.75 rgba(0,180,0,180),"   # up to 300 km/h (300/400)
+            " stop:0 rgba(0,120,255,200),"      # blue below 100 km/h
+            " stop:0.25 rgba(0,120,255,200),"   # 100/400
+            " stop:0.25 rgba(0,180,0,180),"
+            " stop:0.75 rgba(0,180,0,180),"     # up to 300 km/h
             " stop:0.75 rgba(255,220,0,200),"
-            " stop:0.85 rgba(255,220,0,200)," # 300–340 km/h (340/400)
+            " stop:0.85 rgba(255,220,0,200),"   # 300–340 km/h
             " stop:0.85 rgba(255,0,0,200),"
             " stop:1 rgba(255,0,0,200));"
         )
@@ -1570,13 +1572,13 @@ class MainWindow(QMainWindow):
         self.g_bar = QFrame(self.gps_view)
         self.g_bar.setStyleSheet(
             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            " stop:0 rgba(0,120,255,200),"      # blue (-4G to -1G)
-            " stop:0.30 rgba(0,120,255,200),"   # -1G position
-            " stop:0.45 rgba(0,200,0,200),"     # start green (0.5G)
-            " stop:0.55 rgba(0,200,0,200),"     # end green (1.5G)
-            " stop:0.60 rgba(255,220,0,200),"   # yellow ~2G
-            " stop:0.80 rgba(255,0,0,220),"     # red up to 4G
-            " stop:1 rgba(160,0,255,220));"     # violet 4–6G
+            " stop:0 rgba(0,120,255,200),"      # -2G
+            " stop:0.25 rgba(0,120,255,200),"   # -1G
+            " stop:0.40 rgba(0,200,0,200),"     # 0G
+            " stop:0.55 rgba(0,200,0,200),"     # 1G
+            " stop:0.65 rgba(255,220,0,200),"   # 2G
+            " stop:0.85 rgba(255,0,0,220),"     # 3G
+            " stop:1 rgba(160,0,255,220));"     # 4G max
         )
         self.g_bar.setGeometry(0, 0, 200, 6)
         self.g_bar.show()
@@ -3236,8 +3238,8 @@ class MainWindow(QMainWindow):
 
             # position G scale labels and ticks
             if hasattr(self, "g_scale_labels"):
-                g_min = -4.0
-                g_max = 6.0
+                g_min = -2.0
+                g_max = 4.0
                 for idx, (gv, label) in enumerate(self.g_scale_labels):
                     t = (gv - g_min) / (g_max - g_min)
                     x = int(bar_margin + t * bar_width)
@@ -3257,8 +3259,8 @@ class MainWindow(QMainWindow):
                 g_val = 0.0
 
             # clamp between -4 and +6
-            g_min = -4.0
-            g_max = 6.0
+            g_min = -2.0
+            g_max = 4.0
             g_val = max(g_min, min(g_max, g_val))
 
             # normalize to 0..1
