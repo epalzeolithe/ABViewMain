@@ -622,6 +622,10 @@ class MainWindow(QMainWindow):
         # ---- audio (video1) ----
         self.sync_enabled = False
         self.startup_time_ms = None
+        self.audio_written_bytes = 0
+        self.audio_bytes_per_sec = None
+        self.audio_clock_smoothed = 0.0
+        self.audio_start_us = None
         try:
             self.audio_container = av.open(self.video1_path)
             self.audio_stream = self.audio_container.streams.audio[0]
@@ -654,6 +658,13 @@ class MainWindow(QMainWindow):
             self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
         except Exception:
             self.audio_stream = None
+        fmt = self.audio_output.format()
+
+        # bytesPerFrame inclut déjà tous les canaux
+        self.audio_bytes_per_sec = (
+                fmt.sampleRate()
+                * fmt.bytesPerFrame()
+        )
 
         self.stream1 = self.container1.streams.video[0]
         self.stream2 = self.container2.streams.video[0]
@@ -2586,6 +2597,8 @@ class MainWindow(QMainWindow):
         if self.i < 5:
             self.i = int(frame)
 
+        self.audio_clock_initialized = False
+
         # TO FIX A DEPLACER AU BON ENDROIT
         # ---- Reset trails when seeking (nose + G vector history) ----
         if hasattr(self, "nose_trail"):
@@ -2629,6 +2642,8 @@ class MainWindow(QMainWindow):
                 # clear buffered audio and restart buffering
                 self.audio_buffer = bytearray()
                 self.audio_clock_sec = 0.0
+                self.audio_written_bytes = 0
+                self.audio_start_us = None
                 # reset sync warmup after seek
                 self.sync_enabled = False
                 self.startup_time_ms = self.clock.elapsed()
@@ -2852,8 +2867,6 @@ class MainWindow(QMainWindow):
                         if f is None:
                             continue
 
-                        if f.pts is not None:
-                            self.audio_clock_sec = float(f.pts * f.time_base)
 
                         self.audio_buffer += f.to_ndarray().tobytes()
 
@@ -2874,6 +2887,22 @@ class MainWindow(QMainWindow):
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
+
+            # 🔑 horloge audio réelle basée sur ce qui est joué
+            if written > 0 and self.audio_bytes_per_sec:
+                try:
+                    us = self.audio_output.processedUSecs()
+
+                    if self.audio_start_us is None:
+                        self.audio_start_us = us
+
+                    self.audio_clock_sec = (us - self.audio_start_us) / 1_000_000.0
+
+                except Exception:
+                    # fallback propre
+                    if self.audio_bytes_per_sec:
+                        self.audio_written_bytes += written
+                        self.audio_clock_sec = self.audio_written_bytes / self.audio_bytes_per_sec
 
             if written <= 0:
                 break
@@ -2981,7 +3010,7 @@ class MainWindow(QMainWindow):
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
             # Apply slightly reduced audio latency compensation (+0.010)
-            sync_error = video_time_sec - self.audio_clock_sec + 0.010
+            sync_error = video_time_sec - self.audio_clock_sec + 0.003
 
             # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
             if sync_error > 0.5:
@@ -2998,10 +3027,10 @@ class MainWindow(QMainWindow):
                 pass
 
             # vidéo en retard → smoother, non-blocking catch-up
-            if sync_error < -0.04:
+            if sync_error < -0.06:
                 try:
                     # gentle catch-up: skip at most 1 frame per cycle
-                    if abs(sync_error) > 0.08:
+                    if abs(sync_error) > 0.12:
                         next(self.decoder1, None)
                         next(self.decoder2, None)
                         self.i += 1
