@@ -2506,13 +2506,13 @@ class MainWindow(QMainWindow):
         # audio-driven → on tick très vite
         self.next_frame_time = now + 5
 
-        delay = int(self.next_frame_time - now)
-        self.frame_last_delay = delay
-        if delay < 0:
-            delay = 0
-            self.frame_skipped_count += 1
+        #delay = int(self.next_frame_time - now)
+        #self.frame_last_delay = delay
+        #if delay < 0:
+        #    delay = 0
+        #    self.frame_skipped_count += 1
 
-        self.timer.start(delay)
+        #self.timer.start(delay)
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -2645,7 +2645,7 @@ class MainWindow(QMainWindow):
 
             except Exception:
                 pass
-        self.next_frame_time = self.clock.elapsed()
+        #self.next_frame_time = self.clock.elapsed()
 
     def goto_bookmark(self, frame):
         self.seek_video(frame)
