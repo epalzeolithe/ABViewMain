@@ -2457,7 +2457,6 @@ class MainWindow(QMainWindow):
     # Real-time compensated main loop (absolute scheduling)
     # ==================================================
     def main_loop(self):
-
         now = self.clock.elapsed()
 
         # initialize absolute schedule
