@@ -2914,7 +2914,6 @@ class MainWindow(QMainWindow):
         self.update_metar()
         self.update_gfx_orientation()
 
-
         if self.bookmarks_df is not None and not self.bookmarks_df.empty:
             fps = float(self.stream1.average_rate)
             if fps <= 0:
