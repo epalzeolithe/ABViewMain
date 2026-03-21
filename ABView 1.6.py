@@ -710,18 +710,12 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.main_loop)
         self.timer.start(0)  # controlled manually
 
-        # ---- dedicated audio timer (runs faster than video loop) ----
-        if self.audio_stream is not None:
-            self.audio_timer = QTimer()
-            self.audio_timer.timeout.connect(self.update_audio)
-            self.audio_timer.start(10)  # ~100 Hz audio servicing
-
         # Metar management
         t_start = df['timestamp'][0]
         print(t_start)
         metar_row = find_metar_for_time(metar_df, t_start)
         self.last_metar=metar_row.metar
-        print(f"Metar at start: {self.last_metar}")
+        #print(f"Metar at start: {self.last_metar}")
 
     def init_UI(self):
         # ---- UI ----
@@ -755,10 +749,8 @@ class MainWindow(QMainWindow):
         # Ajout des actions aux menus
         menu_fichier.addAction(act_quitter)
         menu_lecture.addAction(act_play_pause)
-        menu_navigation.addAction(act_start)
         menu_navigation.addSeparator()
         menu_navigation.addAction(act_mise_en_ligne)
-        menu_navigation.addAction(act_entree_box)
 
         # ---- Reload bookmarks CSV ----
         self.act_reload_bookmarks = QAction("Recharger CSV", self)
@@ -2473,7 +2465,10 @@ class MainWindow(QMainWindow):
             self.next_frame_time = now
 
         if self.playing:
-            self.update_audio()
+            # 🔑 audio doit tourner plus vite que la vidéo
+            for _ in range(3):
+                self.update_audio()
+
             self.update_all()
 
         # schedule next frame using absolute timing
@@ -2809,23 +2804,33 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            packet = next(self.audio_packets)
+            # 🔑 combien de place dispo dans le buffer audio OS
+            if hasattr(self, "audio_output"):
+                bytes_free = self.audio_output.bytesFree()
+            else:
+                bytes_free = 16384
 
-            for frame in packet.decode():
-                frames = self.audio_resampler.resample(frame)
+            # 🔑 on remplit un peu plus que nécessaire
+            target_buffer = max(bytes_free * 2, 16384)
 
-                if not isinstance(frames, (list, tuple)):
-                    frames = [frames]
+            # 🔑 décodage adaptatif
+            while len(self.audio_buffer) < target_buffer:
+                packet = next(self.audio_packets)
 
-                for f in frames:
-                    if f is None:
-                        continue
+                for frame in packet.decode():
+                    frames = self.audio_resampler.resample(frame)
 
-                    if f.pts is not None:
-                        self.audio_clock_sec = float(f.pts * f.time_base)
+                    if not isinstance(frames, (list, tuple)):
+                        frames = [frames]
 
-                    data = f.to_ndarray().tobytes()
-                    self.audio_buffer += data
+                    for f in frames:
+                        if f is None:
+                            continue
+
+                        if f.pts is not None:
+                            self.audio_clock_sec = float(f.pts * f.time_base)
+
+                        self.audio_buffer += f.to_ndarray().tobytes()
 
         except StopIteration:
             return
@@ -2833,18 +2838,22 @@ class MainWindow(QMainWindow):
             print("audio error:", e)
             return
 
-        # 🔊 sortie stable (critique)
+        # 🔊 écriture CONTINUE (critique)
         chunk_size = 4096
-        min_buffer = chunk_size * 4
 
-        if len(self.audio_buffer) < min_buffer:
+        if not hasattr(self, "audio_output"):
             return
 
-        chunk = self.audio_buffer[:chunk_size]
-        self.audio_device.write(chunk)
-        self.audio_buffer = self.audio_buffer[chunk_size:]
+        bytes_free = self.audio_output.bytesFree()
 
+        # 🔑 on vide autant que possible (et pas 1 seul chunk)
+        while len(self.audio_buffer) >= chunk_size:
+            written = self.audio_device.write(self.audio_buffer[:chunk_size])
 
+            if written <= 0:
+                break
+
+            self.audio_buffer = self.audio_buffer[written:]
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
     def get_video_frame_from_df_index(self, df_index):
@@ -2938,7 +2947,7 @@ class MainWindow(QMainWindow):
             sync_error = video_time_sec - self.audio_clock_sec
 
             # vidéo en avance → on drop la frame
-            if sync_error > 0.03:
+            if sync_error > 0.08:
                 return
 
             # vidéo en retard → on laisse passer (rattrapage naturel)
@@ -3021,7 +3030,6 @@ class MainWindow(QMainWindow):
 
         # force an immediate refresh when paused
         if not self.playing:
-            self.update_audio()
             self.update_all()
 
 
