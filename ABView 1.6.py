@@ -2492,8 +2492,12 @@ class MainWindow(QMainWindow):
                     self.update_all()
 
                 elif video_time > target_time + margin:
-                    # video ahead → WAIT (do not advance video)
-                    pass
+                    # video ahead → WAIT only if sync is stable
+                    # after seek, allow video to move to avoid freeze
+                    if getattr(self, "sync_enabled", False):
+                        pass
+                    else:
+                        self.update_all()
 
                 else:
                     # in sync → normal playback
