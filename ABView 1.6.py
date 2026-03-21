@@ -230,7 +230,7 @@ index_enligne_devol= mask.idxmax()
 mask = df['gps_alt'] > 3000
 index_entree_3000= mask.idxmax()
 
-gps_max_alt = df['gps_alt'].max()
+gps_max_alt = round(df['gps_alt'].max())
 print("Max Alt : ",gps_max_alt)
 
 
@@ -2644,6 +2644,7 @@ class MainWindow(QMainWindow):
                 self.audio_clock_sec = 0.0
                 self.audio_written_bytes = 0
                 self.audio_start_us = None
+                self.audio_start_time = time.time()
                 # reset sync warmup after seek
                 self.sync_enabled = False
                 self.startup_time_ms = self.clock.elapsed()
@@ -2890,18 +2891,10 @@ class MainWindow(QMainWindow):
 
             # 🔑 horloge audio réelle basée sur ce qui est joué
             if written > 0:
-                try:
-                    # use direct hardware clock (more stable, no offset drift)
-                    us = self.audio_output.processedUSecs()
+                if not hasattr(self, "audio_start_time") or self.audio_start_time is None:
+                    self.audio_start_time = time.time()
 
-                    if not hasattr(self, "audio_start_us") or self.audio_start_us is None:
-                        self.audio_start_us = us
-
-                    self.audio_clock_sec = (us - self.audio_start_us) / 1_000_000.0
-                except Exception:
-                    if self.audio_bytes_per_sec:
-                        self.audio_written_bytes += written
-                        self.audio_clock_sec = self.audio_written_bytes / self.audio_bytes_per_sec
+                self.audio_clock_sec = time.time() - self.audio_start_time
 
             if written <= 0:
                 break
@@ -3008,38 +3001,34 @@ class MainWindow(QMainWindow):
 
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            # Apply less aggressive audio latency compensation (-0.002)
-            sync_error = video_time_sec - self.audio_clock_sec - 0.002
+            sync_error = video_time_sec - self.audio_clock_sec
 
-            # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
-            if sync_error > 0.5:
-                sync_error = 0.5
-            if sync_error < -0.5:
-                sync_error = -0.5
+            # dead zone to avoid micro oscillations
+            if abs(sync_error) < 0.01:
+                sync_error = 0.0
 
-            # DEBUG sync
-            # print(f"SYNC error: {sync_error:.3f}")
+            # ❌ disable hard resync (was causing instability and loops)
+            # if abs(sync_error) > 0.3:
+            #     pass
 
-            # vidéo en avance → correction NON-BLOCKING (never freeze video)
-            if sync_error > 0.02:
-                # do NOT block rendering → just slightly slow correction
-                pass
-
-            # vidéo en retard → proportional, non-blocking catch-up
-            if sync_error < -0.02:
+            # smoother proportional correction
+            if sync_error < -0.01:
                 try:
-                    # 🔥 proportional catch-up (handles big delays smoothly)
-                    frames_to_skip = int(min(10, max(1, abs(sync_error) * 30)))
-                    # prevent excessive skipping accumulation (stability)
-                    frames_to_skip = min(frames_to_skip, 5)
+                    # proportional frame skip (smooth, no jumps)
+                    frames_to_skip = int(min(5, max(1, abs(sync_error) * 20)))
                     for _ in range(frames_to_skip):
                         try:
-                            next(decoder, None)  # skip ONLY current video stream
+                            next(decoder)
                             self.i += 1
                         except StopIteration:
                             break
-                except:
+                        except Exception:
+                            break
+                except StopIteration:
                     pass
+            elif sync_error > 0.02:
+                # video slightly ahead: do nothing but CONTINUE rendering
+                pass
 
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
 
