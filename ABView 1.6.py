@@ -2466,7 +2466,7 @@ class MainWindow(QMainWindow):
 
         if self.playing:
             # 🔑 audio doit tourner plus vite que la vidéo
-            for _ in range(3):
+            for _ in range(2):
                 self.update_audio()
 
             self.update_all()
@@ -2940,17 +2940,28 @@ class MainWindow(QMainWindow):
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
 
-        # 🔑 AUDIO MASTER SYNC
+        # 🔑 AUDIO MASTER SYNC (improved)
         if hasattr(self, "audio_clock_sec") and self.audio_clock_sec > 0:
 
             video_time_sec = (video_time_utc - start_dt).total_seconds()
             sync_error = video_time_sec - self.audio_clock_sec
 
-            # vidéo en avance → on drop la frame
-            if sync_error > 0.08:
+            # DEBUG sync
+            # print(f"SYNC error: {sync_error:.3f}")
+
+            # vidéo en avance → on drop la frame (léger)
+            if sync_error > 0.04:
                 return
 
-            # vidéo en retard → on laisse passer (rattrapage naturel)
+            # vidéo en retard → on saute des frames pour rattraper
+            if sync_error < -0.10:
+                try:
+                    # skip one extra frame to catch up
+                    next(self.decoder1, None)
+                    next(self.decoder2, None)
+                    self.i += 1
+                except Exception:
+                    pass
 
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
 
