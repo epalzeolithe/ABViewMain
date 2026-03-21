@@ -2476,7 +2476,8 @@ class MainWindow(QMainWindow):
             else:
                 # ensure steady audio feed without overdriving
                 self.update_audio()
-                if len(self.audio_buffer) < 6000:
+                # LESS aggressive audio fill (prevents video starvation)
+                if len(self.audio_buffer) < 4000:
                     self.update_audio()
 
             self.update_all()
@@ -2983,20 +2984,16 @@ class MainWindow(QMainWindow):
             # DEBUG sync
             # print(f"SYNC error: {sync_error:.3f}")
 
-            # vidéo en avance → on drop la frame (léger)
-            # avoid freeze at startup: allow first frames even if desync
-            # LESS aggressive drop (prevents video lag)
+            # vidéo en avance → correction NON-BLOCKING (never freeze video)
             if sync_error > 0.10:
-                # soft drop: only skip occasionally to avoid freeze
-                if self.i % 4 == 0:
-                    return
+                # do NOT block rendering → just slightly slow correction
+                pass
 
-            # vidéo en retard → on saute des frames pour rattraper
-            # Smoother but more responsive catch-up
+            # vidéo en retard → smoother, non-blocking catch-up
             if sync_error < -0.04:
                 try:
-                    skip = min(3, int(abs(sync_error) * 18))
-                    for _ in range(skip):
+                    # gentle catch-up: skip at most 1 frame per cycle
+                    if abs(sync_error) > 0.08:
                         next(self.decoder1, None)
                         next(self.decoder2, None)
                         self.i += 1
