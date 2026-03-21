@@ -2632,6 +2632,7 @@ class MainWindow(QMainWindow):
                 self.audio_clock_sec = 0.0
                 # reset sync warmup after seek
                 self.sync_enabled = False
+                self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
                 self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
 
