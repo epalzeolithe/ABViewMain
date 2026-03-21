@@ -230,10 +230,6 @@ index_enligne_devol= mask.idxmax()
 mask = df['gps_alt'] > 3000
 index_entree_3000= mask.idxmax()
 
-gps_max_alt = round(df['gps_alt'].max())
-print("Max Alt : ",gps_max_alt)
-
-
 # ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
@@ -622,10 +618,6 @@ class MainWindow(QMainWindow):
         # ---- audio (video1) ----
         self.sync_enabled = False
         self.startup_time_ms = None
-        self.audio_written_bytes = 0
-        self.audio_bytes_per_sec = None
-        self.audio_clock_smoothed = 0.0
-        self.audio_start_us = None
         try:
             self.audio_container = av.open(self.video1_path)
             self.audio_stream = self.audio_container.streams.audio[0]
@@ -658,13 +650,6 @@ class MainWindow(QMainWindow):
             self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
         except Exception:
             self.audio_stream = None
-        fmt = self.audio_output.format()
-
-        # bytesPerFrame inclut déjà tous les canaux
-        self.audio_bytes_per_sec = (
-                fmt.sampleRate()
-                * fmt.bytesPerFrame()
-        )
 
         self.stream1 = self.container1.streams.video[0]
         self.stream2 = self.container2.streams.video[0]
@@ -1505,10 +1490,7 @@ class MainWindow(QMainWindow):
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
 
-        altitude_scale = list(range(0, max(5500, int(math.ceil(gps_max_alt / 500) * 500)) + 500, 500))
-
-
-        for z in altitude_scale:
+        for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
             label = QLabel(f"{z}ft", self.gps_view)
             label.setStyleSheet("color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
             label.adjustSize()
@@ -1518,7 +1500,7 @@ class MainWindow(QMainWindow):
 
         # small horizontal ticks for altitude graduations
         self.altitude_scale_ticks = []
-        for _ in altitude_scale:
+        for _ in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
             tick = QFrame(self.gps_view)
             tick.setStyleSheet("background-color: black;")
             tick.setGeometry(0, 0, 6, 2)
@@ -1645,7 +1627,7 @@ class MainWindow(QMainWindow):
         top = 10
         height = self.gps_view.height() - 20
 
-        max_alt = int(gps_max_alt / 500 +1) * 500
+        max_alt = 5500.0
 
         # position altitude bar near the right edge
         bar_x = self.gps_view.width() - 60
@@ -1702,8 +1684,7 @@ class MainWindow(QMainWindow):
         except Exception:
             alt = 0
 
-        alt = max(0, min(max_alt, alt))
-
+        alt = max(0, min(5500, alt))
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
@@ -2597,8 +2578,6 @@ class MainWindow(QMainWindow):
         if self.i < 5:
             self.i = int(frame)
 
-        self.audio_clock_initialized = False
-
         # TO FIX A DEPLACER AU BON ENDROIT
         # ---- Reset trails when seeking (nose + G vector history) ----
         if hasattr(self, "nose_trail"):
@@ -2642,9 +2621,6 @@ class MainWindow(QMainWindow):
                 # clear buffered audio and restart buffering
                 self.audio_buffer = bytearray()
                 self.audio_clock_sec = 0.0
-                self.audio_written_bytes = 0
-                self.audio_start_us = None
-                self.audio_start_time = time.time()
                 # reset sync warmup after seek
                 self.sync_enabled = False
                 self.startup_time_ms = self.clock.elapsed()
@@ -2868,6 +2844,8 @@ class MainWindow(QMainWindow):
                         if f is None:
                             continue
 
+                        if f.pts is not None:
+                            self.audio_clock_sec = float(f.pts * f.time_base)
 
                         self.audio_buffer += f.to_ndarray().tobytes()
 
@@ -2888,17 +2866,6 @@ class MainWindow(QMainWindow):
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
-
-            # 🔑 horloge audio réelle basée sur ce qui est joué
-            if written > 0:
-                if not hasattr(self, "audio_start_time") or self.audio_start_time is None:
-                    self.audio_start_time = time.time()
-
-                buffer_latency = 0.0
-                if hasattr(self, "audio_bytes_per_sec") and self.audio_bytes_per_sec:
-                    buffer_latency = len(self.audio_buffer) / self.audio_bytes_per_sec
-
-                self.audio_clock_sec = (time.time() - self.audio_start_time) - buffer_latency
 
             if written <= 0:
                 break
@@ -2998,42 +2965,40 @@ class MainWindow(QMainWindow):
         if (
                 hasattr(self, "audio_clock_sec")
                 and self.audio_clock_sec > 0
-                and len(self.audio_buffer) > 4000
+                and len(self.audio_buffer) > 12000
                 and warmup_elapsed > 300
         ):
             self.sync_enabled = True
 
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            sync_error = video_time_sec - self.audio_clock_sec - 0.02
+            # Apply slightly reduced audio latency compensation (+0.010)
+            sync_error = video_time_sec - self.audio_clock_sec + 0.010
 
-            # dead zone to avoid micro oscillations
-            if abs(sync_error) < 0.01:
-                sync_error = 0.0
+            # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
+            if sync_error > 0.5:
+                sync_error = 0.5
+            if sync_error < -0.5:
+                sync_error = -0.5
 
-            # ❌ disable hard resync (was causing instability and loops)
-            # if abs(sync_error) > 0.3:
-            #     pass
+            # DEBUG sync
+            # print(f"SYNC error: {sync_error:.3f}")
 
-            # smoother proportional correction
-            if sync_error < -0.01:
-                try:
-                    # proportional frame skip (smooth, no jumps)
-                    frames_to_skip = int(min(5, max(1, abs(sync_error) * 20)))
-                    for _ in range(frames_to_skip):
-                        try:
-                            next(decoder)
-                            self.i += 1
-                        except StopIteration:
-                            break
-                        except Exception:
-                            break
-                except StopIteration:
-                    pass
-            elif sync_error > 0.02:
-                # video slightly ahead: do nothing but CONTINUE rendering
+            # vidéo en avance → correction NON-BLOCKING (never freeze video)
+            if sync_error > 0.10:
+                # do NOT block rendering → just slightly slow correction
                 pass
 
+            # vidéo en retard → smoother, non-blocking catch-up
+            if sync_error < -0.04:
+                try:
+                    # gentle catch-up: skip at most 1 frame per cycle
+                    if abs(sync_error) > 0.08:
+                        next(self.decoder1, None)
+                        next(self.decoder2, None)
+                        self.i += 1
+                except:
+                    pass
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
 
         plane = frame.planes[0]
