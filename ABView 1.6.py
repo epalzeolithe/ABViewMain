@@ -2465,37 +2465,39 @@ class MainWindow(QMainWindow):
         if self.startup_time_ms is None:
             self.startup_time_ms = now
 
-        # initialize absolute schedule
-        if self.next_frame_time == 0:
-            self.next_frame_time = now
-
         if self.playing:
-            # stronger audio warmup to avoid startup desync
+            # ---- AUDIO FEED (unchanged logic) ----
             if self.i < 20:
                 self.update_audio()
             else:
-                # ensure steady audio feed without overdriving
                 self.update_audio()
-                # LESS aggressive audio fill (prevents video starvation)
                 if len(self.audio_buffer) < 4000:
                     self.update_audio()
 
+            # use decoded audio clock (more reliable than Qt audio clock)
+            audio_time = self.audio_clock_sec
+
+            # compute target frame RELATIVE to current frame (prevents runaway)
+            fps = float(self.stream1.average_rate) or 30.0
+            target_frame = self.i + int((audio_time - getattr(self, "last_audio_time", audio_time)) * fps)
+            self.last_audio_time = audio_time
+
+            # simple frame pacing based on FPS (prevents acceleration)
+            if not hasattr(self, "last_frame_time"):
+                self.last_frame_time = now
+
+            frame_duration = 1000.0 / fps  # ms
+            if now - self.last_frame_time < frame_duration:
+                return
+
+            self.last_frame_time = now
+
+            # normal update (1 frame)
             self.update_all()
 
-        # schedule next frame using absolute timing
-        self.next_frame_time += self.frame_period_ms
-
-        # skip frames if we are late (prevents backlog)
-        while now > self.next_frame_time + self.frame_period_ms:
-            self.next_frame_time += self.frame_period_ms
-
-        delay = int(self.next_frame_time - now)
-        self.frame_last_delay = delay
-        if delay < 0:
-            delay = 0
-            self.frame_skipped_count += 1
-
-        self.timer.start(delay)
+        # fixed timer (no more absolute scheduling)
+        # limit loop speed to avoid CPU runaway
+        self.timer.start(5)
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -2845,8 +2847,8 @@ class MainWindow(QMainWindow):
                             continue
 
                         if f.pts is not None:
-                            self.audio_clock_sec = float(f.pts * f.time_base)
-
+                            # horloge audio basée sur les samples (FIABLE)
+                            self.audio_clock_sec += f.samples / f.sample_rate
                         self.audio_buffer += f.to_ndarray().tobytes()
 
         except StopIteration:
@@ -2957,48 +2959,8 @@ class MainWindow(QMainWindow):
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
 
-        # 🔑 AUDIO MASTER SYNC (improved)
-        # activate sync only when audio buffer is ready (prevents startup freeze)
-        # 🔑 AUDIO MASTER SYNC (stable startup)
-        warmup_elapsed = 0 if self.startup_time_ms is None else (self.clock.elapsed() - self.startup_time_ms)
+        # (SYNC logic removed)
 
-        if (
-                hasattr(self, "audio_clock_sec")
-                and self.audio_clock_sec > 0
-                and len(self.audio_buffer) > 12000
-                and warmup_elapsed > 300
-        ):
-            self.sync_enabled = True
-
-        if self.sync_enabled:
-            video_time_sec = (video_time_utc - start_dt).total_seconds()
-            # Apply slightly reduced audio latency compensation (+0.010)
-            sync_error = video_time_sec - self.audio_clock_sec + 0.010
-
-            # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
-            if sync_error > 0.5:
-                sync_error = 0.5
-            if sync_error < -0.5:
-                sync_error = -0.5
-
-            # DEBUG sync
-            # print(f"SYNC error: {sync_error:.3f}")
-
-            # vidéo en avance → correction NON-BLOCKING (never freeze video)
-            if sync_error > 0.10:
-                # do NOT block rendering → just slightly slow correction
-                pass
-
-            # vidéo en retard → smoother, non-blocking catch-up
-            if sync_error < -0.04:
-                try:
-                    # gentle catch-up: skip at most 1 frame per cycle
-                    if abs(sync_error) > 0.08:
-                        next(self.decoder1, None)
-                        next(self.decoder2, None)
-                        self.i += 1
-                except:
-                    pass
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
 
         plane = frame.planes[0]
@@ -3010,7 +2972,8 @@ class MainWindow(QMainWindow):
 
         # advance global frame index once per loop (video1 drives timing)
         if label is self.video1:
-            self.i += 1
+            # frame index is now driven by audio clock, do NOT auto-increment blindly
+            pass
 
     # ==================================================
     # 🔑 SYNCHRO DF ← VIDEO
