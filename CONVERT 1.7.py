@@ -86,9 +86,9 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         "-stats",
         "-y",
         "-hwaccel", "videotoolbox",
-        #"-t", "10",
+        "-t", "10",
         "-i", input1,
-        #"-t", "10",
+        "-t", "10",
         "-i", input2,
         "-filter_complex",
         f"""
@@ -103,7 +103,7 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
 [v]v360=input=dfisheye:output=hammer:ih_fov=193:iv_fov=193[vh];
 [vh]split=2[vf][vb];
 
-[vf]v360=input=hammer:output=hammer:yaw=0:w=1920:h=1080,
+[vf]v360=input=hammer:output=hammer:yaw=0:pitch=-25:w=1920:h=1080,
 crop={CROP_FRONT},scale=1920:1080:flags=lanczos[front];
 
 [vb]v360=input=hammer:output=hammer:yaw=180:w=1920:h=1080,
