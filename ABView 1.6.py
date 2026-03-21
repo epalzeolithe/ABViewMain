@@ -2889,17 +2889,16 @@ class MainWindow(QMainWindow):
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
 
             # 🔑 horloge audio réelle basée sur ce qui est joué
-            if written > 0 and self.audio_bytes_per_sec:
+            if written > 0:
                 try:
+                    # use direct hardware clock (more stable, no offset drift)
                     us = self.audio_output.processedUSecs()
 
-                    if self.audio_start_us is None:
+                    if not hasattr(self, "audio_start_us") or self.audio_start_us is None:
                         self.audio_start_us = us
 
                     self.audio_clock_sec = (us - self.audio_start_us) / 1_000_000.0
-
                 except Exception:
-                    # fallback propre
                     if self.audio_bytes_per_sec:
                         self.audio_written_bytes += written
                         self.audio_clock_sec = self.audio_written_bytes / self.audio_bytes_per_sec
@@ -3002,15 +3001,15 @@ class MainWindow(QMainWindow):
         if (
                 hasattr(self, "audio_clock_sec")
                 and self.audio_clock_sec > 0
-                and len(self.audio_buffer) > 12000
+                and len(self.audio_buffer) > 4000
                 and warmup_elapsed > 300
         ):
             self.sync_enabled = True
 
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            # Apply slightly reduced audio latency compensation (+0.010)
-            sync_error = video_time_sec - self.audio_clock_sec + 0.003
+            # Apply less aggressive audio latency compensation (-0.002)
+            sync_error = video_time_sec - self.audio_clock_sec - 0.002
 
             # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
             if sync_error > 0.5:
@@ -3022,18 +3021,23 @@ class MainWindow(QMainWindow):
             # print(f"SYNC error: {sync_error:.3f}")
 
             # vidéo en avance → correction NON-BLOCKING (never freeze video)
-            if sync_error > 0.10:
+            if sync_error > 0.02:
                 # do NOT block rendering → just slightly slow correction
                 pass
 
-            # vidéo en retard → smoother, non-blocking catch-up
-            if sync_error < -0.06:
+            # vidéo en retard → proportional, non-blocking catch-up
+            if sync_error < -0.02:
                 try:
-                    # gentle catch-up: skip at most 1 frame per cycle
-                    if abs(sync_error) > 0.12:
-                        next(self.decoder1, None)
-                        next(self.decoder2, None)
-                        self.i += 1
+                    # 🔥 proportional catch-up (handles big delays smoothly)
+                    frames_to_skip = int(min(10, max(1, abs(sync_error) * 30)))
+                    # prevent excessive skipping accumulation (stability)
+                    frames_to_skip = min(frames_to_skip, 5)
+                    for _ in range(frames_to_skip):
+                        try:
+                            next(decoder, None)  # skip ONLY current video stream
+                            self.i += 1
+                        except StopIteration:
+                            break
                 except:
                     pass
 
