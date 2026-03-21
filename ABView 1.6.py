@@ -2894,7 +2894,11 @@ class MainWindow(QMainWindow):
                 if not hasattr(self, "audio_start_time") or self.audio_start_time is None:
                     self.audio_start_time = time.time()
 
-                self.audio_clock_sec = time.time() - self.audio_start_time
+                buffer_latency = 0.0
+                if hasattr(self, "audio_bytes_per_sec") and self.audio_bytes_per_sec:
+                    buffer_latency = len(self.audio_buffer) / self.audio_bytes_per_sec
+
+                self.audio_clock_sec = (time.time() - self.audio_start_time) - buffer_latency
 
             if written <= 0:
                 break
@@ -3001,7 +3005,7 @@ class MainWindow(QMainWindow):
 
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            sync_error = video_time_sec - self.audio_clock_sec
+            sync_error = video_time_sec - self.audio_clock_sec - 0.02
 
             # dead zone to avoid micro oscillations
             if abs(sync_error) < 0.01:
