@@ -2466,8 +2466,7 @@ class MainWindow(QMainWindow):
 
         if self.playing:
             # 🔑 audio doit tourner plus vite que la vidéo
-            for _ in range(2):
-                self.update_audio()
+            self.update_audio()
 
             self.update_all()
 
@@ -2950,17 +2949,18 @@ class MainWindow(QMainWindow):
             # print(f"SYNC error: {sync_error:.3f}")
 
             # vidéo en avance → on drop la frame (léger)
-            if sync_error > 0.04:
+            if sync_error > 0.05:
+                # on skip UNE frame max (pas bloquer)
                 return
 
             # vidéo en retard → on saute des frames pour rattraper
-            if sync_error < -0.10:
+            if sync_error < -0.15:
                 try:
-                    # skip one extra frame to catch up
+                    # skip 1 seule frame max
                     next(self.decoder1, None)
                     next(self.decoder2, None)
                     self.i += 1
-                except Exception:
+                except:
                     pass
 
         display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
