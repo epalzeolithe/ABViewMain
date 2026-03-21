@@ -11,14 +11,69 @@ from pymediainfo import MediaInfo
 from pathlib import Path
 import requests
 
+def get_last_two_insv_files(directory):
+    pattern = re.compile(r"^VID_.*?(\d{3})\.insv$", re.IGNORECASE)
+
+    files_with_index = []
+
+    for f in os.listdir(directory):
+        match = pattern.match(f)
+        if match:
+            index = int(match.group(1))
+            files_with_index.append((index, f))
+
+    # Trier par index croissant
+    files_with_index.sort(key=lambda x: x[0])
+
+    if not files_with_index:
+        return None, "none.insv"
+
+    if len(files_with_index) == 1:
+        last_file = files_with_index[0][1]
+        return last_file, "none.insv"
+
+    # Avant-dernier et dernier
+    second_last = files_with_index[-2][1]
+    last = files_with_index[-1][1]
+
+    return second_last, last
+
+def get_last_GPS_log_file(directory):
+    pattern = re.compile(r"^LOG.*?(\d{5})\.txt$", re.IGNORECASE)
+
+    files_with_index = []
+
+    for f in os.listdir(directory):
+        match = pattern.match(f)
+        if match:
+            index = int(match.group(1))
+            files_with_index.append((index, f))
+
+    if not files_with_index:
+        return "none.txt"
+
+    # Tri par index croissant
+    files_with_index.sort(key=lambda x: x[0])
+
+    # Retourne le dernier fichier
+    return files_with_index[-1][1]
+
+SUBDIR="data/raw/"
+X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
+X4_INSV_1=SUBDIR+X4_INSV_1
+X4_INSV_2=SUBDIR+X4_INSV_2
+
+GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
+GPS_GNS3000=SUBDIR+GPS_GNS3000
+
 # -------- CONFIG --------
 SKIP_X4_EXPORT = True
 SKIP_GNS3000_IMPORT = True
 SKIP_IPHONE_IMPORT = False
 SKIP_METAR = False
-X4_INSV_1 = "VID_20260320_131559_00_053.insv"
-X4_INSV_2 = "VID_20260320_131559_00_054.insv"
-GPS_GNS3000 = "LOG00005.TXT"
+#X4_INSV_1 = "VID_20260320_131559_00_053.insv"
+#X4_INSV_2 = "VID_20260320_131559_00_054.insv"
+#GPS_GNS3000 = "LOG00005.TXT"
 IPHONE_SENSORLOG = "sensorlog.csv"
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
@@ -26,8 +81,7 @@ WINDOW_ACCX4 = 50 # taille moyenne glissante pour lissage accéléros X4
 GNS3000_PERIOD = 0.25 # 4 Hz
 X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
-
-SUBDIR="data/raw/"
+#SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
 GYRO2BB = "data/ressources/gyro2bb-mac-arm64"

@@ -60,7 +60,7 @@ def get_last_GPS_log_file(directory):
 #X4_INSV_1 = "data/raw/VID_20260320_131559_00_053.insv"
 #X4_INSV_2 = "data/raw/VID_20260320_131559_00_054.insv"
 SUBDIR="data/raw/"
-X4_INSV_1, X4_INSV_2 = get_last_two_insv_files("data/raw")
+X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
 X4_INSV_1=SUBDIR+X4_INSV_1
 X4_INSV_2=SUBDIR+X4_INSV_2
 
