@@ -747,8 +747,6 @@ class MainWindow(QMainWindow):
         act_mise_en_ligne = QAction("Mise en ligne", self)
         act_mise_en_ligne.setShortcut("Ctrl+M")
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
-
-        # Ajout des actions aux menus
         menu_fichier.addAction(act_quitter)
         menu_lecture.addAction(act_play_pause)
         menu_navigation.addSeparator()
@@ -2465,39 +2463,37 @@ class MainWindow(QMainWindow):
         if self.startup_time_ms is None:
             self.startup_time_ms = now
 
+        # initialize absolute schedule
+        if self.next_frame_time == 0:
+            self.next_frame_time = now
+
         if self.playing:
-            # ---- AUDIO FEED (unchanged logic) ----
+            # stronger audio warmup to avoid startup desync
             if self.i < 20:
                 self.update_audio()
             else:
+                # ensure steady audio feed without overdriving
                 self.update_audio()
+                # LESS aggressive audio fill (prevents video starvation)
                 if len(self.audio_buffer) < 4000:
                     self.update_audio()
 
-            # use decoded audio clock (more reliable than Qt audio clock)
-            audio_time = self.audio_clock_sec
-
-            # compute target frame RELATIVE to current frame (prevents runaway)
-            fps = float(self.stream1.average_rate) or 30.0
-            target_frame = self.i + int((audio_time - getattr(self, "last_audio_time", audio_time)) * fps)
-            self.last_audio_time = audio_time
-
-            # simple frame pacing based on FPS (prevents acceleration)
-            if not hasattr(self, "last_frame_time"):
-                self.last_frame_time = now
-
-            frame_duration = 1000.0 / fps  # ms
-            if now - self.last_frame_time < frame_duration:
-                return
-
-            self.last_frame_time = now
-
-            # normal update (1 frame)
             self.update_all()
 
-        # fixed timer (no more absolute scheduling)
-        # limit loop speed to avoid CPU runaway
-        self.timer.start(5)
+        # schedule next frame using absolute timing
+        self.next_frame_time += self.frame_period_ms
+
+        # skip frames if we are late (prevents backlog)
+        while now > self.next_frame_time + self.frame_period_ms:
+            self.next_frame_time += self.frame_period_ms
+
+        delay = int(self.next_frame_time - now)
+        self.frame_last_delay = delay
+        if delay < 0:
+            delay = 0
+            self.frame_skipped_count += 1
+
+        self.timer.start(delay)
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -2847,8 +2843,8 @@ class MainWindow(QMainWindow):
                             continue
 
                         if f.pts is not None:
-                            # horloge audio basée sur les samples (FIABLE)
-                            self.audio_clock_sec += f.samples / f.sample_rate
+                            self.audio_clock_sec = float(f.pts * f.time_base)
+
                         self.audio_buffer += f.to_ndarray().tobytes()
 
         except StopIteration:
@@ -2909,27 +2905,17 @@ class MainWindow(QMainWindow):
 
     # ==================================================
     def update_all(self):
-        #t0 = time.perf_counter()
         self.update_video(self.decoder1, self.video1, self.video1_start, self.stream1)
         self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
-
+        self.i += 1
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
-
         self.update_gps_pyqtgraph()
-
         self.update_metar()
-
-        # synchronisation orientation pygfx ← DataFrame
-        #row = df.iloc[self.idf]
         self.update_gfx_orientation()
 
-        #t1 = time.perf_counter()
-        #print(f"UpdateALl duration: {(t1 - t0) * 1000:.2f} ms")
 
-        # ---- Bookmark trigger (1 second before) ----
         if self.bookmarks_df is not None and not self.bookmarks_df.empty:
-
             fps = float(self.stream1.average_rate)
             if fps <= 0:
                 fps = 30
@@ -2948,32 +2934,51 @@ class MainWindow(QMainWindow):
 
     # ==================================================
     def update_video(self, decoder, label, start_dt, stream):
-
         ret, frame, avframe = self.read_video_frame(decoder)
 
         if not ret:
             return
 
         ms = avframe.pts * float(stream.time_base) * 1000
-
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
+        warmup_elapsed = 0 if self.startup_time_ms is None else (self.clock.elapsed() - self.startup_time_ms)
 
-        # (SYNC logic removed)
+        if (
+                hasattr(self, "audio_clock_sec")
+                and self.audio_clock_sec > 0
+                and len(self.audio_buffer) > 12000
+                and warmup_elapsed > 300
+        ):
+            self.sync_enabled = True
 
-        display_time = video_time_utc.astimezone(ZoneInfo("Europe/Paris"))
+        if self.sync_enabled:
+            video_time_sec = (video_time_utc - start_dt).total_seconds()
+            sync_error = video_time_sec - self.audio_clock_sec + 0.010
+
+            if sync_error > 0.5:
+                sync_error = 0.5
+            if sync_error < -0.5:
+                sync_error = -0.5
+
+            if sync_error > 0.10:
+                pass
+
+            if sync_error < -0.04:
+                try:
+                    if abs(sync_error) > 0.08:
+                        next(self.decoder1, None)
+                        next(self.decoder2, None)
+                        self.i += 1
+                except:
+                    pass
+
 
         plane = frame.planes[0]
         h = frame.height
         w = frame.width
-
         img = QImage(plane, w, h, plane.line_size, QImage.Format_BGR888)
         label.setPixmap(QPixmap.fromImage(img))
-
-        # advance global frame index once per loop (video1 drives timing)
-        if label is self.video1:
-            # frame index is now driven by audio clock, do NOT auto-increment blindly
-            pass
 
     # ==================================================
     # 🔑 SYNCHRO DF ← VIDEO
