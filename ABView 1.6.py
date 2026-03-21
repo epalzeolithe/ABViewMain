@@ -616,6 +616,8 @@ class MainWindow(QMainWindow):
         self.container2 = av.open(self.video2_path)
 
         # ---- audio (video1) ----
+        self.sync_enabled = False
+        self.startup_time_ms = None
         try:
             self.audio_container = av.open(self.video1_path)
             self.audio_stream = self.audio_container.streams.audio[0]
@@ -2459,13 +2461,23 @@ class MainWindow(QMainWindow):
     def main_loop(self):
         now = self.clock.elapsed()
 
+        # initialize startup time once
+        if self.startup_time_ms is None:
+            self.startup_time_ms = now
+
         # initialize absolute schedule
         if self.next_frame_time == 0:
             self.next_frame_time = now
 
         if self.playing:
-            # 🔑 audio doit tourner plus vite que la vidéo
-            self.update_audio()
+            # stronger audio warmup to avoid startup desync
+            if self.i < 20:
+                self.update_audio()
+            else:
+                # ensure steady audio feed without overdriving
+                self.update_audio()
+                if len(self.audio_buffer) < 6000:
+                    self.update_audio()
 
             self.update_all()
 
@@ -2561,6 +2573,9 @@ class MainWindow(QMainWindow):
 
         self.i = int(frame)
 
+        # reset frame counter to avoid sync gating after seek
+        if self.i < 5:
+            self.i = int(frame)
 
         # TO FIX A DEPLACER AU BON ENDROIT
         # ---- Reset trails when seeking (nose + G vector history) ----
@@ -2605,6 +2620,9 @@ class MainWindow(QMainWindow):
                 # clear buffered audio and restart buffering
                 self.audio_buffer = bytearray()
                 self.audio_clock_sec = 0.0
+                # reset sync warmup after seek
+                self.sync_enabled = False
+                self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
 
             except Exception:
@@ -2939,26 +2957,49 @@ class MainWindow(QMainWindow):
         self.current_video_time_utc = video_time_utc
 
         # 🔑 AUDIO MASTER SYNC (improved)
-        if hasattr(self, "audio_clock_sec") and self.audio_clock_sec > 0:
+        # activate sync only when audio buffer is ready (prevents startup freeze)
+        # 🔑 AUDIO MASTER SYNC (stable startup)
+        warmup_elapsed = 0 if self.startup_time_ms is None else (self.clock.elapsed() - self.startup_time_ms)
 
+        if (
+                hasattr(self, "audio_clock_sec")
+                and self.audio_clock_sec > 0
+                and len(self.audio_buffer) > 12000
+                and warmup_elapsed > 300
+        ):
+            self.sync_enabled = True
+
+        if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
-            sync_error = video_time_sec - self.audio_clock_sec
+            # Apply slightly reduced audio latency compensation (+0.010)
+            sync_error = video_time_sec - self.audio_clock_sec + 0.010
+
+            # clamp sync error to avoid aggressive corrections (prevents mid-playback freeze)
+            if sync_error > 0.5:
+                sync_error = 0.5
+            if sync_error < -0.5:
+                sync_error = -0.5
 
             # DEBUG sync
             # print(f"SYNC error: {sync_error:.3f}")
 
             # vidéo en avance → on drop la frame (léger)
-            if sync_error > 0.05:
-                # on skip UNE frame max (pas bloquer)
-                return
+            # avoid freeze at startup: allow first frames even if desync
+            # LESS aggressive drop (prevents video lag)
+            if sync_error > 0.10:
+                # soft drop: only skip occasionally to avoid freeze
+                if self.i % 4 == 0:
+                    return
 
             # vidéo en retard → on saute des frames pour rattraper
-            if sync_error < -0.15:
+            # Smoother but more responsive catch-up
+            if sync_error < -0.04:
                 try:
-                    # skip 1 seule frame max
-                    next(self.decoder1, None)
-                    next(self.decoder2, None)
-                    self.i += 1
+                    skip = min(3, int(abs(sync_error) * 18))
+                    for _ in range(skip):
+                        next(self.decoder1, None)
+                        next(self.decoder2, None)
+                        self.i += 1
                 except:
                     pass
 
