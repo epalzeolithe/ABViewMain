@@ -1,5 +1,5 @@
 
-import os
+import os,re
 from datetime import time as dt_time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -60,15 +60,11 @@ def get_last_GPS_log_file(directory):
 
 SUBDIR="data/raw/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
-X4_INSV_1=SUBDIR+X4_INSV_1
-X4_INSV_2=SUBDIR+X4_INSV_2
-
 GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
-GPS_GNS3000=SUBDIR+GPS_GNS3000
 
 # -------- CONFIG --------
-SKIP_X4_EXPORT = True
-SKIP_GNS3000_IMPORT = True
+SKIP_X4_EXPORT = False
+SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
 SKIP_METAR = False
 #X4_INSV_1 = "VID_20260320_131559_00_053.insv"
