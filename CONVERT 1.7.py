@@ -86,9 +86,9 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         "-stats",
         "-y",
         "-hwaccel", "videotoolbox",
-        "-t", "10",
+        #"-t", "10",
         "-i", input1,
-        "-t", "10",
+        #"-t", "10",
         "-i", input2,
         "-filter_complex",
         f"""
