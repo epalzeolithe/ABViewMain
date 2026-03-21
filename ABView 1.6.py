@@ -230,6 +230,10 @@ index_enligne_devol= mask.idxmax()
 mask = df['gps_alt'] > 3000
 index_entree_3000= mask.idxmax()
 
+gps_max_alt = df['gps_alt'].max()
+print("Max Alt : ",gps_max_alt)
+
+
 # ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
@@ -1490,7 +1494,10 @@ class MainWindow(QMainWindow):
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
 
-        for z in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
+        altitude_scale = list(range(0, max(5500, int(math.ceil(gps_max_alt / 500) * 500)) + 500, 500))
+
+
+        for z in altitude_scale:
             label = QLabel(f"{z}ft", self.gps_view)
             label.setStyleSheet("color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
             label.adjustSize()
@@ -1500,7 +1507,7 @@ class MainWindow(QMainWindow):
 
         # small horizontal ticks for altitude graduations
         self.altitude_scale_ticks = []
-        for _ in (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000):
+        for _ in altitude_scale:
             tick = QFrame(self.gps_view)
             tick.setStyleSheet("background-color: black;")
             tick.setGeometry(0, 0, 6, 2)
@@ -1627,7 +1634,7 @@ class MainWindow(QMainWindow):
         top = 10
         height = self.gps_view.height() - 20
 
-        max_alt = 5500.0
+        max_alt = int(gps_max_alt / 500 +1) * 500
 
         # position altitude bar near the right edge
         bar_x = self.gps_view.width() - 60
@@ -1684,7 +1691,8 @@ class MainWindow(QMainWindow):
         except Exception:
             alt = 0
 
-        alt = max(0, min(5500, alt))
+        alt = max(0, min(max_alt, alt))
+
         t = alt / max_alt
         y_cursor = int(top + height * (1.0 - t))
 
