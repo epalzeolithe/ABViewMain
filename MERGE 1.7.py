@@ -58,27 +58,27 @@ def get_last_GPS_log_file(directory):
     # Retourne le dernier fichier
     return files_with_index[-1][1]
 
+# -------- INPUT FILES
 SUBDIR="data/raw/"
+TMP=SUBDIR+"temp/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
 GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
-
-# -------- CONFIG --------
-SKIP_X4_EXPORT = True
-SKIP_GNS3000_IMPORT = True
-SKIP_IPHONE_IMPORT = False
-SKIP_METAR = True
 #X4_INSV_1 = "VID_20260320_131559_00_053.insv"
 #X4_INSV_2 = "VID_20260320_131559_00_054.insv"
 #GPS_GNS3000 = "LOG00005.TXT"
 IPHONE_SENSORLOG = "sensorlog.csv"
+
+# -------- CONFIG --------
+SKIP_X4_EXPORT = False
+SKIP_GNS3000_IMPORT = False
+SKIP_IPHONE_IMPORT = False
+SKIP_METAR = False
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
 WINDOW_ACCX4 = 50 # taille moyenne glissante pour lissage accéléros X4
 GNS3000_PERIOD = 0.25 # 4 Hz
 X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
-#SUBDIR="data/raw/"
-TMP=SUBDIR+"temp/"
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
 GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
 MAINDIR="/Users/drax/Down/ABViewMain/"
