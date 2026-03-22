@@ -68,6 +68,7 @@ X4_INSV_2=SUBDIR+X4_INSV_2
 
 CROP_FRONT = "1200:675" #default 1200:675
 CROP_BACK = "960:540" #default 1080:608
+PITCH_FRONT = -25 #inclinaison pour voir le manche
 
 #Très large 1280:720
 #Large 1200:675
@@ -87,9 +88,9 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         "-stats",
         "-y",
         "-hwaccel", "videotoolbox",
-        #"-t", "10",
+        "-t", "10",
         "-i", input1,
-        #"-t", "10",
+        "-t", "10",
         "-i", input2,
         "-filter_complex",
         f"""
@@ -104,7 +105,7 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
 [v]v360=input=dfisheye:output=hammer:ih_fov=193:iv_fov=193[vh];
 [vh]split=2[vf][vb];
 
-[vf]v360=input=hammer:output=hammer:yaw=0:pitch=-25:w=1920:h=1080,
+[vf]v360=input=hammer:output=hammer:yaw=0:pitch={PITCH_FRONT}:w=1920:h=1080,
 crop={CROP_FRONT},scale=1920:1080:flags=lanczos[front];
 
 [vb]v360=input=hammer:output=hammer:yaw=180:w=1920:h=1080,
