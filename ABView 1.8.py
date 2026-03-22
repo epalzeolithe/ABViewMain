@@ -2097,10 +2097,12 @@ class MainWindow(QMainWindow):
         fpm_clamped = max(-fpm_max, min(fpm_max, fpm))
 
         # longueur max en pixels
-        max_len = 60  # ajuste visuellement
+        max_len = 80  # ajuste visuellement
 
         # conversion en pixels
-        length = int((abs(fpm_clamped) / fpm_max) * max_len)
+        #length = int((abs(fpm_clamped) / fpm_max) * max_len)
+        length = int((abs(fpm_clamped) / fpm_max) ** 0.6 * max_len) # non linéaire pour amplifier faible valeur
+
 
         # position X (à côté du curseur altitude)
         x_vario = bar_x+4  # à gauche du curseur
@@ -2117,12 +2119,12 @@ class MainWindow(QMainWindow):
             y = y0
             h = length
 
-        self.altitude_vario_bar.setGeometry(x_vario, y, 3, h)
+        self.altitude_vario_bar.setGeometry(x_vario, y, 6, h)
 
         if fpm_clamped >= 0:
             color = "lime"
         else:
-            color = "red"
+            color = "#ff0000"  # rouge vif
 
         self.altitude_vario_bar.setStyleSheet(f"background-color: {color};")
 
