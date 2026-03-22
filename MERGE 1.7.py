@@ -63,10 +63,10 @@ X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
 GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
 
 # -------- CONFIG --------
-SKIP_X4_EXPORT = False
-SKIP_GNS3000_IMPORT = False
+SKIP_X4_EXPORT = True
+SKIP_GNS3000_IMPORT = True
 SKIP_IPHONE_IMPORT = False
-SKIP_METAR = False
+SKIP_METAR = True
 #X4_INSV_1 = "VID_20260320_131559_00_053.insv"
 #X4_INSV_2 = "VID_20260320_131559_00_054.insv"
 #GPS_GNS3000 = "LOG00005.TXT"
@@ -435,6 +435,24 @@ if __name__ == "__main__":
         xdf['timestamp'] = xdf['timestamp'].dt.tz_localize(None)
         xdf["timestamp"] = xdf["timestamp"].astype("datetime64[us]")
 
+        print("*************** CUT END of INSV1 ***************")
+        print("Creation time 1", st1)
+        xdf_begin = xdf['timestamp'].iloc[0]
+        xdf_end = xdf['timestamp'].iloc[-1]
+        cut_time = xdf_end.replace(microsecond=0)
+        print("Begin 1        ", xdf_begin)
+        print("End 1          ", xdf_end)
+        print("Cut time       ", cut_time)
+
+        # remove all rows after cut_time
+        xdf = xdf[xdf['timestamp'] <= cut_time].reset_index(drop=True)
+        xdf_end = xdf['timestamp'].iloc[-1]
+        print("End 1 after cut", xdf_end)
+
+        print("*************** CUT END of INSV1 ***************")
+        # remove all rows after cut_time
+        xdf = xdf[xdf['timestamp'] <= cut_time].reset_index(drop=True)
+
         #accelerations transfer from BB
         xdf['org_acc_x']=xdf['accSmooth[0]']
         xdf['org_acc_y']=xdf['accSmooth[1]'] # warning axe vertical X4
@@ -448,11 +466,10 @@ if __name__ == "__main__":
         # xdf2 process
         xdf2 = xdf2[xdf2["timestamp_ms"] >= 0]  # filtrage données à temps négatif
         xdf2 = xdf2.reset_index(drop=True)
-        st2=get_mp4_creation_datetime(SUBDIR+X4_INSV_2)
-        #end1=xdf['timestamp'].iloc[-1]
-        #print(st2,end1)
-        xdf2['timestamp'] = st2 + pd.to_timedelta(xdf2['timestamp_ms'], unit='ms')
-        xdf2["timestamp"] = xdf2["timestamp"].dt.tz_convert("Etc/GMT-1")
+
+        xdf_end=xdf['timestamp'].iloc[-1]
+        xdf2['timestamp'] = xdf_end + pd.to_timedelta(xdf2['timestamp_ms'], unit='ms')
+        #xdf2["timestamp"] = xdf2["timestamp"].dt.tz_convert("Etc/GMT-1")
         xdf2['timestamp'] = xdf2['timestamp'].dt.tz_localize(None)
         xdf2["timestamp"] = xdf2["timestamp"].astype("datetime64[us]")
 
@@ -464,6 +481,21 @@ if __name__ == "__main__":
         # rearrange
         xdf2 = xdf2[['timestamp', 'org_acc_x', 'org_acc_y', 'org_acc_z', 'org_quat_w', 'org_quat_x', 'org_quat_y', 'org_quat_z','timestamp_ms']]
         xdf2 = xdf2.rename(columns={'org_acc_x': 'x4_acc_x', 'org_acc_y': 'x4_acc_y', 'org_acc_z': 'x4_acc_z','org_quat_w': 'x4_quat_w', 'org_quat_x': 'x4_quat_x', 'org_quat_y': 'x4_quat_y','org_quat_z': 'x4_quat_z'})
+
+        print("*************** STITCHING INSV CHECK ***************")
+        date_insv2 = get_mp4_creation_datetime(SUBDIR + X4_INSV_2)
+        date_insv2 = date_insv2.astimezone(ZoneInfo("Etc/GMT-1"))
+        date_insv2 = date_insv2.replace(tzinfo=None)
+
+        print("Creation time 2", date_insv2, "from", X4_INSV_2)
+        xdf_end = xdf['timestamp'].iloc[-1]
+        print("End previous 1 ", xdf_end)
+        xdf2_begin = xdf2['timestamp'].iloc[0]
+        print("Begin 2        ", xdf2_begin)
+
+        stitching_offset = date_insv2 - xdf2_begin
+        print("StitchingOffset", stitching_offset)
+        print("*************** STITCHING INSV CHECK END ***********")
 
         xdf = pd.concat([xdf, xdf2], axis=0, ignore_index=True)
 
@@ -533,14 +565,14 @@ if __name__ == "__main__":
         print("End time", end)
 
         metar_df = download_metar_history("LFMT", start, end)
-        print(metar_df)
+        #print(metar_df)
         OUTPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
         metar_df.to_csv(OUTPUT_METAR, index=False, encoding="utf-8")
     else:
         print(".....Skipping METAR export")
         INPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
         metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
-        print(metar_df)
+        #print(metar_df)
 
     print("Done.")
 
