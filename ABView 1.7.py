@@ -1559,6 +1559,14 @@ class MainWindow(QMainWindow):
                         trajectory = [];
                         polyline.setLatLngs([]);
                     }}
+
+                    // ---- Reset trajectory with history (used after seek) ----
+                    function resetTrajectoryWithData(points) {{
+                        trajectory = points || [];
+                        polyline.setLatLngs(trajectory);
+                    }}
+
+                    window.resetTrajectoryWithData = resetTrajectoryWithData;
                     
 
                     window.resetTrajectory = resetTrajectory;
@@ -3039,6 +3047,8 @@ class MainWindow(QMainWindow):
     # ==================================================
     # time jump helpers
     # ==================================================
+
+
     def jump_back_10s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = max(0, int(self.i - fps * 10))
@@ -3410,6 +3420,11 @@ class MainWindow(QMainWindow):
         if not self.playing:
             self.update_all()
 
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
 
     # ==================================================
     def toggle_matplotlib_gps(self):
@@ -3821,100 +3836,3 @@ if __name__ == "__main__":
     win.show()
     sys.exit(app.exec_())
 
-    def jump_fwd_10s(self):
-        """Jump forward 10 seconds."""
-        self.i = min(self.i + 300, N - 1)
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
-
-    def jump_back_10s(self):
-        """Jump backward 10 seconds."""
-        self.i = max(self.i - 300, 0)
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
-
-    def jump_fwd_2s(self):
-        """Jump forward 2 seconds."""
-        self.i = min(self.i + 60, N - 1)
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
-
-    def jump_back_2s(self):
-        """Jump backward 2 seconds."""
-        self.i = max(self.i - 60, 0)
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
-
-    def goto_next_bookmark(self):
-        """Seek to the next bookmark after current frame."""
-        if self.bookmarks_df is None or self.bookmarks_df.empty:
-            return
-        next_bm = self.bookmarks_df[self.bookmarks_df["frame"] > self.i]
-        if not next_bm.empty:
-            frame = int(next_bm.iloc[0]["frame"])
-            self.i = frame
-            self.slider.setValue(self.i)
-            # reset OSM trajectory after seek
-            try:
-                if self.map_ready:
-                    self.map_view.page().runJavaScript("resetTrajectory();")
-            except Exception:
-                pass
-
-    def goto_previous_bookmark(self):
-        """Seek to the previous bookmark before current frame."""
-        if self.bookmarks_df is None or self.bookmarks_df.empty:
-            return
-        prev_bm = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
-        if not prev_bm.empty:
-            frame = int(prev_bm.iloc[-1]["frame"])
-            self.i = frame
-            self.slider.setValue(self.i)
-            # reset OSM trajectory after seek
-            try:
-                if self.map_ready:
-                    self.map_view.page().runJavaScript("resetTrajectory();")
-            except Exception:
-                pass
-
-    def goto_mise_en_ligne(self):
-        """Go to the 'mise en ligne' frame."""
-        self.i = index_enligne_devol
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
-
-    def seek_palier(self):
-        """Go to the 'palier' frame."""
-        self.i = index_entree_3000
-        self.slider.setValue(self.i)
-        # reset OSM trajectory after seek
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
