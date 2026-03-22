@@ -62,8 +62,8 @@ from ver import __version__
 #CONFIG
 # MAJOR.MINOR.PATCH
 MAINDIR="/Users/drax/Down/ABViewMain/"
-#BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_20.abv/"
+BDL="data/Vol_2026_02_21.abv/"
+#BDL="data/Vol_2026_03_20.abv/"
 #BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
@@ -1709,7 +1709,7 @@ class MainWindow(QMainWindow):
 
             rect = self.gps_view.contentsRect()
             x = 10
-            y = rect.height() - self.btn_detach_pyqtgraph.height() - 30
+            y = rect.height() - self.btn_detach_pyqtgraph.height() - 50
 
             self.btn_detach_pyqtgraph.move(x, y)
             self.btn_detach_pyqtgraph.raise_()
@@ -1988,13 +1988,13 @@ class MainWindow(QMainWindow):
 
             self.btn_detach_pyqtgraph.move(
                 10,
-                self.gps_view.height() - self.btn_detach_pyqtgraph.height() - 30
+                self.gps_view.height() - self.btn_detach_pyqtgraph.height() - 50
             )
             self.btn_detach_pyqtgraph.raise_()
 
             QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(
                 10,
-                self.gps_view.contentsRect().height() - self.btn_detach_pyqtgraph.height() - 30
+                self.gps_view.contentsRect().height() - self.btn_detach_pyqtgraph.height() - 50
             ))
 
     def update_altitude_labels(self):
@@ -2211,8 +2211,9 @@ class MainWindow(QMainWindow):
 
         # ajout du groupe à la scène
         self.gfx_scene.add(self.gfx_object)
-        self.gfx_scene.background = gfx.Background(None, gfx.BackgroundMaterial((1, 1, 1, 1)))
+        #self.gfx_scene.background = gfx.Background(None, gfx.BackgroundMaterial((1, 1, 1, 1)))
         self.gfx_display.show(self.gfx_scene)
+        #self.gfx_display.renderer.clear_color = (1, 1, 1, 1)
 
         # ---- Camera configuration : Z axis up ----
         cam = self.gfx_display.camera
@@ -2280,6 +2281,7 @@ class MainWindow(QMainWindow):
             print(f"Error loading CAP10.STL: {e}")
 
         self.gfx_canvas = self.gfx_display.canvas
+        #self.gfx_canvas.setStyleSheet("background-color: white;")
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
         # ---- Attach detach button to gfx canvas (bottom-center overlay) ----
         if hasattr(self, "btn_detach_gfx"):
@@ -3976,8 +3978,75 @@ class MainWindow(QMainWindow):
 # ======================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    #app.setStyle("Fusion")
-    app.setPalette(app.style().standardPalette())
+    palette = app.palette()
+    palette.setColor(palette.Window, Qt.white)
+    palette.setColor(palette.Base, Qt.white)
+    palette.setColor(palette.AlternateBase, Qt.white)
+    palette.setColor(palette.Text, Qt.black)
+    palette.setColor(palette.WindowText, Qt.black)
+
+    app.setPalette(palette)
+    app.setStyleSheet("""
+    QPushButton {
+        background-color: #f0f0f0;
+        color: black;
+        border: 1px solid #888;
+        border-radius: 4px;
+        padding: 4px 8px;
+    }
+
+    QPushButton:hover {
+        background-color: #e0e0e0;
+    }
+
+    QPushButton:pressed {
+        background-color: #d0d0d0;
+    }
+
+    QMenuBar {
+        background-color: #f5f5f5;
+        color: black;
+    }
+
+    QMenu {
+        background-color: white;
+        color: black;
+    }
+
+    QMenu::item:selected {
+        background-color: #d0d0d0;
+    }
+    
+    QSlider::groove:horizontal {
+    height: 6px;
+    background: #ddd;
+    border-radius: 3px;
+    }
+    
+    QSlider::handle:horizontal {
+        background: #666;
+        border: 1px solid #444;
+        width: 14px;
+        height: 14px;
+        margin: -5px 0;  /* centre la poignée */
+        border-radius: 7px;
+    }
+    
+    QSlider::handle:horizontal:hover {
+        background: #444;
+    }
+    
+    QSlider::sub-page:horizontal {
+        background: #4a90e2;  /* partie parcourue */
+        border-radius: 3px;
+    }
+    
+    QSlider::add-page:horizontal {
+        background: #ddd;
+        border-radius: 3px;
+    }
+
+    """)
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
