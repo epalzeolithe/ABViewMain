@@ -722,31 +722,68 @@ class MainWindow(QMainWindow):
 
         # ---- Menu ----
         menubar = self.menuBar()
-
         menu_fichier = menubar.addMenu("Fichier")
-        menu_lecture = menubar.addMenu("Lecture")
         menu_navigation = menubar.addMenu("Navigation")
         self.menu_bookmarks = menubar.addMenu("Bookmarks")
         menu_settings = menubar.addMenu("Settings")
 
         # Actions
-        act_quitter = QAction("Quitter", self)
-        #act_quitter.setShortcut("Ctrl+Q")
-        act_quitter.triggered.connect(self.close)
 
         act_play_pause = QAction("Lecture / Pause", self)
         act_play_pause.setShortcut("Space")
         act_play_pause.triggered.connect(self.toggle_play)
+        menu_navigation.addAction(act_play_pause)  # 👈 en premier
+        menu_fichier.addAction(act_play_pause)
+
+        act_quitter = QAction("Quitter", self)
+        act_quitter.setShortcut("Ctrl+W")
+        act_quitter.triggered.connect(self.close)
+        menu_fichier.addAction(act_quitter)
+
+        # ---- Time navigation actions (with shortcuts shown) ----
+        act_fwd_10 = QAction("Avance +10s (→)", self)
+        act_fwd_10.setShortcut(QKeySequence("Right"))
+        act_fwd_10.triggered.connect(self.jump_fwd_10s)
+        menu_navigation.addAction(act_fwd_10)
+
+        act_back_10 = QAction("Recule -10s (←)", self)
+        act_back_10.setShortcut(QKeySequence("Left"))
+        act_back_10.triggered.connect(self.jump_back_10s)
+        menu_navigation.addAction(act_back_10)
+
+        act_fwd_2 = QAction("Avance +2s (Shift+→)", self)
+        act_fwd_2.setShortcut(QKeySequence("Shift+Right"))
+        act_fwd_2.triggered.connect(self.jump_fwd_2s)
+        menu_navigation.addAction(act_fwd_2)
+
+        act_back_2 = QAction("Recule -2s (Shift+←)", self)
+        act_back_2.setShortcut(QKeySequence("Shift+Left"))
+        act_back_2.triggered.connect(self.jump_back_2s)
+        menu_navigation.addAction(act_back_2)
+
+        menu_navigation.addSeparator()
+        # Add Next Bookmark action in Navigation menu (with shortcut shown)
+        act_next_bm = QAction("Next Bookmark (Ctrl+→)", self)
+        act_next_bm.setShortcut(QKeySequence("Ctrl+Right"))
+        act_next_bm.triggered.connect(self.goto_next_bookmark)
+        menu_navigation.addAction(act_next_bm)
+
+        # Add Previous Bookmark action in Navigation menu (with shortcut shown)
+        act_prev_bm = QAction("Previous Bookmark (Ctrl+←)", self)
+        act_prev_bm.setShortcut(QKeySequence("Ctrl+Left"))
+        act_prev_bm.triggered.connect(self.goto_previous_bookmark)
+        menu_navigation.addAction(act_prev_bm)
+
+        act_palier = QAction("Palier", self)
+        act_palier.triggered.connect(self.seek_palier)
+        menu_navigation.addAction(act_palier)
 
         act_mise_en_ligne = QAction("Mise en ligne", self)
         # shortcut removed intentionally
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
-        menu_fichier.addAction(act_quitter)
-        menu_lecture.addAction(act_play_pause)
-        menu_navigation.addSeparator()
         menu_navigation.addAction(act_mise_en_ligne)
 
-        # ---- Shortucs ----
+        # ---- Shortcuts ----
 
         shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
@@ -783,8 +820,6 @@ class MainWindow(QMainWindow):
         # ---- Add bookmark ----
         self.act_add_bookmark = QAction("Ajouter Bookmark", self)
         self.act_add_bookmark.setShortcut("Ctrl+B")
-
-
         self.act_add_bookmark.triggered.connect(self.add_bookmark)
 
         # build base menu structure
