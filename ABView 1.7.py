@@ -760,6 +760,15 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Right"), self).activated.connect(self.goto_next_bookmark)
         QShortcut(QKeySequence("Ctrl+Left"), self).activated.connect(self.goto_previous_bookmark)
 
+        shortcut = QShortcut(QKeySequence("Right"), self)
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(self.jump_fwd_10s)
+
+        shortcut = QShortcut(QKeySequence("Left"), self)
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(self.jump_back_10s)
+
+
         self.act_add_bookmark.triggered.connect(self.add_bookmark)
 
         # build base menu structure
