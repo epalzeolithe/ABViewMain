@@ -1790,31 +1790,25 @@ class MainWindow(QMainWindow):
 
             vertices = m.vectors.reshape(-1, 3)
             vertices *= 0.03  # Scale down
-            # centrage
-            # centrage
-            vertices -= vertices.mean(axis=0)
-
+            vertices -= vertices.mean(axis=0) # centrage
             # rotation axes
             R_fix = np.array([
                 [0, 1, 0],  # X = nez
                 [1, 0, 0],  # Y = ailes
-                [0, 0, 1]
-            ])
+                [0, 0, 1]])
             vertices = (R_fix @ vertices.T).T
-
             # inversion gauche/droite
             vertices[:, 1] *= -1
 
             faces = np.arange(len(vertices)).reshape(-1, 3)
-
             meshdata = gl.MeshData(vertexes=vertices, faces=faces)
-
             self.gps_aircraft = gl.GLMeshItem(
                 meshdata=meshdata,
-                smooth=False,
-                color=(0.8, 0.8, 0.8, 0.4),  # gris clair
+                smooth=True,
+                color=(0.8, 0.8, 0.8, 0.2),  # gris clair
                 shader='shaded',
-                drawEdges=False
+                drawEdges=False,
+                glOptions='translucent'
             )
 
         except Exception as e:
