@@ -920,18 +920,19 @@ class MainWindow(QMainWindow):
         self.btn_record.clicked.connect(self.toggle_recording)
 
 
-        # ---- Open pygfx window in separate window ----
-        self.btn_detach_gfx = QPushButton("↗ 3D")
+        # ---- Open pygfx window in separate window (overlay top-center) ----
+        # temporary creation without parent (gfx not yet initialized)
+        self.btn_detach_gfx = QPushButton("↗Detach")
         self.btn_detach_gfx.clicked.connect(self.detach_gfx_window)
 
         # ---- Open Video1 in separate window ----
-        self.btn_detach_video1 = QPushButton("↗ Video 1", self.video1)
+        self.btn_detach_video1 = QPushButton("↗Detach", self.video1)
         self.btn_detach_video1.move(10, 10)
         self.btn_detach_video1.raise_()
         self.btn_detach_video1.clicked.connect(self.detach_video1_window)
 
         # ---- Open Video2 in separate window (overlay top-right) ----
-        self.btn_detach_video2 = QPushButton("↗ Video 2", self.video2)
+        self.btn_detach_video2 = QPushButton("↗Detach", self.video2)
         self.btn_detach_video2.adjustSize()
         # initial position (will be corrected on resize)
         self.btn_detach_video2.move(self.video2.width() - self.btn_detach_video2.width() - 10, 10)
@@ -982,7 +983,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_pause)
         buttons_layout.addWidget(self.btn_record)
 
-        buttons_layout.addWidget(self.btn_detach_gfx)
+        # self.btn_detach_gfx is now parented to self.gfx_canvas and positioned manually
         # self.btn_detach_video1 and self.btn_detach_video2 are now parented to their respective video labels and positioned manually
         buttons_layout.addWidget(self.btn_detach_pyqtgraph)
         buttons_layout.addWidget(self.btn_back_10)
@@ -1528,6 +1529,15 @@ class MainWindow(QMainWindow):
             self.btn_detach_video2.move(x, y)
             self.btn_detach_video2.raise_()
 
+        # Keep btn_detach_gfx pinned to top-center of pygfx canvas
+        if hasattr(self, "btn_detach_gfx") and hasattr(self, "gfx_canvas"):
+            self.btn_detach_gfx.adjustSize()
+            rect = self.gfx_canvas.contentsRect()
+            x = (rect.width() - self.btn_detach_gfx.width()) // 2
+            y = 10
+            self.btn_detach_gfx.move(x, y)
+            self.btn_detach_gfx.raise_()
+
     def init_gps_pyqtgraph(self):
 
         # ---- trajectory rendered as a circular bundle (tube-like) ----
@@ -2032,6 +2042,18 @@ class MainWindow(QMainWindow):
 
         self.gfx_canvas = self.gfx_display.canvas
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+        # ---- Attach detach button to gfx canvas (top-center overlay) ----
+        if hasattr(self, "btn_detach_gfx"):
+            self.btn_detach_gfx.setParent(self.gfx_canvas)
+            self.btn_detach_gfx.adjustSize()
+            self.btn_detach_gfx.move(
+                (self.gfx_canvas.width() - self.btn_detach_gfx.width()) // 2, 10
+            )
+            self.btn_detach_gfx.raise_()
+
+            QTimer.singleShot(0, lambda: self.btn_detach_gfx.move(
+                (self.gfx_canvas.contentsRect().width() - self.btn_detach_gfx.width()) // 2, 10
+            ))
         # ---- Force white background on pygfx Qt widget ----
 
         # ---- DataFrame info overlay (top-left) ----
