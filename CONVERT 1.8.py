@@ -133,7 +133,7 @@ PITCH_FRONT = -25 #inclinaison pour voir le manche
 #Très zoom 640:360
 
 SKIP_CONVERSION = False
-SHORT_CONVERT = True  # True = limit duration for debug
+SHORT_CONVERT = False  # True = limit duration for debug
 
 def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
     return [

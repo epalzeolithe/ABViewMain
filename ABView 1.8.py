@@ -1,3 +1,7 @@
+import numpy as np
+import pyqtgraph.opengl as gl
+from stl import mesh
+
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -67,6 +71,7 @@ VIDEO1=PDL+"front.mp4"
 VIDEO2=PDL+"back.mp4"
 BOOKMARK_FILE=PDL+"bookmark.csv"
 STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
+STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
 DF_FREQ = 100
 TRACE = 6000 # taille de la trace 6000=1 minute
@@ -1776,11 +1781,41 @@ class MainWindow(QMainWindow):
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
         #self.gps_view.addItem(self.gps_point)
-        self.gps_aircraft = self.create_cap10_item()
+
+
+        #stl_path = os.path.join(os.path.dirname(__file__), "plane.stl")
+
+        try:
+            m = mesh.Mesh.from_file(STL_SIMPLE_PLANE_FILE)
+
+            vertices = m.vectors.reshape(-1, 3)
+            vertices *= 0.05  # Scale down
+            faces = np.arange(len(vertices)).reshape(-1, 3)
+
+            meshdata = gl.MeshData(vertexes=vertices, faces=faces)
+
+            self.gps_aircraft = gl.GLMeshItem(
+                meshdata=meshdata,
+                smooth=False,
+                color=(0, 0, 0, 1),
+                shader='shaded',
+                drawEdges=True
+            )
+
+        except Exception as e:
+            print("STL load failed, fallback to CAP10:", e)
+            self.gps_aircraft = self.create_cap10_item()
         self.gps_view.addItem(self.gps_aircraft)
 
-        # base pour rotation rapide
-        self.gps_aircraft_base = self.gps_aircraft.pos.copy().reshape(-1, 3)
+        # base geometry for rotation (handle both LinePlotItem and MeshItem)
+        if hasattr(self.gps_aircraft, "pos"):
+            self.gps_aircraft_base = self.gps_aircraft.pos.copy().reshape(-1, 3)
+        else:
+            md = self.gps_aircraft.opts.get("meshdata", None)
+            if md is not None:
+                self.gps_aircraft_base = md.vertexes().copy()
+            else:
+                raise RuntimeError("No meshdata found in GLMeshItem")
 
 
         # vertical line from aircraft to ground
@@ -3614,45 +3649,22 @@ class MainWindow(QMainWindow):
 
         if end < len(gps_lat_vals):
             # aircraft stays at center
-            # self.gps_point.setData(pos=[[0.0, 0.0, z[-1]]])
-            # position
-            pos = [0.0, 0.0, z[-1]]
 
             # ---- rotation using Euler angles (heading, pitch, roll) ----
             heading = float(self.row.gps_heading)
             pitch = float(getattr(self, "pitch_deg", 0.0))
             roll = float(getattr(self, "bank_deg", 0.0))
-            
-            # convert degrees → radians
-            h = np.radians(90.0 - heading)  # adjust for pyqtgraph frame
-            p = np.radians(pitch)
-            r = np.radians(roll)
 
-            # rotation matrices (Z = yaw, Y = pitch, X = roll)
-            Rz = np.array([
-                [np.cos(h), -np.sin(h), 0],
-                [np.sin(h),  np.cos(h), 0],
-                [0, 0, 1]
-            ])
 
-            Ry = np.array([
-                [ np.cos(p), 0, np.sin(p)],
-                [0, 1, 0],
-                [-np.sin(p), 0, np.cos(p)]
-            ])
+            self.gps_aircraft.resetTransform()
 
-            Rx = np.array([
-                [1, 0, 0],
-                [0, np.cos(r), -np.sin(r)],
-                [0, np.sin(r),  np.cos(r)]
-            ])
+            # rotations (ordre important)
 
-            R = Rz @ Ry @ Rx
-
-            rotated = (R @ self.gps_aircraft_base.T).T
-            translated = rotated + np.array(pos)
-
-            self.gps_aircraft.setData(pos=translated)
+            #self.gps_aircraft.rotate(roll, 1, 0, 0)  # roll
+            #self.gps_aircraft.rotate(pitch, 0, 1, 0)  # pitch
+            self.gps_aircraft.rotate(180-heading, 0, 0, 1)  # yaw
+            #self.gps_aircraft.rotate(90, 1, 0, 0)
+            self.gps_aircraft.translate(0, 0, z[-1])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
         try:
