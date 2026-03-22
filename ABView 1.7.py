@@ -1478,6 +1478,14 @@ class MainWindow(QMainWindow):
                     }}).addTo(map);
 
                     var marker = L.marker([{lat0}, {lon0}]).addTo(map);
+                    // ---- Trajectory (last 1 minute) ----
+                    var trajectory = [];
+                    var maxPoints = 600; // assuming ~10 Hz → ~1 minute
+
+                    var polyline = L.polyline([], {{
+                        color: 'blue',
+                        weight: 3
+                    }}).addTo(map);
                     // ---- Aerobatic axis (extended 1 km each side) ----
                     var p1 = [43.4822, 3.845];
                     var p2 = [43.4689, 3.8209];
@@ -1526,11 +1534,34 @@ class MainWindow(QMainWindow):
                     }}).addTo(map);
 
                     function updateMarker(lat, lon) {{
-                      marker.setLatLng([lat, lon]);
-                      map.panTo([lat, lon], {{ animate: false }});
+                        var point = [lat, lon];
+
+                        // add new point
+                        trajectory.push(point);
+
+                        // keep only last minute of data
+                        if (trajectory.length > maxPoints) {{
+                            trajectory.shift();
+                        }}
+
+                        // update polyline
+                        polyline.setLatLngs(trajectory);
+
+                        // update marker
+                        marker.setLatLng(point);
+                        map.panTo(point, {{ animate: false }});
                     }}
 
                     window.updateMarker = updateMarker;
+
+                    // ---- Reset trajectory (used after seek) ----
+                    function resetTrajectory() {{
+                        trajectory = [];
+                        polyline.setLatLngs([]);
+                    }}
+                    
+
+                    window.resetTrajectory = resetTrajectory;
                   </script>
                 </body>
                 </html>
@@ -3789,3 +3820,101 @@ if __name__ == "__main__":
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
+
+    def jump_fwd_10s(self):
+        """Jump forward 10 seconds."""
+        self.i = min(self.i + 300, N - 1)
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
+
+    def jump_back_10s(self):
+        """Jump backward 10 seconds."""
+        self.i = max(self.i - 300, 0)
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
+
+    def jump_fwd_2s(self):
+        """Jump forward 2 seconds."""
+        self.i = min(self.i + 60, N - 1)
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
+
+    def jump_back_2s(self):
+        """Jump backward 2 seconds."""
+        self.i = max(self.i - 60, 0)
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
+
+    def goto_next_bookmark(self):
+        """Seek to the next bookmark after current frame."""
+        if self.bookmarks_df is None or self.bookmarks_df.empty:
+            return
+        next_bm = self.bookmarks_df[self.bookmarks_df["frame"] > self.i]
+        if not next_bm.empty:
+            frame = int(next_bm.iloc[0]["frame"])
+            self.i = frame
+            self.slider.setValue(self.i)
+            # reset OSM trajectory after seek
+            try:
+                if self.map_ready:
+                    self.map_view.page().runJavaScript("resetTrajectory();")
+            except Exception:
+                pass
+
+    def goto_previous_bookmark(self):
+        """Seek to the previous bookmark before current frame."""
+        if self.bookmarks_df is None or self.bookmarks_df.empty:
+            return
+        prev_bm = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
+        if not prev_bm.empty:
+            frame = int(prev_bm.iloc[-1]["frame"])
+            self.i = frame
+            self.slider.setValue(self.i)
+            # reset OSM trajectory after seek
+            try:
+                if self.map_ready:
+                    self.map_view.page().runJavaScript("resetTrajectory();")
+            except Exception:
+                pass
+
+    def goto_mise_en_ligne(self):
+        """Go to the 'mise en ligne' frame."""
+        self.i = index_enligne_devol
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
+
+    def seek_palier(self):
+        """Go to the 'palier' frame."""
+        self.i = index_entree_3000
+        self.slider.setValue(self.i)
+        # reset OSM trajectory after seek
+        try:
+            if self.map_ready:
+                self.map_view.page().runJavaScript("resetTrajectory();")
+        except Exception:
+            pass
