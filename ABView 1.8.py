@@ -2093,7 +2093,7 @@ class MainWindow(QMainWindow):
             fpm = 0.0
 
         # limite (important pour lisibilité)
-        fpm_max = 6000.0
+        fpm_max = 4000.0
         fpm_clamped = max(-fpm_max, min(fpm_max, fpm))
 
         # longueur max en pixels
