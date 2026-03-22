@@ -164,8 +164,8 @@ def read_GYRO2BB_CSV(INPUT_FILE):
     df = df.rename(columns={'time': 'timestamp_ms'})
     df[["gyroADC[0]", "gyroADC[1]", "gyroADC[2]"]] *= np.pi / 180 # passage en deg/s
 
-    mean_norm = np.linalg.norm(df[["accSmooth[0]", "accSmooth[1]", "accSmooth[2]"]].iloc[:500], axis=1).mean()
-    print("Gravity mean:", mean_norm) # sur 500 premières valeurs, fps 30s > 15 secondes
+    #mean_norm = np.linalg.norm(df[["accSmooth[0]", "accSmooth[1]", "accSmooth[2]"]].iloc[:500], axis=1).mean()
+    #print("Gravity mean:", mean_norm) # sur 500 premières valeurs, fps 30s > 15 secondes
     return df
 
 def get_datas_from_insv(insv):
@@ -436,7 +436,7 @@ if __name__ == "__main__":
         xdf["timestamp"] = xdf["timestamp"].astype("datetime64[us]")
 
         print("*************** CUT END of INSV1 ***************")
-        print("Creation time 1", st1)
+        #print("Creation time 1", st1)
         xdf_begin = xdf['timestamp'].iloc[0]
         xdf_end = xdf['timestamp'].iloc[-1]
         cut_time = xdf_end.replace(microsecond=0)
@@ -449,9 +449,8 @@ if __name__ == "__main__":
         xdf_end = xdf['timestamp'].iloc[-1]
         print("End 1 after cut", xdf_end)
 
-        print("*************** CUT END of INSV1 ***************")
-        # remove all rows after cut_time
-        xdf = xdf[xdf['timestamp'] <= cut_time].reset_index(drop=True)
+        mean_norm = np.linalg.norm(xdf[["accSmooth[0]", "accSmooth[1]", "accSmooth[2]"]].iloc[:500], axis=1).mean()
+        print("Gravity mean at start :", round(mean_norm,2))  # sur 500 premières valeurs, fps 30s > 15 secondes
 
         #accelerations transfer from BB
         xdf['org_acc_x']=xdf['accSmooth[0]']
@@ -467,7 +466,7 @@ if __name__ == "__main__":
         xdf2 = xdf2[xdf2["timestamp_ms"] >= 0]  # filtrage données à temps négatif
         xdf2 = xdf2.reset_index(drop=True)
 
-        xdf_end=xdf['timestamp'].iloc[-1]
+        xdf_end=xdf['timestamp'].iloc[-1]   # for stitching
         xdf2['timestamp'] = xdf_end + pd.to_timedelta(xdf2['timestamp_ms'], unit='ms')
         #xdf2["timestamp"] = xdf2["timestamp"].dt.tz_convert("Etc/GMT-1")
         xdf2['timestamp'] = xdf2['timestamp'].dt.tz_localize(None)
@@ -483,19 +482,11 @@ if __name__ == "__main__":
         xdf2 = xdf2.rename(columns={'org_acc_x': 'x4_acc_x', 'org_acc_y': 'x4_acc_y', 'org_acc_z': 'x4_acc_z','org_quat_w': 'x4_quat_w', 'org_quat_x': 'x4_quat_x', 'org_quat_y': 'x4_quat_y','org_quat_z': 'x4_quat_z'})
 
         print("*************** STITCHING INSV CHECK ***************")
-        date_insv2 = get_mp4_creation_datetime(SUBDIR + X4_INSV_2)
-        date_insv2 = date_insv2.astimezone(ZoneInfo("Etc/GMT-1"))
-        date_insv2 = date_insv2.replace(tzinfo=None)
 
-        print("Creation time 2", date_insv2, "from", X4_INSV_2)
         xdf_end = xdf['timestamp'].iloc[-1]
         print("End previous 1 ", xdf_end)
         xdf2_begin = xdf2['timestamp'].iloc[0]
         print("Begin 2        ", xdf2_begin)
-
-        stitching_offset = date_insv2 - xdf2_begin
-        print("StitchingOffset", stitching_offset)
-        print("*************** STITCHING INSV CHECK END ***********")
 
         xdf = pd.concat([xdf, xdf2], axis=0, ignore_index=True)
 
