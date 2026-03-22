@@ -728,7 +728,6 @@ class MainWindow(QMainWindow):
         menu_settings = menubar.addMenu("Settings")
 
         # Actions
-
         act_play_pause = QAction("Lecture / Pause", self)
         act_play_pause.setShortcut("Space")
         act_play_pause.triggered.connect(self.toggle_play)
@@ -737,6 +736,7 @@ class MainWindow(QMainWindow):
 
         act_quitter = QAction("Quitter", self)
         act_quitter.setShortcut("Ctrl+W")
+        act_quitter.setMenuRole(QAction.NoRole)  # 👈 IMPORTANT
         act_quitter.triggered.connect(self.close)
         menu_fichier.addAction(act_quitter)
 
@@ -779,7 +779,6 @@ class MainWindow(QMainWindow):
         menu_navigation.addAction(act_palier)
 
         act_mise_en_ligne = QAction("Mise en ligne", self)
-        # shortcut removed intentionally
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
         menu_navigation.addAction(act_mise_en_ligne)
 
@@ -792,6 +791,7 @@ class MainWindow(QMainWindow):
         shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
         shortcut.activated.connect(self.close)
+
 
         shortcut = QShortcut(QKeySequence("Ctrl+Right"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
