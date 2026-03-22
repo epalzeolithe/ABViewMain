@@ -1789,7 +1789,7 @@ class MainWindow(QMainWindow):
             m = mesh.Mesh.from_file(STL_SIMPLE_PLANE_FILE)
 
             vertices = m.vectors.reshape(-1, 3)
-            vertices *= 0.05  # Scale down
+            vertices *= 0.03  # Scale down
             # centrage
             # centrage
             vertices -= vertices.mean(axis=0)
@@ -1812,9 +1812,9 @@ class MainWindow(QMainWindow):
             self.gps_aircraft = gl.GLMeshItem(
                 meshdata=meshdata,
                 smooth=False,
-                color=(0, 0, 0, 1),
+                color=(0.8, 0.8, 0.8, 0.4),  # gris clair
                 shader='shaded',
-                drawEdges=True
+                drawEdges=False
             )
 
         except Exception as e:
