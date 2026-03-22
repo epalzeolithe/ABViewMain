@@ -995,6 +995,15 @@ class MainWindow(QMainWindow):
 
         self._position_elapsed_time_overlay()
 
+        # ---- Previous bookmark overlay (just below elapsed time) ----
+        self.prev_bookmark_overlay = QLabel("", self.centralWidget())
+        self.prev_bookmark_overlay.setAlignment(Qt.AlignCenter)
+        self.prev_bookmark_overlay.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 16px; font-weight: bold;"
+        )
+        self.prev_bookmark_overlay.adjustSize()
+        self.prev_bookmark_overlay.raise_()
+
         # ---- Bookmark overlay label (top center) ----
         self.bookmark_overlay = QLabel("", self)
         self.bookmark_overlay.setStyleSheet(
@@ -1028,6 +1037,27 @@ class MainWindow(QMainWindow):
 
         self.elapsed_time_overlay.move(x, y)
         self.elapsed_time_overlay.raise_()
+
+    def _position_elapsed_time_overlay(self):
+        if not hasattr(self, "elapsed_time_overlay"):
+            return
+
+        self.elapsed_time_overlay.adjustSize()
+        w = self.width()
+
+        x = (w - self.elapsed_time_overlay.width()) // 2
+        y = 17
+
+        self.elapsed_time_overlay.move(x, y)
+        self.elapsed_time_overlay.raise_()
+
+        # ---- bookmark juste en dessous ----
+        if hasattr(self, "prev_bookmark_overlay"):
+            self.prev_bookmark_overlay.adjustSize()
+            bx = (w - self.prev_bookmark_overlay.width()) // 2
+            by = y + self.elapsed_time_overlay.height() + 5
+            self.prev_bookmark_overlay.move(bx, by)
+            self.prev_bookmark_overlay.raise_()
 
     # ==================================================
     # Screen recording using macOS ScreenCaptureKit (PyObjC)
@@ -3087,6 +3117,28 @@ class MainWindow(QMainWindow):
                 self.elapsed_time_overlay.adjustSize()
                 self._position_elapsed_time_overlay()
                 QTimer.singleShot(0, self._position_elapsed_time_overlay)
+        except Exception:
+            pass
+
+        # ---- Previous bookmark overlay update ----
+        try:
+            if self.current_video_time_utc is not None and self.bookmarks_df is not None:
+                t = self.current_video_time_utc
+                df_b = self.bookmarks_df
+
+                # bookmarks passés uniquement
+                past = df_b[df_b["frame"] <= self.i]
+                if len(past) > 0:
+                    last = past.iloc[-1]
+                    # adapte selon ton CSV (name / label / desc)
+                    name = str(last.get("name", last.get("label", "")))
+
+                    self.prev_bookmark_overlay.setText(name)
+                else:
+                    self.prev_bookmark_overlay.setText("")
+
+                self.prev_bookmark_overlay.adjustSize()
+
         except Exception:
             pass
 
