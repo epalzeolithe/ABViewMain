@@ -1874,6 +1874,11 @@ class MainWindow(QMainWindow):
         self.altitude_bar.setGeometry(0, 0, 4, 200)
         self.altitude_bar.show()
 
+        self.altitude_vario_bar = QFrame(self.gps_view)
+        self.altitude_vario_bar.setStyleSheet("background-color: white;")
+        self.altitude_vario_bar.setGeometry(0, 0, 3, 0)
+        self.altitude_vario_bar.show()
+
         # ---- altitude colored zones (Red Bull style) ----
         self.altitude_green_zone = QFrame(self.gps_view)
         self.altitude_green_zone.setStyleSheet("background-color: rgba(0,120,0,160);")  # dark green
@@ -1885,7 +1890,7 @@ class MainWindow(QMainWindow):
 
         # moving marker showing current altitude (rectangle cursor like speed bar)
         self.altitude_cursor = QFrame(self.gps_view)
-        self.altitude_cursor.setStyleSheet("background-color: red;")
+        self.altitude_cursor.setStyleSheet("background-color: black;")
         self.altitude_cursor.setGeometry(0, 0, 18, 8)
         self.altitude_cursor.show()
 
@@ -2077,29 +2082,49 @@ class MainWindow(QMainWindow):
         except Exception:
             fpm_raw = 0.0
 
-        fpm = abs(fpm_raw)
 
-        # change triangle color depending on climb / descent
-        if fpm_raw >= 0:
-            color = "lime"   # climb
+        self.altitude_cursor.setVisible(True)
+        self.altitude_cursor_visible = True
+
+        # ---- vario vertical bar ----
+        try:
+            fpm = float(self.row.gps_fpm)
+        except Exception:
+            fpm = 0.0
+
+        # limite (important pour lisibilité)
+        fpm_max = 3000.0
+        fpm_clamped = max(-fpm_max, min(fpm_max, fpm))
+
+        # longueur max en pixels
+        max_len = 60  # ajuste visuellement
+
+        # conversion en pixels
+        length = int((abs(fpm_clamped) / fpm_max) * max_len)
+
+        # position X (à côté du curseur altitude)
+        x_vario = bar_x - 12  # à gauche du curseur
+
+        # position Y (origine = altitude cursor)
+        y0 = y_cursor
+
+        if fpm_clamped >= 0:
+            # montée → vers le haut
+            y = y0 - length
+            h = length
         else:
-            color = "red"    # descent
+            # descente → vers le bas
+            y = y0
+            h = length
 
-        # change cursor color depending on climb / descent
-        self.altitude_cursor.setStyleSheet(f"background-color: {color};")
+        self.altitude_vario_bar.setGeometry(x_vario, y, 3, h)
 
-        blink_threshold = 2500  # ft/min
-
-        if fpm > blink_threshold:
-            now = time.time()
-            if now - self.altitude_last_blink > 0.25:
-                self.altitude_cursor_visible = not self.altitude_cursor_visible
-                self.altitude_last_blink = now
-                self.altitude_cursor.setVisible(self.altitude_cursor_visible)
+        if fpm_clamped >= 0:
+            color = "lime"
         else:
-            self.altitude_cursor.setVisible(True)
-            self.altitude_cursor_visible = True
+            color = "red"
 
+        self.altitude_vario_bar.setStyleSheet(f"background-color: {color};")
 
     def init_gfx(self):
         # ---- pygfx ----
