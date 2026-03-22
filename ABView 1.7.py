@@ -1538,6 +1538,17 @@ class MainWindow(QMainWindow):
             self.btn_detach_gfx.move(x, y)
             self.btn_detach_gfx.raise_()
 
+        # Keep btn_detach_pyqtgraph pinned to top-center of gps_view
+        if hasattr(self, "btn_detach_pyqtgraph") and hasattr(self, "gps_view"):
+            self.btn_detach_pyqtgraph.adjustSize()
+
+            rect = self.gps_view.contentsRect()
+            x = (rect.width() - self.btn_detach_pyqtgraph.width()) // 2
+            y = 10
+
+            self.btn_detach_pyqtgraph.move(x, y)
+            self.btn_detach_pyqtgraph.raise_()
+
     def init_gps_pyqtgraph(self):
 
         # ---- trajectory rendered as a circular bundle (tube-like) ----
@@ -1757,6 +1768,22 @@ class MainWindow(QMainWindow):
             tick.setGeometry(0, 0, 2, 6)
             tick.show()
             self.g_scale_ticks.append(tick)
+
+        # ---- Attach detach button to gps_view (top-center) ----
+        if hasattr(self, "btn_detach_pyqtgraph"):
+            self.btn_detach_pyqtgraph.setParent(self.gps_view)
+            self.btn_detach_pyqtgraph.adjustSize()
+
+            self.btn_detach_pyqtgraph.move(
+                (self.gps_view.width() - self.btn_detach_pyqtgraph.width()) // 2,
+                10
+            )
+            self.btn_detach_pyqtgraph.raise_()
+
+            QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(
+                (self.gps_view.contentsRect().width() - self.btn_detach_pyqtgraph.width()) // 2,
+                10
+            ))
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
