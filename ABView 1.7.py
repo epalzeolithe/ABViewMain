@@ -1529,12 +1529,12 @@ class MainWindow(QMainWindow):
             self.btn_detach_video2.move(x, y)
             self.btn_detach_video2.raise_()
 
-        # Keep btn_detach_gfx pinned to top-center of pygfx canvas
+        # Keep btn_detach_gfx pinned to bottom-center of pygfx canvas
         if hasattr(self, "btn_detach_gfx") and hasattr(self, "gfx_canvas"):
             self.btn_detach_gfx.adjustSize()
             rect = self.gfx_canvas.contentsRect()
             x = (rect.width() - self.btn_detach_gfx.width()) // 2
-            y = 10
+            y = rect.height() - self.btn_detach_gfx.height() - 10
             self.btn_detach_gfx.move(x, y)
             self.btn_detach_gfx.raise_()
 
@@ -2063,17 +2063,20 @@ class MainWindow(QMainWindow):
 
         self.gfx_canvas = self.gfx_display.canvas
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
-        # ---- Attach detach button to gfx canvas (top-center overlay) ----
+        # ---- Attach detach button to gfx canvas (bottom-center overlay) ----
         if hasattr(self, "btn_detach_gfx"):
             self.btn_detach_gfx.setParent(self.gfx_canvas)
             self.btn_detach_gfx.adjustSize()
+            # position bottom-center
             self.btn_detach_gfx.move(
-                (self.gfx_canvas.width() - self.btn_detach_gfx.width()) // 2, 10
+                (self.gfx_canvas.width() - self.btn_detach_gfx.width()) // 2,
+                self.gfx_canvas.height() - self.btn_detach_gfx.height() - 10
             )
             self.btn_detach_gfx.raise_()
 
             QTimer.singleShot(0, lambda: self.btn_detach_gfx.move(
-                (self.gfx_canvas.contentsRect().width() - self.btn_detach_gfx.width()) // 2, 10
+                (self.gfx_canvas.contentsRect().width() - self.btn_detach_gfx.width()) // 2,
+                self.gfx_canvas.contentsRect().height() - self.btn_detach_gfx.height() - 10
             ))
         # ---- Force white background on pygfx Qt widget ----
 
