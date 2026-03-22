@@ -577,6 +577,38 @@ class AnalogAltimeter(QWidget):
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
+    def create_cap10_item(self):
+        scale = 0.2
+
+        pts = np.array([
+            [1.0, 0.0, 0.0],  # nez
+            [-1.0, 0.0, 0.0],  # queue
+
+            [0.0, 1.2, 0.0],  # aile gauche
+            [0.0, -1.2, 0.0],  # aile droite
+
+            [-0.9, 0.5, 0.0],  # empennage G
+            [-0.9, -0.5, 0.0],  # empennage D
+
+            [-0.9, 0.0, 0.5],  # dérive
+        ], dtype=float) * scale
+
+        segments = np.array([
+            pts[0], pts[1],
+            pts[2], pts[3],
+            pts[4], pts[5],
+            pts[1], pts[6],
+        ])
+
+        return gl.GLLinePlotItem(
+            pos=segments,
+            #color=(1, 0.8, 0, 1), # jaune
+            color=(0, 0, 0, 1), #black
+            width=30,
+            antialias=True,
+            mode='lines'
+        )
+
     def trace_plus(self):
         global TRACE
         TRACE += 2000
@@ -1743,7 +1775,14 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(self.grid_vertical_xz)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
-        self.gps_view.addItem(self.gps_point)
+        #self.gps_view.addItem(self.gps_point)
+        self.gps_aircraft = self.create_cap10_item()
+        self.gps_view.addItem(self.gps_aircraft)
+
+        # base pour rotation rapide
+        self.gps_aircraft_base = self.gps_aircraft.pos.copy().reshape(-1, 3)
+
+
         # vertical line from aircraft to ground
         self.gps_vertical_line = gl.GLLinePlotItem(
             pos=np.zeros((2, 3)),
@@ -2482,6 +2521,7 @@ class MainWindow(QMainWindow):
         # angle between vector and plane
         pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
         pitch_deg = np.degrees(pitch_rad)
+        self.pitch_deg = pitch_deg
 
         # ---- Compute Inclinaison (roll) ----
         # Vector v orthogonal to fwd and lying in plane (fwd, world Z)
@@ -2493,7 +2533,8 @@ class MainWindow(QMainWindow):
         dot = np.dot(up, v)
         cross = np.cross(up, v)
         inclinaison = np.arctan2(np.dot(cross, fwd), dot)
-        inclinaison_deg = -np.degrees(inclinaison) # convention aéronautique (droite positive / gauche positive)
+        bank_deg = -np.degrees(inclinaison) # convention aéronautique (droite positive / gauche positive)
+        self.bank_deg = bank_deg
 
         # ---- Compute Inertial Heading ----
         # Projection du vecteur fwd sur le plan XY (Z=0)
@@ -2514,7 +2555,7 @@ class MainWindow(QMainWindow):
         # ---- Update Artificial Horizon ----
         if hasattr(self, "hud_horizon"):
             self.hud_horizon.pitch = pitch_deg
-            self.hud_horizon.bank = inclinaison_deg
+            self.hud_horizon.bank = bank_deg
             self.hud_horizon.heading = heading_deg
             self.hud_horizon.update()
 
@@ -2578,7 +2619,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.height() - self.pitch_label.height() - 60
         )
 
-        self.roll_label.setText(f"Bank {inclinaison_deg:.0f}°")
+        self.roll_label.setText(f"Bank {bank_deg:.0f}°")
         self.roll_label.adjustSize()
         # place just below pitch label (bottom-left)
         self.roll_label.move(
@@ -2622,7 +2663,7 @@ class MainWindow(QMainWindow):
 
         # ---- Update bank overlay below pitch ----
         if hasattr(self, "video1_bank_label"):
-            self.video1_bank_label.setText(f"Bank {inclinaison_deg:.0f}°")
+            self.video1_bank_label.setText(f"Bank {bank_deg:.0f}°")
             self.video1_bank_label.adjustSize()
             x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
             y_bank = y_pitch + self.video1_pitch_label.height() + 5
@@ -3573,7 +3614,45 @@ class MainWindow(QMainWindow):
 
         if end < len(gps_lat_vals):
             # aircraft stays at center
-            self.gps_point.setData(pos=[[0.0, 0.0, z[-1]]])
+            # self.gps_point.setData(pos=[[0.0, 0.0, z[-1]]])
+            # position
+            pos = [0.0, 0.0, z[-1]]
+
+            # ---- rotation using Euler angles (heading, pitch, roll) ----
+            heading = float(self.row.gps_heading)
+            pitch = float(getattr(self, "pitch_deg", 0.0))
+            roll = float(getattr(self, "bank_deg", 0.0))
+            
+            # convert degrees → radians
+            h = np.radians(90.0 - heading)  # adjust for pyqtgraph frame
+            p = np.radians(pitch)
+            r = np.radians(roll)
+
+            # rotation matrices (Z = yaw, Y = pitch, X = roll)
+            Rz = np.array([
+                [np.cos(h), -np.sin(h), 0],
+                [np.sin(h),  np.cos(h), 0],
+                [0, 0, 1]
+            ])
+
+            Ry = np.array([
+                [ np.cos(p), 0, np.sin(p)],
+                [0, 1, 0],
+                [-np.sin(p), 0, np.cos(p)]
+            ])
+
+            Rx = np.array([
+                [1, 0, 0],
+                [0, np.cos(r), -np.sin(r)],
+                [0, np.sin(r),  np.cos(r)]
+            ])
+
+            R = Rz @ Ry @ Rx
+
+            rotated = (R @ self.gps_aircraft_base.T).T
+            translated = rotated + np.array(pos)
+
+            self.gps_aircraft.setData(pos=translated)
 
         # ---- update altitude labels for pyqtgraph GPS view ----
         try:
