@@ -1767,7 +1767,7 @@ class MainWindow(QMainWindow):
         self.grid_vertical_yz.setSpacing(0.25,0.25)
         self.grid_vertical_yz.rotate(90, 1, 0, 0)
         self.grid_vertical_yz.translate(0, -1, 0)
-        self.grid_vertical_yz.setColor((150, 150, 150))
+        self.grid_vertical_yz.setColor((135, 206, 235))
         self.gps_view.addItem(self.grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
@@ -1776,7 +1776,7 @@ class MainWindow(QMainWindow):
         self.grid_vertical_xz.setSpacing(0.25, 0.25)
         self.grid_vertical_xz.rotate(90, 0, 1, 0)
         self.grid_vertical_xz.translate(-1,0, 0)
-        self.grid_vertical_xz.setColor((150, 150, 150))
+        self.grid_vertical_xz.setColor((135, 206, 235))
         self.gps_view.addItem(self.grid_vertical_xz)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
