@@ -1078,7 +1078,7 @@ class MainWindow(QMainWindow):
         self.prev_bookmark_overlay = QLabel("", self.centralWidget())
         self.prev_bookmark_overlay.setAlignment(Qt.AlignCenter)
         self.prev_bookmark_overlay.setStyleSheet(
-            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 26px; font-weight: bold;"
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 30px; font-weight: bold;"
         )
         self.prev_bookmark_overlay.adjustSize()
         self.prev_bookmark_overlay.raise_()
