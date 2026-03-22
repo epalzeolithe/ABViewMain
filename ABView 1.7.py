@@ -1477,7 +1477,17 @@ class MainWindow(QMainWindow):
                       attribution: '&copy; OpenStreetMap contributors'
                     }}).addTo(map);
 
-                    var marker = L.marker([{lat0}, {lon0}]).addTo(map);
+                    // ---- Plane icon (rotating with heading) ----
+                    var planeIcon = L.divIcon({{
+                        html: '<div id="plane" style="transform: rotate(0deg); font-size:24px;">✈️</div>',
+                        className: '',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    }});
+                    
+                    var marker = L.marker([{lat0}, {lon0}], {{ icon: planeIcon }}).addTo(map);
+                    
+                    
                     // ---- Trajectory (last 1 minute) ----
                     var trajectory = [];
                     var maxPoints = 600; // assuming ~10 Hz → ~1 minute
@@ -1533,7 +1543,7 @@ class MainWindow(QMainWindow):
                       weight: 3
                     }}).addTo(map);
 
-                    function updateMarker(lat, lon) {{
+                    function updateMarker(lat, lon, heading) {{
                         var point = [lat, lon];
 
                         // add new point
@@ -1549,6 +1559,11 @@ class MainWindow(QMainWindow):
 
                         // update marker
                         marker.setLatLng(point);
+                        // rotate plane icon
+                        var plane = document.getElementById("plane");
+                        if (plane && heading !== undefined) {{
+                            plane.style.transform = "rotate(" + heading + "deg)";
+                        }}
                         map.panTo(point, {{ animate: false }});
                     }}
 
@@ -3446,7 +3461,10 @@ class MainWindow(QMainWindow):
         if self.map_ready:
             lat = row.gps_lat
             lon = row.gps_lon
-            self.map_view.page().runJavaScript(f"window.updateMarker({lat}, {lon});")
+            heading = row.gps_heading-45
+            self.map_view.page().runJavaScript(
+                f"window.updateMarker({lat}, {lon}, {heading});"
+            )
 
         # keep METAR overlay visible and correctly positioned
         if hasattr(self, "map_metar_label"):
