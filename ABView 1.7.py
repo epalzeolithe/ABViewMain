@@ -681,6 +681,8 @@ class MainWindow(QMainWindow):
         self.elev_locked = True
 
         self.init_UI()
+        # jump to "mise en ligne" at startup
+        QTimer.singleShot(0, self.goto_mise_en_ligne)
 
         self.init_map_OSM_widget()
         self.map_view.loadFinished.connect(self.on_map_loaded)
