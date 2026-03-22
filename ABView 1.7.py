@@ -2570,7 +2570,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.height() - self.df_info_label.height() - 10
         )
 
-        self.pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
+        self.pitch_label.setText(f"Pitch {pitch_deg:.0f}°")
         self.pitch_label.adjustSize()
         # position bottom-left
         self.pitch_label.move(
@@ -2578,7 +2578,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.height() - self.pitch_label.height() - 60
         )
 
-        self.roll_label.setText(f"Bank {inclinaison_deg:.1f}°")
+        self.roll_label.setText(f"Bank {inclinaison_deg:.0f}°")
         self.roll_label.adjustSize()
         # place just below pitch label (bottom-left)
         self.roll_label.move(
@@ -2614,7 +2614,7 @@ class MainWindow(QMainWindow):
 
         # ---- Update pitch overlay on video1 (above bank) ----
         if hasattr(self, "video1_pitch_label"):
-            self.video1_pitch_label.setText(f"Pitch {pitch_deg:.1f}°")
+            self.video1_pitch_label.setText(f"Pitch {pitch_deg:.0f}°")
             self.video1_pitch_label.adjustSize()
             x_pitch = int((self.video1.width() - self.video1_pitch_label.width()) / 2)
             y_pitch = self.video1.height() - self.video1_pitch_label.height() - 45
@@ -2622,7 +2622,7 @@ class MainWindow(QMainWindow):
 
         # ---- Update bank overlay below pitch ----
         if hasattr(self, "video1_bank_label"):
-            self.video1_bank_label.setText(f"Bank {inclinaison_deg:.1f}°")
+            self.video1_bank_label.setText(f"Bank {inclinaison_deg:.0f}°")
             self.video1_bank_label.adjustSize()
             x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
             y_bank = y_pitch + self.video1_pitch_label.height() + 5
