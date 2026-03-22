@@ -56,7 +56,8 @@ from objc import ObjCPointerWarning
 __version__ = "1.7 Audio Master"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 #BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
@@ -3490,7 +3491,7 @@ class MainWindow(QMainWindow):
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
         y = (lat - lat0) * 111320 / 1000
 
-        if alt[-1]>3000: #décalage de 3000 si dans le box
+        if len(alt) > 0 and alt[-1] > 3000:#décalage de 3000 si dans le box
             z = (alt-3000-1000) / 1000
         else:
             z = (alt - 1000) / 1000
