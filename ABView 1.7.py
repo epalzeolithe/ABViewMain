@@ -1538,13 +1538,13 @@ class MainWindow(QMainWindow):
             self.btn_detach_gfx.move(x, y)
             self.btn_detach_gfx.raise_()
 
-        # Keep btn_detach_pyqtgraph pinned to top-left of gps_view
+        # Keep btn_detach_pyqtgraph pinned to bottom-left of gps_view
         if hasattr(self, "btn_detach_pyqtgraph") and hasattr(self, "gps_view"):
             self.btn_detach_pyqtgraph.adjustSize()
 
             rect = self.gps_view.contentsRect()
             x = 10
-            y = 30
+            y = rect.height() - self.btn_detach_pyqtgraph.height() - 30
 
             self.btn_detach_pyqtgraph.move(x, y)
             self.btn_detach_pyqtgraph.raise_()
@@ -1769,15 +1769,21 @@ class MainWindow(QMainWindow):
             tick.show()
             self.g_scale_ticks.append(tick)
 
-        # ---- Attach detach button to gps_view (top-left) ----
+        # ---- Attach detach button to gps_view (bottom-left) ----
         if hasattr(self, "btn_detach_pyqtgraph"):
             self.btn_detach_pyqtgraph.setParent(self.gps_view)
             self.btn_detach_pyqtgraph.adjustSize()
 
-            self.btn_detach_pyqtgraph.move(10, 30)
+            self.btn_detach_pyqtgraph.move(
+                10,
+                self.gps_view.height() - self.btn_detach_pyqtgraph.height() - 30
+            )
             self.btn_detach_pyqtgraph.raise_()
 
-            QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(10, 30))
+            QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(
+                10,
+                self.gps_view.contentsRect().height() - self.btn_detach_pyqtgraph.height() - 30
+            ))
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
