@@ -1790,6 +1790,21 @@ class MainWindow(QMainWindow):
 
             vertices = m.vectors.reshape(-1, 3)
             vertices *= 0.05  # Scale down
+            # centrage
+            # centrage
+            vertices -= vertices.mean(axis=0)
+
+            # rotation axes
+            R_fix = np.array([
+                [0, 1, 0],  # X = nez
+                [1, 0, 0],  # Y = ailes
+                [0, 0, 1]
+            ])
+            vertices = (R_fix @ vertices.T).T
+
+            # inversion gauche/droite
+            vertices[:, 1] *= -1
+
             faces = np.arange(len(vertices)).reshape(-1, 3)
 
             meshdata = gl.MeshData(vertexes=vertices, faces=faces)
@@ -3660,10 +3675,10 @@ class MainWindow(QMainWindow):
 
             # rotations (ordre important)
 
-            #self.gps_aircraft.rotate(roll, 1, 0, 0)  # roll
-            #self.gps_aircraft.rotate(pitch, 0, 1, 0)  # pitch
-            self.gps_aircraft.rotate(180-heading, 0, 0, 1)  # yaw
-            #self.gps_aircraft.rotate(90, 1, 0, 0)
+            # rotations
+            self.gps_aircraft.rotate(-roll, 1, 0, 0)  # FIX
+            self.gps_aircraft.rotate(pitch, 0, 1, 0)
+            self.gps_aircraft.rotate(- heading-90, 0, 0, 1)
             self.gps_aircraft.translate(0, 0, z[-1])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
