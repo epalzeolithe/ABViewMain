@@ -763,7 +763,6 @@ class MainWindow(QMainWindow):
         self.menu_bookmarks.addSeparator()
         self.menu_bookmarks.addAction(self.act_add_bookmark)
         self.menu_bookmarks.addSeparator()
-        self.load_bookmarks()
         # ---- Ensure keyboard shortcuts work regardless of focused widget ----
         for act in self.findChildren(QAction):
             act.setShortcutContext(Qt.ApplicationShortcut)
@@ -993,6 +992,12 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.timestamp_label)
         self.layout.addLayout(buttons_layout)
 
+        # ---- Now load bookmarks and update ticks, after slider is created ----
+        self.load_bookmarks()
+        self.update_bookmark_ticks()
+        # ensure ticks are drawn after layout is finalized
+        QTimer.singleShot(0, self.update_bookmark_ticks)
+
         self._position_elapsed_time_overlay()
 
         # ---- Previous bookmark overlay (just below elapsed time) ----
@@ -1016,11 +1021,61 @@ class MainWindow(QMainWindow):
         self.bookmark_overlay.setAlignment(Qt.AlignCenter)
         self.bookmark_overlay.hide()
 
+        self.bookmark_ticks = []
+
         # ---- PyQtGraph GPS 3D ----
         self.gps_view = gl.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
+
+    def update_bookmark_ticks(self):
+        # slider may not be initialized yet during early init_UI
+        if not hasattr(self, "slider"):
+            return
+
+        # supprimer anciens ticks
+        for t in getattr(self, "bookmark_ticks", []):
+            try:
+                t.deleteLater()
+            except:
+                pass
+
+        self.bookmark_ticks = []
+
+        if self.bookmarks_df is None or self.bookmarks_df.empty:
+            return
+
+        # use geometry in parent coordinates (more reliable)
+        geom = self.slider.geometry()
+        slider_w = geom.width()
+        slider_x = geom.x()
+        slider_y = geom.y()
+
+        # if width is not ready yet, skip (will be recalled later)
+        if slider_w == 0:
+            return
+
+        total = max(1, (N - 1))
+
+        for _, row in self.bookmarks_df.iterrows():
+            try:
+                frame = int(row["frame"])
+            except:
+                continue
+
+            t = frame / total
+            x = int(slider_x + t * slider_w)
+
+            tick = QFrame(self.centralWidget())
+            tick.setStyleSheet("background-color: red;")
+            tick.setGeometry(x, slider_y - 6, 2, 6)
+
+            # tooltip (optionnel)
+            tick.setToolTip(str(row.get("name", "")))
+
+            tick.show()
+            self.bookmark_ticks.append(tick)
 
     def _position_elapsed_time_overlay(self):
         if not hasattr(self, "elapsed_time_overlay"):
@@ -1451,6 +1506,8 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "elapsed_time_overlay"):
             self._position_elapsed_time_overlay()
+
+        self.update_bookmark_ticks()
 
     def init_gps_pyqtgraph(self):
 
@@ -2587,6 +2644,7 @@ class MainWindow(QMainWindow):
         except Exception:
             self.bookmarks_df = pd.DataFrame(columns=["time", "name", "frame"])
         self.refresh_bookmark_menu()
+        self.update_bookmark_ticks()
 
     def save_bookmarks(self):
         self.bookmarks_df.to_csv(BOOKMARK_FILE, index=False)
@@ -2633,11 +2691,13 @@ class MainWindow(QMainWindow):
 
         self.save_bookmarks()
         self.refresh_bookmark_menu()
+        self.update_bookmark_ticks()
 
 
     def reload_bookmarks(self):
         """Force reload of bookmark CSV file and refresh menu."""
         self.load_bookmarks()
+        self.update_bookmark_ticks()
 
     # ==================================================
     # Centralized video seek (avoid repeating CAP_PROP_POS_FRAMES everywhere)
