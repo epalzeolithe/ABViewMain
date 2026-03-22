@@ -9,7 +9,71 @@ import pandas as pd
 from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
 from pathlib import Path
+
 import requests
+
+# -------- SUBPROCESS STREAM (REAL-TIME) --------
+def run_cmd_stream(cmd):
+    print("Running:", " ".join(cmd))
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        universal_newlines=True
+    )
+
+    for line in proc.stdout:
+        print(line, end="")
+
+    proc.wait()
+
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
+
+# -------- QT CONSOLE --------
+import sys
+from PyQt5.QtWidgets import QApplication, QTextEdit
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
+
+class ConsoleStream(QObject):
+    new_text = pyqtSignal(str)
+
+    def write(self, text):
+        self.new_text.emit(str(text))
+
+    def flush(self):
+        pass
+
+class ConsoleWindow(QTextEdit):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("MERGE "+__version__+" - Console")
+        self.setReadOnly(True)
+        self.resize(900, 500)
+
+    def append_text(self, text):
+        self.moveCursor(self.textCursor().End)
+        self.insertPlainText(text)
+        self.ensureCursorVisible()
+
+    def keyPressEvent(self, event):
+        # Close on any key press
+        QApplication.quit()
+
+class Worker(QThread):
+    finished_signal = pyqtSignal(bool)
+
+    def run(self):
+        try:
+            main()
+            print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
+            self.finished_signal.emit(True)
+        except Exception as e:
+            print("\nErreur :", e)
+            print("Appuyez sur une touche dans la fenêtre pour fermer...")
+            self.finished_signal.emit(False)
 
 def get_last_two_insv_files(directory):
     pattern = re.compile(r"^VID_.*?(\d{3})\.insv$", re.IGNORECASE)
@@ -59,6 +123,7 @@ def get_last_GPS_log_file(directory):
     return files_with_index[-1][1]
 
 # -------- INPUT FILES
+__version__ = "1.7 Audio Master"
 SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
@@ -135,15 +200,14 @@ def export_GYROFLOW_CLI(insv_path):
     cmd = [GYROFLOW_BIN,
         str(CURRENT_PATH+SUBDIR+insv_path),"--export-metadata","3:"+str(CURRENT_PATH+TMP+insv_path+".cli.csv")]
     print(cmd)
-    print("Running:", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    run_cmd_stream(cmd)
 
 def export_GYRO2BB_gyro_acc_from_insv(insv_path):
     PATH=os.getcwd()+"/"
     cmd = [PATH+GYRO2BB,str(PATH+SUBDIR+insv_path)]
     print(cmd)
     print("Running GYRO2BB :", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    run_cmd_stream(cmd)
 
     fn=insv_path+".csv"
     nf=PATH+SUBDIR+fn
@@ -249,7 +313,7 @@ def get_datas_from_gns3000(log):
 
         # ajout date à gdf et décaler en GMT
         st1 = get_mp4_creation_datetime(SUBDIR+X4_INSV_1)
-        print(st1)
+        #print(st1)
         offset = st1.replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
         # offset = idf['timestamp'][0].replace(tzinfo=ZoneInfo("Europe/Paris")).utcoffset().total_seconds() / 3600
         gdf["timestamp"] = pd.to_datetime(st1.strftime("%Y-%m-%d") + " " + gdf["timestamp"].astype(str),
@@ -383,12 +447,12 @@ def find_metar_for_time(df, t):
         return after
 
 
-if __name__ == "__main__":
+def main():
 
-    print(TMP)
+    #print(TMP)
     Path(TMP).mkdir(parents=True, exist_ok=True)
 
-    print("#####################################################################")
+    print("**********************************************************************")
     print("Start Merging for ABView : X4 datas + GPS datas + iPhone sensorlog...")
 
     xloaded=x2loaded=gloaded=iloaded=False
@@ -426,8 +490,7 @@ if __name__ == "__main__":
         print("2nd .insv file not found")
 
     if xloaded:
-        # xdf process
-        xdf = xdf[xdf["timestamp_ms"] >= 0]  # filtrage données à temps négatif
+        xdf = xdf[xdf["timestamp_ms"] >= 0]
         xdf = xdf.reset_index(drop=True)
         st1 = get_mp4_creation_datetime(SUBDIR+X4_INSV_1)
         xdf['timestamp'] = st1 + pd.to_timedelta(xdf['timestamp_ms'], unit='ms')
@@ -436,7 +499,6 @@ if __name__ == "__main__":
         xdf["timestamp"] = xdf["timestamp"].astype("datetime64[us]")
 
         print("*************** CUT END of INSV1 ***************")
-        #print("Creation time 1", st1)
         xdf_begin = xdf['timestamp'].iloc[0]
         xdf_end = xdf['timestamp'].iloc[-1]
         cut_time = xdf_end.replace(microsecond=0)
@@ -444,40 +506,35 @@ if __name__ == "__main__":
         print("End 1          ", xdf_end)
         print("Cut time       ", cut_time)
 
-        # remove all rows after cut_time
         xdf = xdf[xdf['timestamp'] <= cut_time].reset_index(drop=True)
         xdf_end = xdf['timestamp'].iloc[-1]
         print("End 1 after cut", xdf_end)
 
         mean_norm = np.linalg.norm(xdf[["accSmooth[0]", "accSmooth[1]", "accSmooth[2]"]].iloc[:500], axis=1).mean()
-        print("Gravity mean at start :", round(mean_norm,2))  # sur 500 premières valeurs, fps 30s > 15 secondes
+        print("Gravity mean at start :", round(mean_norm,2))
 
-        #accelerations transfer from BB
         xdf['org_acc_x']=xdf['accSmooth[0]']
-        xdf['org_acc_y']=xdf['accSmooth[1]'] # warning axe vertical X4
+        xdf['org_acc_y']=xdf['accSmooth[1]']
         xdf['org_acc_z']=xdf['accSmooth[2]']
-    
-        #rearrange
+
         xdf = xdf[['timestamp', 'org_acc_x', 'org_acc_y', 'org_acc_z','org_quat_w', 'org_quat_x', 'org_quat_y', 'org_quat_z', 'timestamp_ms']]
         xdf = xdf.rename(columns={'org_acc_x': 'x4_acc_x', 'org_acc_y': 'x4_acc_y', 'org_acc_z': 'x4_acc_z','org_quat_w': 'x4_quat_w', 'org_quat_x': 'x4_quat_x', 'org_quat_y': 'x4_quat_y','org_quat_z': 'x4_quat_z'})
 
     if xloaded2:
-        # xdf2 process
-        xdf2 = xdf2[xdf2["timestamp_ms"] >= 0]  # filtrage données à temps négatif
+        xdf2 = xdf2[xdf2["timestamp_ms"] >= 0]
         xdf2 = xdf2.reset_index(drop=True)
 
-        xdf_end=xdf['timestamp'].iloc[-1]   # for stitching
-        xdf2['timestamp'] = xdf_end + pd.to_timedelta(xdf2['timestamp_ms'], unit='ms')
-        #xdf2["timestamp"] = xdf2["timestamp"].dt.tz_convert("Etc/GMT-1")
+        xdf_end=xdf['timestamp'].iloc[-1]
+        t0 = xdf2['timestamp_ms'].iloc[0]
+        xdf2['timestamp'] = xdf_end + pd.to_timedelta(xdf2['timestamp_ms'] - t0, unit='ms')
+
         xdf2['timestamp'] = xdf2['timestamp'].dt.tz_localize(None)
         xdf2["timestamp"] = xdf2["timestamp"].astype("datetime64[us]")
 
-        # accelerations transfer from BB
         xdf2['org_acc_x'] = xdf2['accSmooth[0]']
-        xdf2['org_acc_y'] = xdf2['accSmooth[1]']  # warning axe vertical X4
+        xdf2['org_acc_y'] = xdf2['accSmooth[1]']
         xdf2['org_acc_z'] = xdf2['accSmooth[2]']
 
-        # rearrange
         xdf2 = xdf2[['timestamp', 'org_acc_x', 'org_acc_y', 'org_acc_z', 'org_quat_w', 'org_quat_x', 'org_quat_y', 'org_quat_z','timestamp_ms']]
         xdf2 = xdf2.rename(columns={'org_acc_x': 'x4_acc_x', 'org_acc_y': 'x4_acc_y', 'org_acc_z': 'x4_acc_z','org_quat_w': 'x4_quat_w', 'org_quat_x': 'x4_quat_x', 'org_quat_y': 'x4_quat_y','org_quat_z': 'x4_quat_z'})
 
@@ -490,82 +547,55 @@ if __name__ == "__main__":
 
         xdf = pd.concat([xdf, xdf2], axis=0, ignore_index=True)
 
-    # smooth accelerations
     for col in ['x4_acc_x', 'x4_acc_y', 'x4_acc_z']:
-        xdf[col] = xdf[col].rolling(window=WINDOW_ACCX4, min_periods=1,center=True).mean()  # min_periods pour régler pb sur les bords
-    fs = 100  # fréquence d'échantillonnage (Hz)
-    fc = 5  # fréquence de coupure (Hz)
-    b, a = butter(4, fc / (fs / 2), btype='low') # filtre Butterworth
+        xdf[col] = xdf[col].rolling(window=WINDOW_ACCX4, min_periods=1,center=True).mean()
+
+    fs = 100
+    fc = 5
+    b, a = butter(4, fc / (fs / 2), btype='low')
     for col in ['x4_acc_x', 'x4_acc_y', 'x4_acc_z']:
         xdf[col] = filtfilt(b, a, xdf[col])
 
-
-    # decimate to reduce size
     xdf = xdf.iloc[::X4_DEC].reset_index(drop=True)
 
-    # sort for merge
     for df in [gdf, xdf]:
         df.sort_values("timestamp", inplace=True)
 
     if iloaded:
         idf.sort_values("timestamp", inplace=True)
-        # force iphone timestamp dtype si lecture csv
         idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
 
-    # force gps timestamp dtype si lecture csv
     gdf["timestamp"] = pd.to_datetime(gdf["timestamp"]).astype("datetime64[us]")
 
-    # check start time
     print("GPS start time", gdf['timestamp'][0])
     if iloaded:
         print("IPHONE start time", idf['timestamp'][0])
     print("X4 start time", xdf['timestamp'][0])
-    #print(gdf["timestamp"].dtype, idf["timestamp"].dtype, xdf["timestamp"].dtype)
 
     if iloaded:
         merged = pd.merge_asof(xdf, idf, on="timestamp", direction="nearest")
         merged = pd.merge_asof(merged, gdf, on="timestamp", direction="nearest")
-        merged = merged[
-            ['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w', 'x4_quat_x', 'x4_quat_y', 'x4_quat_z',
-             'iphone_lat', 'iphone_lon', 'iphone_alt', 'iphone_speed', 'iphone_heading',
-             'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
     else:
         merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
-        merged = merged[
-            ['timestamp', 'x4_acc_x', 'x4_acc_y', 'x4_acc_z', 'x4_quat_w', 'x4_quat_x', 'x4_quat_y', 'x4_quat_z',
-             'gps_lat', 'gps_lon', 'gps_alt', 'gps_speed', 'gps_heading', 'gps_fpm']]
 
-
-
-    #gdf.to_csv("data/gdf.csv", index=True,encoding="utf-8")
-    #idf.to_csv("data/idf.csv", index=True,encoding="utf-8")
-    #xdf.to_csv("data/xdf.csv", index=True,encoding="utf-8")
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
     print("\nMerged for ABView :"+OUTPUT)
 
-    # extract METAR
-
-    if not SKIP_METAR:
-        # start / end time of the video from merged dataframe
-        start = pd.to_datetime(merged["timestamp"].iloc[0], utc=True)
-        # round start down to previous 3‑hour boundary (00,03,06,09,12,15,18,21 UTC)
-        h = (start.hour // 3) * 3 -3
-        start = start.replace(hour=6, minute=0, second=0, microsecond=0)
-        end = start + timedelta(hours=12)
-        print("Start time", start)
-        print("End time", end)
-
-        metar_df = download_metar_history("LFMT", start, end)
-        #print(metar_df)
-        OUTPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
-        metar_df.to_csv(OUTPUT_METAR, index=False, encoding="utf-8")
-    else:
-        print(".....Skipping METAR export")
-        INPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
-        metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
-        #print(metar_df)
-
     print("Done.")
 
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
 
+    console = ConsoleWindow()
+    console.show()
 
+    stream = ConsoleStream()
+    stream.new_text.connect(console.append_text)
+
+    sys.stdout = stream
+    sys.stderr = stream
+
+    worker = Worker()
+    worker.start()
+
+    sys.exit(app.exec_())
