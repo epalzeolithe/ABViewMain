@@ -2093,7 +2093,7 @@ class MainWindow(QMainWindow):
             fpm = 0.0
 
         # limite (important pour lisibilité)
-        fpm_max = 3000.0
+        fpm_max = 6000.0
         fpm_clamped = max(-fpm_max, min(fpm_max, fpm))
 
         # longueur max en pixels
@@ -2103,7 +2103,7 @@ class MainWindow(QMainWindow):
         length = int((abs(fpm_clamped) / fpm_max) * max_len)
 
         # position X (à côté du curseur altitude)
-        x_vario = bar_x - 12  # à gauche du curseur
+        x_vario = bar_x+4  # à gauche du curseur
 
         # position Y (origine = altitude cursor)
         y0 = y_cursor
