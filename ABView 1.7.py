@@ -731,7 +731,7 @@ class MainWindow(QMainWindow):
 
         # Actions
         act_quitter = QAction("Quitter", self)
-        act_quitter.setShortcut("Ctrl+Q")
+        #act_quitter.setShortcut("Ctrl+Q")
         act_quitter.triggered.connect(self.close)
 
         act_play_pause = QAction("Lecture / Pause", self)
@@ -746,17 +746,15 @@ class MainWindow(QMainWindow):
         menu_navigation.addSeparator()
         menu_navigation.addAction(act_mise_en_ligne)
 
-        # ---- Reload bookmarks CSV ----
-        self.act_reload_bookmarks = QAction("Recharger CSV", self)
-        self.act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
+        # ---- Shortucs ----
 
-        # ---- Add bookmark ----
-        self.act_add_bookmark = QAction("Ajouter Bookmark", self)
-        self.act_add_bookmark.setShortcut("Ctrl+D")
+        shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(self.add_bookmark)
 
-        # Force Ctrl+D to work even when QWebEngineView or other widgets capture the keyboard
-        self.shortcut_add_bookmark = QShortcut(QKeySequence("Ctrl+D"), self)
-        self.shortcut_add_bookmark.activated.connect(self.add_bookmark)
+        shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(self.close)
 
         shortcut = QShortcut(QKeySequence("Ctrl+Right"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
@@ -777,6 +775,14 @@ class MainWindow(QMainWindow):
         shortcut = QShortcut(QKeySequence("Shift+Left"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
         shortcut.activated.connect(self.jump_back_2s)
+
+        # ---- Reload bookmarks CSV ----
+        self.act_reload_bookmarks = QAction("Recharger CSV", self)
+        self.act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
+
+        # ---- Add bookmark ----
+        self.act_add_bookmark = QAction("Ajouter Bookmark", self)
+        self.act_add_bookmark.setShortcut("Ctrl+B")
 
 
         self.act_add_bookmark.triggered.connect(self.add_bookmark)
