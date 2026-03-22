@@ -53,10 +53,11 @@ from objc import ObjCPointerWarning
 #***********************************************
  #CONFIG
 # MAJOR.MINOR.PATCH
-__version__ = "1.7 Audio Master"
+#__version__ = "1.7 Audio Master"
+from ver import __version__
 MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol_2026_02_21.abv/"
-#BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_02_21.abv/"
+BDL="data/Vol_2026_03_20.abv/"
 #BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
@@ -359,7 +360,7 @@ class ArtificialHorizon(QWidget):
         painter.resetTransform()
 
         if not self.show_triangle:
-            pen = QPen(QColor(200, 0, 255))
+            pen = QPen(QColor(255, 220, 0))
             pen.setWidth(3)
             painter.setPen(pen)
             painter.drawLine(cx - 30, cy, cx + 30, cy)
@@ -378,8 +379,8 @@ class ArtificialHorizon(QWidget):
                 QPoint(cx, cy - size)
             ])
             painter.setBrush(Qt.NoBrush)  # pas de remplissage
-            pen = QPen(QColor(200, 0, 255))
-            pen.setWidth(2)
+            pen = QPen(QColor(255, 220, 0))
+            pen.setWidth(4)
             painter.setPen(pen)
             painter.drawPolygon(triangle)
 

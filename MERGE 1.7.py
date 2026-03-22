@@ -123,7 +123,7 @@ def get_last_GPS_log_file(directory):
     return files_with_index[-1][1]
 
 # -------- INPUT FILES
-__version__ = "1.7 Audio Master"
+from ver import __version__
 SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)

@@ -2,14 +2,14 @@ import sys
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
 from PyQt5.QtCore import QTimer, Qt
 from datetime import datetime
-
+from ver import __version__
 
 class Clock(QWidget):
 
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Horloge")
+        self.setWindowTitle(".abview bundle creator "+__version__)
 
         self.label = QLabel()
         self.label.setAlignment(Qt.AlignCenter)

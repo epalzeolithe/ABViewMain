@@ -111,7 +111,7 @@ def get_last_GPS_log_file(directory):
 
 
 # -------- CONFIG --------
-__version__ = "1.7 Audio Master"
+from ver import __version__
 #X4_INSV_1 = "data/raw/VID_20260320_131559_00_053.insv"
 #X4_INSV_2 = "data/raw/VID_20260320_131559_00_054.insv"
 SUBDIR="data/raw/"
