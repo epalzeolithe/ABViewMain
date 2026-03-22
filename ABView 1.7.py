@@ -50,11 +50,13 @@ import objc
 import warnings
 from objc import ObjCPointerWarning
 
-#***********************************************
- #CONFIG
-# MAJOR.MINOR.PATCH
-#__version__ = "1.7 Audio Master"
+
 from ver import __version__
+
+
+#***********************************************
+#CONFIG
+# MAJOR.MINOR.PATCH
 MAINDIR="/Users/drax/Down/ABViewMain/"
 #BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"

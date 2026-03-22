@@ -122,8 +122,10 @@ def get_last_GPS_log_file(directory):
     # Retourne le dernier fichier
     return files_with_index[-1][1]
 
-# -------- INPUT FILES
 from ver import __version__
+
+# -------- INPUT FILES
+
 SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
@@ -458,6 +460,11 @@ def main():
     print("X4_INSV_2:", X4_INSV_2)
     print("GPS_GNS3000:", GPS_GNS3000)
     print("IPHONE_SENSORLOG:", IPHONE_SENSORLOG)
+
+    print("SKIP_X4_EXPORT",SKIP_X4_EXPORT)
+    print("SKIP_GNS3000_IMPORT",SKIP_GNS3000_IMPORT)
+    print("SKIP_IPHONE_IMPORT",SKIP_IPHONE_IMPORT)
+    print("SKIP_METAR",SKIP_METAR)
 
     xloaded=x2loaded=gloaded=iloaded=False
 

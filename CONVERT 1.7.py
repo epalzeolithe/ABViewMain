@@ -109,9 +109,9 @@ def get_last_GPS_log_file(directory):
     # Retourne le dernier fichier
     return files_with_index[-1][1]
 
+from ver import __version__
 
 # -------- CONFIG --------
-from ver import __version__
 #X4_INSV_1 = "data/raw/VID_20260320_131559_00_053.insv"
 #X4_INSV_2 = "data/raw/VID_20260320_131559_00_054.insv"
 SUBDIR="data/raw/"
@@ -133,6 +133,7 @@ PITCH_FRONT = -25 #inclinaison pour voir le manche
 #Très zoom 640:360
 
 SKIP_CONVERSION = False
+SHORT_CONVERT = True  # True = limit duration for debug
 
 def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
     return [
@@ -142,9 +143,9 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         "-stats",
         "-y",
         "-hwaccel", "videotoolbox",
-        #"-t", "10",
+        *(["-t", "10"] if SHORT_CONVERT else []),
         "-i", input1,
-        #"-t", "10",
+        *(["-t", "10"] if SHORT_CONVERT else []),
         "-i", input2,
         "-filter_complex",
         f"""
@@ -230,17 +231,26 @@ def get_bundle_name_from_insv(path):
     return f"Vol_{date[:4]}_{date[4:6]}_{date[6:8]}.abv"
 
 def main():
+    print("**********************************************************************")
+    print("Start .INSV Conversion for ABView...")
+
     bdl=get_bundle_name_from_insv(X4_INSV_1)
     pdl="data/"+bdl
     #crée le bundle
     Path(pdl).mkdir(parents=True, exist_ok=True)
     pdl=pdl+"/"
-    print("Bundle : "+pdl)
+    print("Bundle creation : "+pdl)
+
+    with open(pdl+"version.txt", "w") as f:
+        f.write(__version__)
 
     front=pdl+"front.mp4"
     back=pdl+"back.mp4"
     cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
     print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
+    print("SKIP_CONVERSION", SKIP_CONVERSION)
+    print("SHORT_CONVERT", SHORT_CONVERT)
+
     #print(cmd)
 
     if not SKIP_CONVERSION:
