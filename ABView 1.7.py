@@ -853,13 +853,13 @@ class MainWindow(QMainWindow):
         self.video1_heading_label.raise_()
 
         # ---- Secondary GPS heading overlay (just below main heading) ----
-        self.video1_heading_label_2 = QLabel("", self.video1)
-        self.video1_heading_label_2.setAlignment(Qt.AlignCenter)
-        self.video1_heading_label_2.setStyleSheet(
+        self.video1_heading_deviation_label = QLabel("", self.video1)
+        self.video1_heading_deviation_label.setAlignment(Qt.AlignCenter)
+        self.video1_heading_deviation_label.setStyleSheet(
             "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 16px; font-weight: bold;"
         )
-        self.video1_heading_label_2.adjustSize()
-        self.video1_heading_label_2.raise_()
+        self.video1_heading_deviation_label.adjustSize()
+        self.video1_heading_deviation_label.raise_()
 
         # ---- Pitch overlay on video1 (bottom center, text sized) ----
         self.video1_pitch_label = QLabel("", self.video1)
@@ -2598,13 +2598,13 @@ class MainWindow(QMainWindow):
             d2 = ang_diff(h, 230.0)
             deviation = min(d1, d2)
 
-            self.video1_heading_label_2.setText(f"Δ {deviation:.0f}°")
-            self.video1_heading_label_2.adjustSize()
+            self.video1_heading_deviation_label.setText(f"Δ {deviation:.0f}°")
+            self.video1_heading_deviation_label.adjustSize()
             self.video1_heading_label.adjustSize()
             x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
             self.video1_heading_label.move(x, 5)
-            self.video1_heading_label_2.move(
-                (self.video1.width() - self.video1_heading_label_2.width()) // 2,
+            self.video1_heading_deviation_label.move(
+                (self.video1.width() - self.video1_heading_deviation_label.width()) // 2,
                 40  # 👈 sous le premier
             )
 
