@@ -358,7 +358,7 @@ class ArtificialHorizon(QWidget):
         painter.resetTransform()
 
         if not self.show_triangle:
-            pen = QPen(QColor("yellow"))
+            pen = QPen(QColor(200, 0, 255))
             pen.setWidth(3)
             painter.setPen(pen)
             painter.drawLine(cx - 30, cy, cx + 30, cy)
@@ -377,7 +377,7 @@ class ArtificialHorizon(QWidget):
                 QPoint(cx, cy - size)
             ])
             painter.setBrush(Qt.NoBrush)  # pas de remplissage
-            pen = QPen(QColor("yellow"))
+            pen = QPen(QColor(200, 0, 255))
             pen.setWidth(2)
             painter.setPen(pen)
             painter.drawPolygon(triangle)
