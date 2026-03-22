@@ -902,6 +902,16 @@ class MainWindow(QMainWindow):
 
         self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
 
+        # ---- Elapsed time overlay (top center main window) ----
+        self.elapsed_time_overlay = QLabel("", self.centralWidget())
+        self.elapsed_time_overlay.setAlignment(Qt.AlignCenter)
+        self.elapsed_time_overlay.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.elapsed_time_overlay.adjustSize()
+        self.elapsed_time_overlay.raise_()
+
+
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
 
@@ -983,6 +993,8 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.timestamp_label)
         self.layout.addLayout(buttons_layout)
 
+        self._position_elapsed_time_overlay()
+
         # ---- Bookmark overlay label (top center) ----
         self.bookmark_overlay = QLabel("", self)
         self.bookmark_overlay.setStyleSheet(
@@ -1000,6 +1012,22 @@ class MainWindow(QMainWindow):
         self.gps_view.setBackgroundColor('w')
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
+
+    def _position_elapsed_time_overlay(self):
+        if not hasattr(self, "elapsed_time_overlay"):
+            return
+
+        # IMPORTANT : forcer recalcul taille
+        self.elapsed_time_overlay.adjustSize()
+
+        # utiliser largeur de la fenêtre principale (plus fiable)
+        w = self.width()
+
+        x = (w - self.elapsed_time_overlay.width()) // 2
+        y = 17
+
+        self.elapsed_time_overlay.move(x, y)
+        self.elapsed_time_overlay.raise_()
 
     # ==================================================
     # Screen recording using macOS ScreenCaptureKit (PyObjC)
@@ -1386,10 +1414,13 @@ class MainWindow(QMainWindow):
         self.map_metar_label.show()
 
     def resizeEvent(self, event):
-        """Keep METAR label correctly positioned when window resizes."""
         super().resizeEvent(event)
+
         if hasattr(self, "map_metar_label"):
             self._position_map_metar_label()
+
+        if hasattr(self, "elapsed_time_overlay"):
+            self._position_elapsed_time_overlay()
 
     def init_gps_pyqtgraph(self):
 
@@ -2405,7 +2436,7 @@ class MainWindow(QMainWindow):
         grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
         self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
-        print("Angle de montage : ", self.montage_pitch_angle)
+        print("Angle de montage : ", round(self.montage_pitch_angle,1))
 
         # update menu display of camera pitch
         try:
@@ -2946,6 +2977,25 @@ class MainWindow(QMainWindow):
                         self.show_bookmark_overlay(name)
                         self.last_bookmark_frame = frame
 
+        # ---- Elapsed time overlay update ----
+        try:
+            if self.current_video_time_utc is not None:
+                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
+                total_sec = int(elapsed.total_seconds())
+
+                h = total_sec // 3600
+                m = (total_sec % 3600) // 60
+                s = total_sec % 60
+
+                if h > 0:
+                    txt = f"{h:02d}:{m:02d}:{s:02d}"
+                else:
+                    txt = f"{m:02d}:{s:02d}"
+
+                self.elapsed_time_overlay.setText(txt)
+        except Exception:
+            pass
+
     # ==================================================
     def update_video(self, decoder, label, start_dt, stream):
         ret, frame, avframe = self.read_video_frame(decoder)
@@ -3017,6 +3067,29 @@ class MainWindow(QMainWindow):
         self.slider.blockSignals(False)
 
         self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # ---- Elapsed time overlay update (compute txt here) ----
+        try:
+            if self.current_video_time_utc is not None:
+                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
+                total_sec = int(elapsed.total_seconds())
+
+                h = total_sec // 3600
+                m = (total_sec % 3600) // 60
+                s = total_sec % 60
+
+                if h > 0:
+                    txt = f"{h:02d}:{m:02d}:{s:02d}"
+                else:
+                    txt = f"{m:02d}:{s:02d}"
+
+                self.elapsed_time_overlay.setText(txt)
+                self.elapsed_time_overlay.adjustSize()
+                self._position_elapsed_time_overlay()
+                QTimer.singleShot(0, self._position_elapsed_time_overlay)
+        except Exception:
+            pass
+
 
     # ==================================================
     # 🔑 SYNCHRO VIDEO ← DF
