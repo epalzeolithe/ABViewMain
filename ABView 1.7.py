@@ -737,7 +737,7 @@ class MainWindow(QMainWindow):
         act_play_pause.triggered.connect(self.toggle_play)
 
         act_mise_en_ligne = QAction("Mise en ligne", self)
-        act_mise_en_ligne.setShortcut("Ctrl+M")
+        # shortcut removed intentionally
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
         menu_fichier.addAction(act_quitter)
         menu_lecture.addAction(act_play_pause)
@@ -925,11 +925,20 @@ class MainWindow(QMainWindow):
         self.btn_detach_gfx.clicked.connect(self.detach_gfx_window)
 
         # ---- Open Video1 in separate window ----
-        self.btn_detach_video1 = QPushButton("↗ Video 1")
+        self.btn_detach_video1 = QPushButton("↗ Video 1", self.video1)
+        self.btn_detach_video1.move(10, 10)
+        self.btn_detach_video1.raise_()
         self.btn_detach_video1.clicked.connect(self.detach_video1_window)
 
-        # ---- Open Video2 in separate window ----
-        self.btn_detach_video2 = QPushButton("↗ Video 2")
+        # ---- Open Video2 in separate window (overlay top-right) ----
+        self.btn_detach_video2 = QPushButton("↗ Video 2", self.video2)
+        self.btn_detach_video2.adjustSize()
+        # initial position (will be corrected on resize)
+        self.btn_detach_video2.move(self.video2.width() - self.btn_detach_video2.width() - 10, 10)
+        QTimer.singleShot(0, lambda: self.btn_detach_video2.move(
+            self.video2.contentsRect().width() - self.btn_detach_video2.width() - 10, 10
+        ))
+        self.btn_detach_video2.raise_()
         self.btn_detach_video2.clicked.connect(self.detach_video2_window)
 
         # ---- Open GPS window in separate window ----
@@ -974,17 +983,16 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_record)
 
         buttons_layout.addWidget(self.btn_detach_gfx)
-        buttons_layout.addWidget(self.btn_detach_video1)
-        buttons_layout.addWidget(self.btn_detach_video2)
+        # self.btn_detach_video1 and self.btn_detach_video2 are now parented to their respective video labels and positioned manually
         buttons_layout.addWidget(self.btn_detach_pyqtgraph)
         buttons_layout.addWidget(self.btn_back_10)
         buttons_layout.addWidget(self.btn_back_2)
         buttons_layout.addWidget(self.btn_fwd_2)
         buttons_layout.addWidget(self.btn_fwd_10)
-        buttons_layout.addWidget(self.btn_pallier)
         buttons_layout.addWidget(self.btn_prev)
         buttons_layout.addWidget(self.btn_next)
         buttons_layout.addWidget(self.btn_add_bookmark)
+        buttons_layout.addWidget(self.btn_pallier)
         buttons_layout.addWidget(self.btn_mise_en_ligne)
         buttons_layout.addWidget(self.btn_quitter)
 
@@ -1508,6 +1516,17 @@ class MainWindow(QMainWindow):
             self._position_elapsed_time_overlay()
 
         self.update_bookmark_ticks()
+
+        # Keep btn_detach_video2 pinned to top-right of video2
+        if hasattr(self, "btn_detach_video2") and hasattr(self, "video2"):
+            self.btn_detach_video2.adjustSize()
+
+            rect = self.video2.contentsRect()
+            x = rect.width() - self.btn_detach_video2.width() - 10
+            y = 10
+
+            self.btn_detach_video2.move(x, y)
+            self.btn_detach_video2.raise_()
 
     def init_gps_pyqtgraph(self):
 
