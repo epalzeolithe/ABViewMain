@@ -1806,7 +1806,7 @@ class MainWindow(QMainWindow):
             meshdata = gl.MeshData(vertexes=vertices, faces=faces)
             self.gps_aircraft = gl.GLMeshItem(
                 meshdata=meshdata,
-                smooth=True,
+                smooth=False,
                 color=(0.8, 0.8, 0.8, 0.2),  # gris clair
                 shader='shaded',
                 drawEdges=False,
