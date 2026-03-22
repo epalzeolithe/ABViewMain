@@ -3545,6 +3545,9 @@ class MainWindow(QMainWindow):
         self.gfx_window = QMainWindow(self)
         self.gfx_window.setWindowTitle("3D View")
         self.gfx_window.setCentralWidget(self.gfx_canvas)
+        # hide overlay button while detached window is open
+        if hasattr(self, "btn_detach_gfx"):
+            self.btn_detach_gfx.hide()
         self.gfx_window.resize(900, 700)
 
         self.btn_detach_gfx.setText("Close 3D")
@@ -3561,7 +3564,11 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
-            self.btn_detach_gfx.setText("↗ 3D")
+            self.btn_detach_gfx.setText("↗Detach")
+            # restore overlay button when returning to main window
+            if hasattr(self, "btn_detach_gfx"):
+                self.btn_detach_gfx.show()
+                self.btn_detach_gfx.raise_()
         except Exception:
             pass
 
@@ -3596,7 +3603,7 @@ class MainWindow(QMainWindow):
             self.video1.setParent(None)
             self.grid.addWidget(self.video1, 0, 0, 1, 2)
             self.video1_detached = False
-            self.btn_detach_video1.setText("↗ Video 1")
+            self.btn_detach_video1.setText("↗Detach")
         except Exception:
             pass
 
@@ -3630,7 +3637,7 @@ class MainWindow(QMainWindow):
             self.video2.setParent(None)
             self.grid.addWidget(self.video2, 0, 2, 1, 2)
             self.video2_detached = False
-            self.btn_detach_video2.setText("↗ Video 2")
+            self.btn_detach_video2.setText("↗Detach")
         except Exception:
             pass
 
