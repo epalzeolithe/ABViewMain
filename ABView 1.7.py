@@ -1743,7 +1743,8 @@ class MainWindow(QMainWindow):
         # ---- ground projection of trajectory (shadow on ground) ----
         self.gps_shadow = gl.GLLinePlotItem(
             pos=np.zeros((2, 3)),
-            color=(0, 0, 1, 0.6),
+            #color=(0, 0, 1, 0.6), # gray
+            color=(0, 0, 0, 1), #black
             width=2,
             antialias=True
         )
