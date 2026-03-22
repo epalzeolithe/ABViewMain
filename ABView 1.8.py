@@ -2675,8 +2675,8 @@ class MainWindow(QMainWindow):
 
         self.df_info_label.setText(
             f"Frame: {self.i}"
-            f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
-            f"\nElapsed: {em:02d}:{es:02d}"
+            #f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
+            #f"\nElapsed: {em:02d}:{es:02d}"
             #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
         )
         self.df_info_label.adjustSize()
