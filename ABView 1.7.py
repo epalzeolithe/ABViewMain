@@ -757,6 +757,8 @@ class MainWindow(QMainWindow):
         # Force Ctrl+D to work even when QWebEngineView or other widgets capture the keyboard
         self.shortcut_add_bookmark = QShortcut(QKeySequence("Ctrl+D"), self)
         self.shortcut_add_bookmark.activated.connect(self.add_bookmark)
+        QShortcut(QKeySequence("Ctrl+Right"), self).activated.connect(self.goto_next_bookmark)
+        QShortcut(QKeySequence("Ctrl+Left"), self).activated.connect(self.goto_previous_bookmark)
 
         self.act_add_bookmark.triggered.connect(self.add_bookmark)
 
