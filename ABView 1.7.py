@@ -55,8 +55,8 @@ from objc import ObjCPointerWarning
 # MAJOR.MINOR.PATCH
 __version__ = "1.7 Audio Master"
 MAINDIR="/Users/drax/Down/ABViewMain/"
-#BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_20.abv/"
+BDL="data/Vol_2026_02_21.abv/"
+#BDL="data/Vol_2026_03_20.abv/"
 #BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
@@ -851,6 +851,15 @@ class MainWindow(QMainWindow):
         )
         self.video1_heading_label.adjustSize()
         self.video1_heading_label.raise_()
+
+        # ---- Secondary GPS heading overlay (just below main heading) ----
+        self.video1_heading_label_2 = QLabel("", self.video1)
+        self.video1_heading_label_2.setAlignment(Qt.AlignCenter)
+        self.video1_heading_label_2.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 16px; font-weight: bold;"
+        )
+        self.video1_heading_label_2.adjustSize()
+        self.video1_heading_label_2.raise_()
 
         # ---- Pitch overlay on video1 (bottom center, text sized) ----
         self.video1_pitch_label = QLabel("", self.video1)
@@ -2577,10 +2586,27 @@ class MainWindow(QMainWindow):
         # ---- Update GPS speed / altitude overlay ----
         # ---- Update heading overlay on video1 ----
         if hasattr(self, "video1_heading_label"):
-            self.video1_heading_label.setText(f"{row.gps_heading:.1f}°")
+            self.video1_heading_label.setText(f"{row.gps_heading:.0f}°")
+            # compute angular deviation from aerobatic axis (50° / 230°)
+            h = float(row.gps_heading)
+
+            def ang_diff(a, b):
+                d = abs(a - b) % 360.0
+                return min(d, 360.0 - d)
+
+            d1 = ang_diff(h, 50.0)
+            d2 = ang_diff(h, 230.0)
+            deviation = min(d1, d2)
+
+            self.video1_heading_label_2.setText(f"Δ {deviation:.0f}°")
+            self.video1_heading_label_2.adjustSize()
             self.video1_heading_label.adjustSize()
             x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
             self.video1_heading_label.move(x, 5)
+            self.video1_heading_label_2.move(
+                (self.video1.width() - self.video1_heading_label_2.width()) // 2,
+                40  # 👈 sous le premier
+            )
 
 
         # ---- Update pitch overlay on video1 (above bank) ----

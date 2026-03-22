@@ -453,7 +453,11 @@ def main():
     Path(TMP).mkdir(parents=True, exist_ok=True)
 
     print("**********************************************************************")
-    print("Start Merging for ABView : X4 datas + GPS datas + iPhone sensorlog...")
+    print("Start Merging for ABView : X4 datas + GPS datas + iPhone sensorlog ...")
+    print("X4_INSV_1:", X4_INSV_1)
+    print("X4_INSV_2:", X4_INSV_2)
+    print("GPS_GNS3000:", GPS_GNS3000)
+    print("IPHONE_SENSORLOG:", IPHONE_SENSORLOG)
 
     xloaded=x2loaded=gloaded=iloaded=False
 
