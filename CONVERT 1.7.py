@@ -8,6 +8,60 @@ import time
 import sys
 from pathlib import Path
 
+# -------- QT CONSOLE --------
+import sys
+from PyQt5.QtWidgets import QApplication, QTextEdit
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
+
+class ConsoleStream(QObject):
+    new_text = pyqtSignal(str)
+
+    def write(self, text):
+        self.new_text.emit(str(text))
+
+    def flush(self):
+        pass
+
+class ConsoleWindow(QTextEdit):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("MERGE "+__version__+" - Console")
+        self.setReadOnly(True)
+        self.resize(900, 500)
+
+    def append_text(self, text):
+        cursor = self.textCursor()
+        cursor.movePosition(cursor.End)
+
+        if "\r" in text:
+            # Keep only the part after the last carriage return
+            text = text.split("\r")[-1]
+
+            # Move to start of current line
+            cursor.movePosition(cursor.StartOfLine, cursor.KeepAnchor)
+            cursor.removeSelectedText()
+
+        self.setTextCursor(cursor)
+        self.insertPlainText(text)
+        self.ensureCursorVisible()
+
+    def keyPressEvent(self, event):
+        # Close on any key press
+        QApplication.quit()
+
+class Worker(QThread):
+    finished_signal = pyqtSignal(bool)
+
+    def run(self):
+        try:
+            main()
+            print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
+            self.finished_signal.emit(True)
+        except Exception as e:
+            print("\nErreur :", e)
+            print("Appuyez sur une touche dans la fenêtre pour fermer...")
+            self.finished_signal.emit(False)
+
 def get_last_two_insv_files(directory):
     pattern = re.compile(r"^VID_.*?(\d{3})\.insv$", re.IGNORECASE)
 
@@ -88,9 +142,9 @@ def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
         "-stats",
         "-y",
         "-hwaccel", "videotoolbox",
-        "-t", "10",
+        #"-t", "10",
         "-i", input1,
-        "-t", "10",
+        #"-t", "10",
         "-i", input2,
         "-filter_complex",
         f"""
@@ -227,4 +281,18 @@ def main():
     print("Done.")
 
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+
+    console = ConsoleWindow()
+    console.show()
+
+    stream = ConsoleStream()
+    stream.new_text.connect(console.append_text)
+
+    sys.stdout = stream
+    sys.stderr = stream
+
+    worker = Worker()
+    worker.start()
+
+    sys.exit(app.exec_())
