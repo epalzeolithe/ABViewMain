@@ -582,37 +582,35 @@ class AnalogAltimeter(QWidget):
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
-    def create_cap10_item(self):
-        scale = 0.2
+    #def create_cap10_item(self):
+    #    scale = 0.2
 
-        pts = np.array([
-            [1.0, 0.0, 0.0],  # nez
-            [-1.0, 0.0, 0.0],  # queue
+    #    pts = np.array([
+    #        [1.0, 0.0, 0.0],  # nez
+    #        [-1.0, 0.0, 0.0],  # queue
+    #        [0.0, 1.2, 0.0],  # aile gauche
+    #        [0.0, -1.2, 0.0],  # aile droite
 
-            [0.0, 1.2, 0.0],  # aile gauche
-            [0.0, -1.2, 0.0],  # aile droite
+    #        [-0.9, 0.5, 0.0],  # empennage G
+    #        [-0.9, -0.5, 0.0],  # empennage D
 
-            [-0.9, 0.5, 0.0],  # empennage G
-            [-0.9, -0.5, 0.0],  # empennage D
+    #        [-0.9, 0.0, 0.5],  # dérive
+    #        ], dtype=float) * scale
 
-            [-0.9, 0.0, 0.5],  # dérive
-        ], dtype=float) * scale
+    #    segments = np.array([
+    #        pts[0], pts[1],
+    #        pts[2], pts[3],
+    #        pts[4], pts[5],
+    #        pts[1], pts[6],
+    #    ])
 
-        segments = np.array([
-            pts[0], pts[1],
-            pts[2], pts[3],
-            pts[4], pts[5],
-            pts[1], pts[6],
-        ])
-
-        return gl.GLLinePlotItem(
-            pos=segments,
-            #color=(1, 0.8, 0, 1), # jaune
-            color=(0, 0, 0, 1), #black
-            width=30,
-            antialias=True,
-            mode='lines'
-        )
+    #    return gl.GLLinePlotItem(
+    #        pos=segments,
+    #        #color=(1, 0.8, 0, 1), # jaune
+    #        color=(0, 0, 0, 1), #black
+    #        width=30,
+    #        antialias=True,
+    #        mode='lines')
 
     def trace_plus(self):
         global TRACE
@@ -1787,8 +1785,12 @@ class MainWindow(QMainWindow):
 
         try:
             m = mesh.Mesh.from_file(STL_SIMPLE_PLANE_FILE)
+            # supprimer triangles dégénérés
+            v = m.vectors
+            valid = np.linalg.norm(np.cross(v[:, 1] - v[:, 0], v[:, 2] - v[:, 0]), axis=1) > 1e-6
+            v = v[valid]
+            vertices = v.reshape(-1, 3)
 
-            vertices = m.vectors.reshape(-1, 3)
             vertices *= 0.03  # Scale down
             vertices -= vertices.mean(axis=0) # centrage
             # rotation axes
@@ -1808,8 +1810,7 @@ class MainWindow(QMainWindow):
                 color=(0.8, 0.8, 0.8, 0.2),  # gris clair
                 shader='shaded',
                 drawEdges=False,
-                glOptions='translucent'
-            )
+                glOptions='translucent')
 
         except Exception as e:
             print("STL load failed, fallback to CAP10:", e)
