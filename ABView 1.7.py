@@ -2436,7 +2436,7 @@ class MainWindow(QMainWindow):
             return
         try:
             if self.g_label_minmax is not None:
-                self.g_label_minmax.setText(f"  Gmin {self.g_min:.2f}\n  Gmax {self.g_max:.2f}")
+                self.g_label_minmax.setText(f"  Gmin {self.g_min:.1f}\n  Gmax {self.g_max:.1f}")
         except RuntimeError:
             return
         self.g_label.adjustSize()
