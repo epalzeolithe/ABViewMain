@@ -943,7 +943,7 @@ class MainWindow(QMainWindow):
         self.btn_detach_video2.clicked.connect(self.detach_video2_window)
 
         # ---- Open GPS window in separate window ----
-        self.btn_detach_pyqtgraph = QPushButton("↗ GPS")
+        self.btn_detach_pyqtgraph = QPushButton("↗Detach")
         self.btn_detach_pyqtgraph.clicked.connect(self.detach_pyqtgraph_window)
 
         # ---- jump buttons (time navigation) ----
@@ -1538,13 +1538,13 @@ class MainWindow(QMainWindow):
             self.btn_detach_gfx.move(x, y)
             self.btn_detach_gfx.raise_()
 
-        # Keep btn_detach_pyqtgraph pinned to top-center of gps_view
+        # Keep btn_detach_pyqtgraph pinned to top-left of gps_view
         if hasattr(self, "btn_detach_pyqtgraph") and hasattr(self, "gps_view"):
             self.btn_detach_pyqtgraph.adjustSize()
 
             rect = self.gps_view.contentsRect()
-            x = (rect.width() - self.btn_detach_pyqtgraph.width()) // 2
-            y = 10
+            x = 10
+            y = 30
 
             self.btn_detach_pyqtgraph.move(x, y)
             self.btn_detach_pyqtgraph.raise_()
@@ -1769,21 +1769,15 @@ class MainWindow(QMainWindow):
             tick.show()
             self.g_scale_ticks.append(tick)
 
-        # ---- Attach detach button to gps_view (top-center) ----
+        # ---- Attach detach button to gps_view (top-left) ----
         if hasattr(self, "btn_detach_pyqtgraph"):
             self.btn_detach_pyqtgraph.setParent(self.gps_view)
             self.btn_detach_pyqtgraph.adjustSize()
 
-            self.btn_detach_pyqtgraph.move(
-                (self.gps_view.width() - self.btn_detach_pyqtgraph.width()) // 2,
-                10
-            )
+            self.btn_detach_pyqtgraph.move(10, 30)
             self.btn_detach_pyqtgraph.raise_()
 
-            QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(
-                (self.gps_view.contentsRect().width() - self.btn_detach_pyqtgraph.width()) // 2,
-                10
-            ))
+            QTimer.singleShot(0, lambda: self.btn_detach_pyqtgraph.move(10, 30))
 
     def update_altitude_labels(self):
         """Draw a vertical altitude scale next to the 3D GPS viewer."""
@@ -3692,7 +3686,7 @@ class MainWindow(QMainWindow):
         self.pyqtgraph_window.setCentralWidget(self.gps_view)
         self.pyqtgraph_window.resize(900, 700)
 
-        self.btn_detach_pyqtgraph.setText("Close GPS")
+        self.btn_detach_pyqtgraph.hide()
 
         # detect close
         self.pyqtgraph_window.closeEvent = self._on_pyqtgraph_window_closed
@@ -3706,7 +3700,8 @@ class MainWindow(QMainWindow):
             self.gps_view.setParent(None)
             self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
             self.pyqtgraph_detached = False
-            self.btn_detach_pyqtgraph.setText("↗ GPS")
+            self.btn_detach_pyqtgraph.show()
+            self.btn_detach_pyqtgraph.raise_()
         except Exception:
             pass
 
