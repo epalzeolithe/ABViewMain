@@ -1464,13 +1464,10 @@ class MainWindow(QMainWindow):
                 <body>
                   <div id="map"></div>
                   <script>
-                    var map = L.map('map').setView([{lat0}, {lon0}], 11);
+                    var map = L.map('map').setView([{lat0}, {lon0}], 12);
 
-                    var bounds = L.latLng([{lat0}, {lon0}]).toBounds(8000);
-                    map.fitBounds(bounds);
-
-                    map.options.maxZoom = 11;
-                    map.options.minZoom = 11;
+                    map.options.maxZoom = 18;
+                    map.options.minZoom = 8;
 
                     L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
                       maxZoom: 19,
