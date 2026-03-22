@@ -3130,14 +3130,13 @@ class MainWindow(QMainWindow):
                 past = df_b[df_b["frame"] <= self.i]
                 if len(past) > 0:
                     last = past.iloc[-1]
-                    # adapte selon ton CSV (name / label / desc)
                     name = str(last.get("name", last.get("label", "")))
 
                     self.prev_bookmark_overlay.setText(name)
+                    self.prev_bookmark_overlay.show()
+                    self.prev_bookmark_overlay.adjustSize()
                 else:
-                    self.prev_bookmark_overlay.setText("")
-
-                self.prev_bookmark_overlay.adjustSize()
+                    self.prev_bookmark_overlay.hide()
 
         except Exception:
             pass
