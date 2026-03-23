@@ -752,6 +752,7 @@ class MainWindow(QMainWindow):
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
 
+
     def init_UI(self):
         # ---- UI ----
         central = QWidget()
@@ -4086,7 +4087,10 @@ if __name__ == "__main__":
     }
 
     """)
+    import subprocess
+    caffeinate = subprocess.Popen(["caffeinate"])
     win = MainWindow()
     win.show()
+    caffeinate.terminate()
     sys.exit(app.exec_())
 
