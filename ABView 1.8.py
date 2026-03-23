@@ -3383,7 +3383,6 @@ class MainWindow(QMainWindow):
 
         return frame_index
 
-    # ==================================================
 
     # ==================================================
     def update_all(self):
