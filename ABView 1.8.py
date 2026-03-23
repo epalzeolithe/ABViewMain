@@ -2929,7 +2929,7 @@ class MainWindow(QMainWindow):
                     video_time = 0.0
 
                 # New sync logic with margin
-                margin = 0.03  # 30 ms tolerance
+                margin = 0.05  # 50 ms tolerance
 
                 if video_time < target_time - margin:
                     # video late → catch up
@@ -3090,6 +3090,7 @@ class MainWindow(QMainWindow):
                 self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
                 self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
+                self.audio_prebuffer_done = False
 
             except Exception:
                 pass
@@ -3291,12 +3292,12 @@ class MainWindow(QMainWindow):
         try:
             # 🔑 combien de place dispo dans le buffer audio OS
             if hasattr(self, "audio_output"):
-                bytes_free = self.audio_output.bytesFree()
+                bytes_free = max(self.audio_output.bytesFree(), 16384)
             else:
                 bytes_free = 16384
 
             # 🔑 on remplit un peu plus que nécessaire
-            target_buffer = max(bytes_free * 2, 16384)
+            target_buffer = max(bytes_free * 4, 65536)
 
             # 🔑 décodage adaptatif
             while len(self.audio_buffer) < target_buffer:
@@ -3324,12 +3325,20 @@ class MainWindow(QMainWindow):
             return
 
         # 🔊 écriture CONTINUE (critique)
-        chunk_size = 4096
+        chunk_size = 8192
 
         if not hasattr(self, "audio_output"):
             return
 
-        bytes_free = self.audio_output.bytesFree()
+        # ---- PREBUFFER (avoid stutter after start/seek) ----
+        if not hasattr(self, "audio_prebuffer_done"):
+            self.audio_prebuffer_done = False
+
+        if not self.audio_prebuffer_done:
+            if len(self.audio_buffer) < 65536:
+                return
+            else:
+                self.audio_prebuffer_done = True
 
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
