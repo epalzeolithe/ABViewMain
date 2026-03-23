@@ -3272,9 +3272,11 @@ class MainWindow(QMainWindow):
         try:
             frame = next(decoder)
 
-            # Convert only if needed
-            if frame.format.name != "bgr24":
-                frame = frame.reformat(format="bgr24")
+            if frame.format.name != "rgb24":
+                frame = frame.to_rgb()
+
+            #if frame.format.name != "bgr24":
+            #    frame = frame.reformat(format="bgr24")
 
             # Return the frame directly (no numpy conversion)
             return True, frame, frame
@@ -3473,7 +3475,7 @@ class MainWindow(QMainWindow):
         plane = frame.planes[0]
         h = frame.height
         w = frame.width
-        img = QImage(plane, w, h, plane.line_size, QImage.Format_BGR888)
+        img = QImage(plane, w, h, plane.line_size, QImage.Format_RGB888)
         label.setPixmap(QPixmap.fromImage(img))
 
     # ==================================================
