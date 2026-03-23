@@ -3390,6 +3390,14 @@ class MainWindow(QMainWindow):
         self.update_video(self.decoder1, self.video1, self.video1_start, self.stream1)
         self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
         self.i += 1
+        # ---- Auto stop recording at end of playback ----
+        try:
+            if self.i >= N - 1:
+                if hasattr(self, "recording") and self.recording:
+                    if hasattr(self, "stop_record"):
+                        self.stop_record()
+        except Exception:
+            pass
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
         self.update_gps_pyqtgraph()
