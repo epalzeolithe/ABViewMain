@@ -694,6 +694,8 @@ class MainWindow(QMainWindow):
         self.video2_start = get_mp4_creation_datetime(self.video2_path)
         self.video_df_offset = df.timestamp.iloc[0] - self.video1_start # 🔑 OFFSET TEMPOREL (clé du problème)
 
+        self.recording=False
+
         # ---- Init de base pour INU/GFX
         self.g_min = float("inf")
         self.g_max = float("-inf")
@@ -1398,6 +1400,7 @@ class MainWindow(QMainWindow):
                 self.btn_record.setText("■ REC")
                 self.btn_record.setStyleSheet("background-color: red; color: white; font-weight: bold;")
                 print("Recording start")
+                self.recording=True
             except Exception as e:
                 print("Recording start failed:", e)
                 self.btn_record.setChecked(False)
@@ -1419,6 +1422,7 @@ class MainWindow(QMainWindow):
                             try:
                                 writer.finishWriting()
                                 print("MP4 finalized")
+                                self.recording = False
                             except Exception as e:
                                 print("finishWriting error:", e)
 
@@ -1431,6 +1435,7 @@ class MainWindow(QMainWindow):
                         pass
 
                     print("Recording stop")
+                    self.recording = False
             except Exception:
                 pass
 
@@ -3390,13 +3395,11 @@ class MainWindow(QMainWindow):
         self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
         self.i += 1
         # ---- Auto stop recording at end of playback ----
-        try:
-            if self.i >= N - 1:
-                if hasattr(self, "recording") and self.recording:
-                    if hasattr(self, "stop_record"):
-                        self.stop_record()
-        except Exception:
-            pass
+        if self.i >= N - 1 and self.recording:
+            self.toggle_recording(False)
+            self.recording=False
+
+
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
         self.update_gps_pyqtgraph()
