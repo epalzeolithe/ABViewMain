@@ -2960,9 +2960,24 @@ class MainWindow(QMainWindow):
         em = elapsed_s // 60
         es = elapsed_s % 60
 
+        # --- CPU sampling (1 Hz) ---
+        import time
+        import psutil
+        if not hasattr(self, "_last_cpu_update"):
+            self._last_cpu_update = 0
+            self._cpu_percent = 0
+        now_cpu = time.time()
+        if now_cpu - self._last_cpu_update >= 1.0:
+            try:
+                self._cpu_percent = psutil.cpu_percent(interval=None)
+            except Exception:
+                self._cpu_percent = 0
+            self._last_cpu_update = now_cpu
+
         self.df_info_label.setText(
             f"Frame: {self.i}"
             f"\nStutters: {self.stutter_count}"
+            f"\nCPU: {self._cpu_percent:.0f}%"
             #f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
             #f"\nElapsed: {em:02d}:{es:02d}"
             #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
