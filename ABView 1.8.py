@@ -221,8 +221,10 @@ class VideoYUVWidget(QWidget):
 
             if "yuv" in fmt:
                 frame = frame.reformat(format="rgb24")
+                print("Frame reformat!!!")
             elif frame.format.name != "rgb24":
                 frame = frame.to_rgb()
+                print("Frame reformat!!!")
 
             plane = frame.planes[0]
 
