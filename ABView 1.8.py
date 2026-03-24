@@ -219,14 +219,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
     def setPixmap(self, *args): pass
 
 
-# === REPLACE IN init_UI ===
-# self.video1 = VideoYUVWidget(self)
-# self.video2 = VideoYUVWidget(self)
-
-# WITH:
-# self.video1 = VideoYUVOpenGLWidget(self)
-# self.video2 = VideoYUVOpenGLWidget(self)
-
 # ---- VideoYUVWidget: QWidget for direct YUV/RGB frame display ----
 class VideoYUVWidget(QWidget):
     def __init__(self, parent=None):
@@ -918,6 +910,8 @@ class MainWindow(QMainWindow):
         self.current_video_time_utc = None
         self.frame_skipped_count = 0
         self.frame_last_delay = 0
+        self.last_frame_time = None
+        self.stutter_count = 0
 
         # ---- vidéos ----
         self.video1_path=VIDEO1
@@ -2625,6 +2619,10 @@ class MainWindow(QMainWindow):
         self.df_info_label.move(10, 10)
         self.df_info_label.raise_()
 
+        # ---- Timestamp overlay (ensure multi-line support) ----
+        if hasattr(self, "timestamp_label"):
+            self.timestamp_label.setWordWrap(True)
+
         # ---- Pitch overlay (custom position) ----
         self.pitch_label = QLabel("Pitch:", self.gfx_canvas)
         self.pitch_label.setStyleSheet("color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
@@ -2964,6 +2962,7 @@ class MainWindow(QMainWindow):
 
         self.df_info_label.setText(
             f"Frame: {self.i}"
+            f"\nStutters: {self.stutter_count}"
             #f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
             #f"\nElapsed: {em:02d}:{es:02d}"
             #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
@@ -3190,6 +3189,18 @@ class MainWindow(QMainWindow):
     # Real-time compensated main loop (absolute scheduling)
     # ==================================================
     def main_loop(self):
+        now = time.time()
+
+        if self.last_frame_time is not None:
+            dt = now - self.last_frame_time
+            expected = 1.0 / self.target_fps
+
+            if dt > expected * 1.5:  # seuil 50%
+                self.stutter_count += 1
+                print(f"⚠️ STUTTER dt={dt * 1000:.1f} ms")
+
+        self.last_frame_time = now
+
         now = self.clock.elapsed()
 
         # initialize startup time once
@@ -3239,13 +3250,6 @@ class MainWindow(QMainWindow):
         # audio-driven → on tick très vite
         self.next_frame_time = now + 5
 
-        #delay = int(self.next_frame_time - now)
-        #self.frame_last_delay = delay
-        #if delay < 0:
-        #    delay = 0
-        #    self.frame_skipped_count += 1
-
-        #self.timer.start(delay)
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -4386,3 +4390,6 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 
 
+
+        # Ensure timestamp_label supports multi-line display
+        # (insert just after self.timestamp_label = QLabel is created)
