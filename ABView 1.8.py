@@ -1,5 +1,194 @@
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QImage
+# === ADD THIS CLASS (near VideoYUVWidget or replace it entirely) ===
+from PyQt5.QtWidgets import QOpenGLWidget
+from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
+from PyQt5.QtCore import Qt
+import OpenGL.GL as gl
+import pyqtgraph.opengl as glpg
+
+
+
+class VideoYUVOpenGLWidget(QOpenGLWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.frame = None
+        self.tex_y = None
+        self.tex_u = None
+        self.tex_v = None
+
+    def setFrame(self, frame):
+        self.frame = frame
+        self.update()
+
+    def initializeGL(self):
+        self.vertices = [-1, -1, 1, -1, -1, 1, 1, 1]
+        self.program = QOpenGLShaderProgram()
+        # --- REQUIRED for macOS OpenGL core ---
+        self.vao = gl.glGenVertexArrays(1)
+        gl.glBindVertexArray(self.vao)
+
+        self.vbo = gl.glGenBuffers(1)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
+
+        import numpy as np
+        vertices = np.array(self.vertices, dtype=np.float32)
+
+        gl.glBufferData(
+            gl.GL_ARRAY_BUFFER,
+            vertices.nbytes,
+            vertices,
+            gl.GL_STATIC_DRAW
+        )
+
+        self.program.addShaderFromSourceCode(QOpenGLShader.Vertex, """
+            #version 330 core
+            layout(location = 0) in vec2 position;
+            out vec2 texCoord;
+            void main() {
+                texCoord = (position + 1.0) / 2.0;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+        """)
+
+        self.program.addShaderFromSourceCode(QOpenGLShader.Fragment, """
+            #version 330 core
+            in vec2 texCoord;
+            out vec4 fragColor;
+
+            uniform sampler2D texY;
+            uniform sampler2D texU;
+            uniform sampler2D texV;
+
+            void main() {
+                float y = texture(texY, texCoord).r;
+                float u = texture(texU, texCoord).r - 0.5;
+                float v = texture(texV, texCoord).r - 0.5;
+
+                float r = y + 1.402 * v;
+                float g = y - 0.344 * u - 0.714 * v;
+                float b = y + 1.772 * u;
+
+                fragColor = vec4(r, g, b, 1.0);
+            }
+        """)
+
+        self.program.link()
+
+
+    def paintGL(self):
+        if self.frame is None:
+            return
+
+        frame = self.frame
+
+        if "yuv" not in frame.format.name.lower():
+            return
+
+        y = frame.planes[0]
+        u = frame.planes[1]
+        v = frame.planes[2]
+
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+        self.program.bind()
+
+        def upload(tex_id, plane, w, h, unit):
+            if tex_id is None:
+                tex_id = gl.glGenTextures(1)
+                gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
+
+                # allocation une seule fois (core profile compatible)
+                gl.glTexImage2D(
+                    gl.GL_TEXTURE_2D,
+                    0,
+                    gl.GL_R8,
+                    w,
+                    h,
+                    0,
+                    gl.GL_RED,
+                    gl.GL_UNSIGNED_BYTE,
+                    None
+                )
+            else:
+                gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
+
+            # 👉 conversion nécessaire
+            # Convert PyAV plane to raw bytes (compatible across PyAV versions)
+            try:
+                data = plane.to_bytes()
+            except AttributeError:
+                # fallback for older/newer PyAV versions
+                import numpy as np
+                data = np.frombuffer(plane, dtype=np.uint8)
+
+            # update rapide (pas de realloc)
+            gl.glTexSubImage2D(
+                gl.GL_TEXTURE_2D,
+                0,
+                0,
+                0,
+                w,
+                h,
+                gl.GL_RED,
+                gl.GL_UNSIGNED_BYTE,
+                data
+            )
+
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+
+            return tex_id
+
+        self.tex_y = upload(self.tex_y, y, frame.width, frame.height, 0)
+        self.tex_u = upload(self.tex_u, u, frame.width // 2, frame.height // 2, 1)
+        self.tex_v = upload(self.tex_v, v, frame.width // 2, frame.height // 2, 2)
+
+        self.program.setUniformValue("texY", 0)
+        self.program.setUniformValue("texU", 1)
+        self.program.setUniformValue("texV", 2)
+        self.program.bind()
+        pos_attr = 0  # forced by layout(location=0)
+
+        gl.glBindVertexArray(self.vao)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
+
+        gl.glEnableVertexAttribArray(pos_attr)
+
+        gl.glVertexAttribPointer(
+            pos_attr,
+            2,
+            gl.GL_FLOAT,
+            False,
+            0,
+            None
+        )
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_y)
+
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_u)
+
+        gl.glActiveTexture(gl.GL_TEXTURE2)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_v)
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        self.program.disableAttributeArray(pos_attr)
+        self.program.release()
+
+    # QLabel compatibility
+    def setScaledContents(self, *args): pass
+    def setPixmap(self, *args): pass
+
+
+# === REPLACE IN init_UI ===
+# self.video1 = VideoYUVWidget(self)
+# self.video2 = VideoYUVWidget(self)
+
+# WITH:
+# self.video1 = VideoYUVOpenGLWidget(self)
+# self.video2 = VideoYUVOpenGLWidget(self)
 
 # ---- VideoYUVWidget: QWidget for direct YUV/RGB frame display ----
 class VideoYUVWidget(QWidget):
@@ -50,8 +239,7 @@ class VideoYUVWidget(QWidget):
 
         except Exception as e:
             print("paint error:", e)
-import numpy as np
-import pyqtgraph.opengl as gl
+
 from stl import mesh
 
 import math
@@ -92,7 +280,6 @@ from pymediainfo import MediaInfo
 
 from PyQt5.QtGui import QKeySequence
 
-import pyqtgraph.opengl as gl
 
 # ======================================================
 # ScreenCaptureKit sample buffer handler
@@ -656,7 +843,7 @@ class MainWindow(QMainWindow):
     #        pts[1], pts[6],
     #    ])
 
-    #    return gl.GLLinePlotItem(
+    #    return glpg.GLLinePlotItem(
     #        pos=segments,
     #        #color=(1, 0.8, 0, 1), # jaune
     #        color=(0, 0, 0, 1), #black
@@ -934,8 +1121,10 @@ class MainWindow(QMainWindow):
         self.grid.setColumnStretch(2, 1)
         self.grid.setColumnStretch(3, 1)
 
-        self.video1 = VideoYUVWidget(self)
-        self.video2 = VideoYUVWidget(self)
+        #self.video1 = VideoYUVWidget(self)
+        #self.video2 = VideoYUVWidget(self)
+        self.video1 = VideoYUVOpenGLWidget(self)
+        self.video2 = VideoYUVOpenGLWidget(self)
         # ---- GPS heading overlay on video1 (top center, text sized) ----
         self.video1_heading_label = QLabel("", self.video1)
         self.video1_heading_label.setAlignment(Qt.AlignCenter)
@@ -1199,7 +1388,7 @@ class MainWindow(QMainWindow):
         self.bookmark_ticks = []
 
         # ---- PyQtGraph GPS 3D ----
-        self.gps_view = gl.GLViewWidget()
+        self.gps_view = glpg.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
@@ -1787,7 +1976,7 @@ class MainWindow(QMainWindow):
             ))
 
         for off in offsets:
-            line = gl.GLLinePlotItem(
+            line = glpg.GLLinePlotItem(
                 pos=np.zeros((2, 3)),
                 color=(1, 1, 1, 1),
                 width=8,
@@ -1798,7 +1987,7 @@ class MainWindow(QMainWindow):
             self.gps_lines.append(line)
 
         # aircraft position marker
-        self.gps_point = gl.GLScatterPlotItem(
+        self.gps_point = glpg.GLScatterPlotItem(
             pos=np.zeros((1, 3)),
             size=15,              # screen pixels
             pxMode=True,          # keep constant size on screen
@@ -1809,7 +1998,7 @@ class MainWindow(QMainWindow):
         self.gps_point.setGLOptions('opaque')
 
         # ground grid (visual reference in meters)
-        grid = gl.GLGridItem()
+        grid = glpg.GLGridItem()
         grid.setSize(2, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
@@ -1817,7 +2006,7 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
-        self.grid_vertical_yz = gl.GLGridItem()
+        self.grid_vertical_yz = glpg.GLGridItem()
         self.grid_vertical_yz.setSize(2, 2)
         self.grid_vertical_yz.setSpacing(0.25,0.25)
         self.grid_vertical_yz.rotate(90, 1, 0, 0)
@@ -1826,7 +2015,7 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(self.grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
-        self.grid_vertical_xz = gl.GLGridItem()
+        self.grid_vertical_xz = glpg.GLGridItem()
         self.grid_vertical_xz.setSize(2, 2)
         self.grid_vertical_xz.setSpacing(0.25, 0.25)
         self.grid_vertical_xz.rotate(90, 0, 1, 0)
@@ -1860,8 +2049,8 @@ class MainWindow(QMainWindow):
             vertices[:, 1] *= -1
 
             faces = np.arange(len(vertices)).reshape(-1, 3)
-            meshdata = gl.MeshData(vertexes=vertices, faces=faces)
-            self.gps_aircraft = gl.GLMeshItem(
+            meshdata = glpg.MeshData(vertexes=vertices, faces=faces)
+            self.gps_aircraft = glpg.GLMeshItem(
                 meshdata=meshdata,
                 smooth=False,
                 color=(0.8, 0.8, 0.8, 0.2),  # gris clair
@@ -1870,8 +2059,12 @@ class MainWindow(QMainWindow):
                 glOptions='translucent')
 
         except Exception as e:
-            print("STL load failed, fallback to CAP10:", e)
-            self.gps_aircraft = self.create_cap10_item()
+            print("STL load failed, fallback disabled:", e)
+            self.gps_aircraft = glpg.GLScatterPlotItem(
+                pos=np.array([[0, 0, 0]]),
+                size=10,
+                color=(1, 0, 0, 1)
+            )
         self.gps_view.addItem(self.gps_aircraft)
 
         # base geometry for rotation (handle both LinePlotItem and MeshItem)
@@ -1886,7 +2079,7 @@ class MainWindow(QMainWindow):
 
 
         # vertical line from aircraft to ground
-        self.gps_vertical_line = gl.GLLinePlotItem(
+        self.gps_vertical_line = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
             color=(0, 0, 1, 1),
             width=3,
@@ -1895,7 +2088,7 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(self.gps_vertical_line)
 
         # ---- ground projection of trajectory (shadow on ground) ----
-        self.gps_shadow = gl.GLLinePlotItem(
+        self.gps_shadow = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
             #color=(0, 0, 1, 0.6), # gray
             color=(0, 0, 0, 1), #black
