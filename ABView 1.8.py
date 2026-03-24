@@ -75,6 +75,23 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
 
         self.program.link()
 
+        # --- Configure vertex attributes ONCE (avoid per-frame overhead) ---
+        pos_attr = 0  # matches layout(location = 0)
+
+        gl.glBindVertexArray(self.vao)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
+
+        gl.glEnableVertexAttribArray(pos_attr)
+
+        gl.glVertexAttribPointer(
+            pos_attr,
+            2,
+            gl.GL_FLOAT,
+            False,
+            0,
+            None
+        )
+
 
     def paintGL(self):
         if self.frame is None:
@@ -123,6 +140,8 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
                 data = np.frombuffer(plane, dtype=np.uint8)
 
             # update rapide (pas de realloc)
+            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
+
             gl.glTexSubImage2D(
                 gl.GL_TEXTURE_2D,
                 0,
@@ -148,22 +167,7 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         self.program.setUniformValue("texU", 1)
         self.program.setUniformValue("texV", 2)
         self.program.bind()
-        pos_attr = 0  # forced by layout(location=0)
-
         gl.glBindVertexArray(self.vao)
-
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-
-        gl.glEnableVertexAttribArray(pos_attr)
-
-        gl.glVertexAttribPointer(
-            pos_attr,
-            2,
-            gl.GL_FLOAT,
-            False,
-            0,
-            None
-        )
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_y)
 
@@ -173,8 +177,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         gl.glActiveTexture(gl.GL_TEXTURE2)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_v)
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-
-        self.program.disableAttributeArray(pos_attr)
         self.program.release()
 
     # QLabel compatibility
