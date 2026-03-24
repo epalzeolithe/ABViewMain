@@ -1,3 +1,55 @@
+from PyQt5.QtWidgets import QWidget
+from PyQt5.QtGui import QPainter, QImage
+
+# ---- VideoYUVWidget: QWidget for direct YUV/RGB frame display ----
+class VideoYUVWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.frame = None
+
+    def setFrame(self, frame):
+        self.frame = frame
+        self.update()
+
+    # Compatibility with QLabel API used elsewhere
+    def setScaledContents(self, enabled):
+        # QWidget does not need this, ignore
+        pass
+
+    def setPixmap(self, pixmap):
+        # Not used in this widget, ignore to avoid crashes
+        pass
+
+    def paintEvent(self, event):
+        if self.frame is None:
+            return
+
+        try:
+            frame = self.frame
+
+            # 👉 accepte tous les formats YUV (yuv420p, yuvj420p, nv12, etc.)
+            fmt = (frame.format.name or "").lower()
+
+            if "yuv" in fmt:
+                frame = frame.reformat(format="rgb24")
+            elif frame.format.name != "rgb24":
+                frame = frame.to_rgb()
+
+            plane = frame.planes[0]
+
+            img = QImage(
+                plane,
+                frame.width,
+                frame.height,
+                plane.line_size,
+                QImage.Format_RGB888
+            )
+
+            painter = QPainter(self)
+            painter.drawImage(self.rect(), img)
+
+        except Exception as e:
+            print("paint error:", e)
 import numpy as np
 import pyqtgraph.opengl as gl
 from stl import mesh
@@ -62,9 +114,9 @@ from ver import __version__
 #CONFIG
 # MAJOR.MINOR.PATCH
 MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol_2026_02_21.abv/"
-#BDL="data/Vol_2026_03_20.abv/"
-#BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol16_2026_02_21.abv/"
+#BDL="data/Vol17_2026_03_20.abv/"
+#BDL="data/Vol18_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 VIDEO1=PDL+"front.mp4"
@@ -882,8 +934,8 @@ class MainWindow(QMainWindow):
         self.grid.setColumnStretch(2, 1)
         self.grid.setColumnStretch(3, 1)
 
-        self.video1 = QLabel(alignment=Qt.AlignCenter)
-        self.video2 = QLabel(alignment=Qt.AlignCenter)
+        self.video1 = VideoYUVWidget(self)
+        self.video2 = VideoYUVWidget(self)
         # ---- GPS heading overlay on video1 (top center, text sized) ----
         self.video1_heading_label = QLabel("", self.video1)
         self.video1_heading_label.setAlignment(Qt.AlignCenter)
@@ -956,9 +1008,8 @@ class MainWindow(QMainWindow):
         )
         self.video1_fpm_label.adjustSize()
         self.video1_fpm_label.raise_()
-        # avoid expensive per-frame scaling; let Qt scale automatically
-        self.video1.setScaledContents(True)
-        self.video2.setScaledContents(True)
+        # Not needed for VideoYUVWidget (handled in paintEvent)
+        pass
         # prevent QLabel from expanding to the raw video resolution
         self.video1.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.video2.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
@@ -3277,16 +3328,7 @@ class MainWindow(QMainWindow):
     def read_video_frame(self, decoder):
         try:
             frame = next(decoder)
-
-            if frame.format.name != "rgb24":
-                frame = frame.to_rgb()
-
-            #if frame.format.name != "bgr24":
-            #    frame = frame.reformat(format="bgr24")
-
-            # Return the frame directly (no numpy conversion)
             return True, frame, frame
-
         except StopIteration:
             return False, None, None
 
@@ -3482,7 +3524,14 @@ class MainWindow(QMainWindow):
                 except:
                     pass
 
+        # Use VideoYUVWidget if available
+        if hasattr(label, "setFrame"):
+            label.setFrame(frame)
+            return
+        else:
+            print("⚠️ QLabel fallback utilisé")
 
+        # fallback (old QLabel path)
         plane = frame.planes[0]
         h = frame.height
         w = frame.width
@@ -4103,4 +4152,5 @@ if __name__ == "__main__":
     win.show()
     caffeinate.terminate()
     sys.exit(app.exec_())
+
 
