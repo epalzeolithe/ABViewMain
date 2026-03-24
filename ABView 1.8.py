@@ -41,6 +41,11 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
             gl.GL_STATIC_DRAW
         )
 
+        # --- PBOs for async texture upload ---
+        self.pbo_y = gl.glGenBuffers(1)
+        self.pbo_u = gl.glGenBuffers(1)
+        self.pbo_v = gl.glGenBuffers(1)
+
         self.program.addShaderFromSourceCode(QOpenGLShader.Vertex, """
             #version 330 core
             layout(location = 0) in vec2 position;
@@ -110,16 +115,29 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
 
         self.program.bind()
 
-        def upload(tex_id, plane, w, h, unit):
+        def upload(tex_id, plane, w, h, unit, pbo):
+            # Activate texture unit BEFORE any glBindTexture
+            gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
+
+            # Safety: ensure clean state before texture ops
+            gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
+
             if tex_id is None:
                 tex_id = gl.glGenTextures(1)
                 gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
 
-                # allocation une seule fois (core profile compatible)
+                # Set texture parameters ONCE after creation
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+
+                # IMPORTANT: ensure no PBO is bound when allocating texture
+                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
                 gl.glTexImage2D(
                     gl.GL_TEXTURE_2D,
                     0,
-                    gl.GL_R8,
+                    gl.GL_RED,
                     w,
                     h,
                     0,
@@ -130,16 +148,30 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
             else:
                 gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
 
-            # 👉 conversion nécessaire
-            # Convert PyAV plane to raw bytes (compatible across PyAV versions)
+            # Convert plane
             try:
                 data = plane.to_bytes()
             except AttributeError:
-                # fallback for older/newer PyAV versions
                 import numpy as np
                 data = np.frombuffer(plane, dtype=np.uint8)
 
-            # update rapide (pas de realloc)
+            size = len(data)
+
+            # --- PBO upload (safe path, no mapBuffer) ---
+            try:
+                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, pbo)
+
+                # Upload data directly (more stable on macOS than mapBuffer)
+                gl.glBufferData(gl.GL_PIXEL_UNPACK_BUFFER, size, data, gl.GL_STREAM_DRAW)
+
+            except Exception as e:
+                # Fallback: disable PBO for this frame
+                print("PBO fallback:", e)
+                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
+                data_fallback = data
+            else:
+                data_fallback = None
+
             gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
 
             gl.glTexSubImage2D(
@@ -151,17 +183,20 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
                 h,
                 gl.GL_RED,
                 gl.GL_UNSIGNED_BYTE,
-                data
+                data_fallback
             )
 
-            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+            gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
+
+            # Removed redundant per-frame texture parameter setting
+            # gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+            # gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 
             return tex_id
 
-        self.tex_y = upload(self.tex_y, y, frame.width, frame.height, 0)
-        self.tex_u = upload(self.tex_u, u, frame.width // 2, frame.height // 2, 1)
-        self.tex_v = upload(self.tex_v, v, frame.width // 2, frame.height // 2, 2)
+        self.tex_y = upload(self.tex_y, y, frame.width, frame.height, 0, self.pbo_y)
+        self.tex_u = upload(self.tex_u, u, frame.width // 2, frame.height // 2, 1, self.pbo_u)
+        self.tex_v = upload(self.tex_v, v, frame.width // 2, frame.height // 2, 2, self.pbo_v)
 
         self.program.setUniformValue("texY", 0)
         self.program.setUniformValue("texU", 1)
