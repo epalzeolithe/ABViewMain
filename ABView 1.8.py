@@ -840,6 +840,7 @@ class MainWindow(QMainWindow):
         self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
 
         self.compute_g_signed()
+        self.build_g_timeline()
 
         # ---- realtime timer (compensated loop) ----
         self.target_fps = 30
@@ -1119,6 +1120,12 @@ class MainWindow(QMainWindow):
         self.slider.setRange(0, self.frames_video - 1)
         self.slider.valueChanged.connect(self.on_slider)
 
+        self.g_timeline = QLabel(self)
+        self.g_timeline.setFixedHeight(12)
+        self.g_timeline.setStyleSheet("background-color: black;")
+        self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
+
+
         self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
 
         # ---- Elapsed time overlay (top center main window) ----
@@ -1304,6 +1311,48 @@ class MainWindow(QMainWindow):
         g_signed[angles > 90] *= -1
 
         self.df["g_signed"] = g_signed
+
+    def build_g_timeline(self):
+        if "g_signed" not in self.df.columns:
+            return
+
+        import numpy as np
+        from PyQt5.QtGui import QImage, QPixmap
+
+        values = self.df["g_signed"].to_numpy()
+        n = len(values)
+
+        width = max(500, min(2000, n // 3))  # compression intelligente
+        height = 12
+
+        img = QImage(width, height, QImage.Format_RGB888)
+
+        g_min = -2.0
+        g_max = 4.0
+
+        for x in range(width):
+            idx = int(x / width * (n - 1))
+            g = values[idx]
+
+            # clamp
+            g = max(g_min, min(g_max, g))
+
+            # même logique que ta G bar
+            if g < 0:
+                r, gcol, b = 0, 120, 255
+            elif g < 3:
+                r, gcol, b = 0, 255, 0
+            elif g < 5:
+                r, gcol, b = 255, 200, 0
+            else:
+                r, gcol, b = 255, 0, 0
+
+            color = (r << 16) | (gcol << 8) | b
+
+            for y in range(height):
+                img.setPixel(x, y, color)
+
+        self.g_timeline.setPixmap(QPixmap.fromImage(img))
 
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
@@ -3663,6 +3712,30 @@ class MainWindow(QMainWindow):
                 self.map_view.page().runJavaScript("resetTrajectory();")
         except Exception:
             pass
+        if hasattr(self, "g_timeline") and self.g_timeline.pixmap():
+            w = self.g_timeline.width()
+            n = len(self.df)
+
+            if n > 0:
+                # value = video frame index, need to convert to dataframe index
+                if hasattr(self, "idf"):
+                    x = int(self.idf / n * w)
+                else:
+                    x = int(value / n * w)
+
+                # ensure dataframe index is up to date when scrubbing
+                try:
+                    self.sync_dataframe_on_video()
+                except Exception:
+                    pass
+
+                if not hasattr(self, "g_timeline_cursor"):
+                    self.g_timeline_cursor = QFrame(self.g_timeline)
+                    self.g_timeline_cursor.setStyleSheet("background-color: white;")
+                    self.g_timeline_cursor.setGeometry(0, 0, 2, self.g_timeline.height())
+                    self.g_timeline_cursor.show()
+
+                self.g_timeline_cursor.move(x, 0)
 
     def update_gps_pyqtgraph(self):
         # skip updates only during playback
