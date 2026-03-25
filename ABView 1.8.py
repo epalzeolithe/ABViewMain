@@ -772,14 +772,13 @@ class MainWindow(QMainWindow):
         self.i = 0
         self.idf = 0
         self.playing = True
-
-        # screen capture process
         self.speed = 1
         self.current_video_time_utc = None
         self.frame_skipped_count = 0
         self.frame_last_delay = 0
         self.last_frame_time = None
         self.stutter_count = 0
+        self.recording = False
 
         # ---- vidéos ----
         container_probe = av.open(VIDEO1)
@@ -791,6 +790,15 @@ class MainWindow(QMainWindow):
         self.video2_path=VIDEO2
         self.container1 = av.open(self.video1_path)
         self.container2 = av.open(self.video2_path)
+        self.stream1 = self.container1.streams.video[0]
+        self.stream2 = self.container2.streams.video[0]
+        self.stream1.thread_type = "AUTO"
+        self.stream2.thread_type = "AUTO"
+        self.decoder1 = self.container1.decode(self.stream1)
+        self.decoder2 = self.container2.decode(self.stream2)
+        self.video1_start = get_mp4_creation_datetime(self.video1_path)
+        self.video2_start = get_mp4_creation_datetime(self.video2_path)
+        self.video_df_offset = self.df.timestamp.iloc[0] - self.video1_start  # 🔑 OFFSET TEMPOREL (clé du problème)
 
         # ---- audio (video1) ----
         self.sync_enabled = False
@@ -800,17 +808,13 @@ class MainWindow(QMainWindow):
             self.audio_stream = self.audio_container.streams.audio[0]
             # packet based audio demux (more stable than frame iterator)
             self.audio_packets = self.audio_container.demux(self.audio_stream)
-
             # force audio format compatible with Qt (stereo s16 interleaved)
             self.audio_rate = self.audio_stream.rate
             self.audio_channels = 2
-
             self.audio_resampler = av.audio.resampler.AudioResampler(
                 format="s16",
                 layout="stereo",
-                rate=self.audio_rate,
-            )
-
+                rate=self.audio_rate,)
             fmt = QAudioFormat()
             fmt.setSampleRate(self.audio_rate)
             fmt.setChannelCount(self.audio_channels)
@@ -818,28 +822,13 @@ class MainWindow(QMainWindow):
             fmt.setCodec("audio/pcm")
             fmt.setByteOrder(QAudioFormat.LittleEndian)
             fmt.setSampleType(QAudioFormat.SignedInt)
-
             self.audio_output = QAudioOutput(fmt)
             self.audio_device = self.audio_output.start()
-
             self.audio_buffer = bytearray()
             self.audio_started = True
             self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
         except Exception:
             self.audio_stream = None
-
-        self.stream1 = self.container1.streams.video[0]
-        self.stream2 = self.container2.streams.video[0]
-        self.stream1.thread_type = "AUTO"
-        self.stream2.thread_type = "AUTO"
-
-        self.decoder1 = self.container1.decode(self.stream1)
-        self.decoder2 = self.container2.decode(self.stream2)
-        self.video1_start = get_mp4_creation_datetime(self.video1_path)
-        self.video2_start = get_mp4_creation_datetime(self.video2_path)
-        self.video_df_offset =self.df.timestamp.iloc[0] - self.video1_start # 🔑 OFFSET TEMPOREL (clé du problème)
-
-        self.recording=False
 
         # ---- Init de base pour INU/GFX
         self.g_min = float("inf")
@@ -850,7 +839,6 @@ class MainWindow(QMainWindow):
         self.smooth_speed = None
         self.smooth_alt = None
         self.instrument_alpha = 0.2  # smoothing factor (0=slow, 1=no smoothing)
-
         # ---- filtered acceleration vector for smoother G trail ----
         self.acc_vec_filtered = None
         self.g_filter_alpha = 0.15
@@ -859,7 +847,6 @@ class MainWindow(QMainWindow):
         self.bookmarks_df = None
         self.last_bookmark_frame = None
         self.bookmark_overlay = None
-
         # ---- init for gpsmatplotlib
         self.firstGPS = True
         self.last_azim = 0
@@ -3762,22 +3749,10 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    # ==================================================
-    def toggle_matplotlib_gps(self):
-        """Toggle matplotlib GPS update on/off."""
-        self.enable_matplotlib_gps = not self.enable_matplotlib_gps
-
-        # keep menu checkbox synchronized
-        if hasattr(self, "act_pause_gps_update"):
-            self.act_pause_gps_update.setChecked(not self.enable_matplotlib_gps)
-
     def update_gps_pyqtgraph(self):
         # skip updates only during playback
         if self.playing and self.i % 8 != 0:
             return
-
-        #t0 = time.perf_counter()
-
         row = self.row
         if self.map_ready:
             lat = row.gps_lat
@@ -4051,23 +4026,19 @@ class MainWindow(QMainWindow):
 
         self.gfx_window.show()
 
-
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
         try:
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
-            #self.btn_detach_gfx.setText("↗Detach")
             # restore overlay button when returning to main window
             if hasattr(self, "btn_detach_gfx"):
                 self.btn_detach_gfx.show()
                 self.btn_detach_gfx.raise_()
         except Exception:
             pass
-
         event.accept()
-
 
     def detach_video1_window(self):
         """Toggle detach/close for video1."""
@@ -4077,20 +4048,14 @@ class MainWindow(QMainWindow):
             return
 
         self.video1_detached = True
-
         self.grid.removeWidget(self.video1)
-
         self.video1_window = QMainWindow(self)
         self.video1_window.setWindowTitle("Video 1")
         self.video1_window.setCentralWidget(self.video1)
         self.video1_window.resize(900, 600)
-
         self.btn_detach_video1.hide()
-
         self.video1_window.closeEvent = self._on_video1_window_closed
-
         self.video1_window.show()
-
 
     def _on_video1_window_closed(self, event):
         try:
@@ -4099,10 +4064,8 @@ class MainWindow(QMainWindow):
             self.video1_detached = False
             self.btn_detach_video1.show()
             self.btn_detach_video1.raise_()
-
         except Exception:
             pass
-
         event.accept()
 
     def detach_video2_window(self):
@@ -4111,22 +4074,15 @@ class MainWindow(QMainWindow):
             if hasattr(self, "video2_window"):
                 self.video2_window.close()
             return
-
         self.video2_detached = True
-
         self.grid.removeWidget(self.video2)
-
         self.video2_window = QMainWindow(self)
         self.video2_window.setWindowTitle("Video 2")
         self.video2_window.setCentralWidget(self.video2)
         self.video2_window.resize(900, 600)
-
         self.btn_detach_video2.hide()
-
         self.video2_window.closeEvent = self._on_video2_window_closed
-
         self.video2_window.show()
-
 
     def _on_video2_window_closed(self, event):
         try:
@@ -4137,7 +4093,6 @@ class MainWindow(QMainWindow):
             self.btn_detach_video2.raise_()
         except Exception:
             pass
-
         event.accept()
 
 
@@ -4147,25 +4102,18 @@ class MainWindow(QMainWindow):
             if hasattr(self, "pyqtgraph_window"):
                 self.pyqtgraph_window.close()
             return
-
         self.pyqtgraph_detached = True
-
         # remove from layout
         self.grid.removeWidget(self.gps_view)
-
         # create detached window
         self.pyqtgraph_window = QMainWindow(self)
         self.pyqtgraph_window.setWindowTitle("GPS Graph")
         self.pyqtgraph_window.setCentralWidget(self.gps_view)
         self.pyqtgraph_window.resize(900, 700)
-
         self.btn_detach_pyqtgraph.hide()
-
         # detect close
         self.pyqtgraph_window.closeEvent = self._on_pyqtgraph_window_closed
-
         self.pyqtgraph_window.show()
-
 
     def _on_pyqtgraph_window_closed(self, event):
         """Restore matplotlib canvas back into the grid when the detached window closes."""
@@ -4177,7 +4125,6 @@ class MainWindow(QMainWindow):
             self.btn_detach_pyqtgraph.raise_()
         except Exception:
             pass
-
         event.accept()
 
 
@@ -4255,13 +4202,7 @@ if __name__ == "__main__":
     """)
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
-
     win = MainWindow()
     win.show()
     caffeinate.terminate()
     sys.exit(app.exec_())
-
-
-
-        # Ensure timestamp_label supports multi-line display
-        # (insert just after self.timestamp_label = QLabel is created)
