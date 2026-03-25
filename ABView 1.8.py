@@ -673,6 +673,58 @@ class AnalogAltimeter(QWidget):
         painter.drawLine(cx, cy, int(x), int(y))
         painter.end()
 
+class AnalogVario(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.fpm = 0.0
+        self.setMinimumSize(100, 100)
+        self.setStyleSheet("background: transparent;")
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import QPainter, QPen
+        import math
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        r = min(w, h) / 2 - 5
+
+        cx = w / 2
+        cy = h / 2
+
+        # outer circle with semi-transparent background (same style as other instruments)
+        from PyQt5.QtGui import QColor
+        pen = QPen(QColor("white"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.setBrush(QColor(0, 0, 0, 120))
+        painter.drawEllipse(int(cx - r), int(cy - r), int(2 * r), int(2 * r))
+
+        # graduations simples
+        painter.setPen(QPen(QColor("white"), 1))
+        for f in [-2000, -1000, 0, 1000, 2000]:
+            angle = (f / 2000.0) * 120
+            theta = math.radians(angle - 90)
+            x1 = cx + r * 0.7 * math.cos(theta)
+            y1 = cy + r * 0.7 * math.sin(theta)
+            x2 = cx + r * 0.9 * math.cos(theta)
+            y2 = cy + r * 0.9 * math.sin(theta)
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+        # clamp
+        fpm = max(-2000, min(2000, self.fpm))
+
+        # aiguille
+        angle = (fpm / 2000.0) * 120
+        theta = math.radians(angle - 90)
+
+        x2 = cx + r * 0.8 * math.cos(theta)
+        y2 = cy + r * 0.8 * math.sin(theta)
+
+        painter.setPen(QPen(QColor("white"), 3))
+        painter.drawLine(int(cx), int(cy), int(x2), int(y2))
 # ======================================================
 # Main Window
 # ======================================================
@@ -1045,6 +1097,10 @@ class MainWindow(QMainWindow):
         self.video1_altimeter = AnalogAltimeter(self.video1)
         self.video1_altimeter.setGeometry(self.video1.width() - 170, int(self.video1.height()/2) - 80, 160, 160)
         self.video1_altimeter.show()
+
+        self.video1_vario = AnalogVario(self.video1)
+        self.video1_vario.setFixedSize(120, 120)
+        self.video1_vario.show()
 
         # ---- GPS altitude overlay on video1 (bottom-right) ----
         self.video1_alt_label = QLabel("", self.video1)
@@ -3044,6 +3100,21 @@ class MainWindow(QMainWindow):
             xa = self.video1.width() - self.video1_altimeter.width() - 10
             self.video1_altimeter.move(xa, ya)
 
+        # ---- Update analog variometer ----
+        if hasattr(self, "video1_vario"):
+            if not hasattr(self, "smooth_fpm"):
+                self.smooth_fpm = row.gps_fpm
+            else:
+                a = self.instrument_alpha
+                self.smooth_fpm = (1 - a) * self.smooth_fpm + a * row.gps_fpm
+
+            self.video1_vario.fpm = self.smooth_fpm
+            self.video1_vario.update()
+
+            # position bas gauche de l'altimètre
+            xv = xa - self.video1_vario.width() - 10
+            yv = ya
+            self.video1_vario.move(xv, yv)
         # ---- Update vario overlay on video1 (bottom-right) ----
         if hasattr(self, "video1_fpm_label"):
             self.video1_fpm_label.setText(f"{row.gps_fpm:.0f} ft/min")
