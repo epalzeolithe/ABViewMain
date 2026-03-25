@@ -4012,18 +4012,7 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-# ======================================================
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    palette = app.palette()
-    palette.setColor(palette.Window, Qt.white)
-    palette.setColor(palette.Base, Qt.white)
-    palette.setColor(palette.AlternateBase, Qt.white)
-    palette.setColor(palette.Text, Qt.black)
-    palette.setColor(palette.WindowText, Qt.black)
-
-    app.setPalette(palette)
-    app.setStyleSheet("""
+STYLE_SHEET = """
     QPushButton {
         background-color: #f0f0f0;
         color: black;
@@ -4083,7 +4072,20 @@ if __name__ == "__main__":
         border-radius: 3px;
     }
 
-    """)
+    """
+
+# ======================================================
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    palette = app.palette()
+    palette.setColor(palette.Window, Qt.white)
+    palette.setColor(palette.Base, Qt.white)
+    palette.setColor(palette.AlternateBase, Qt.white)
+    palette.setColor(palette.Text, Qt.black)
+    palette.setColor(palette.WindowText, Qt.black)
+
+    app.setPalette(palette)
+    app.setStyleSheet(STYLE_SHEET)
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
     win = MainWindow()
