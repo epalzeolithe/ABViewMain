@@ -3099,8 +3099,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_altimeter"):
             self.video1_altimeter.alt = self.smooth_alt
             self.video1_altimeter.update()
-            ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 80
-            xa = self.video1.width() - self.video1_altimeter.width() - 10
+            xa = int(self.video1.width() / 2 ) + 60
+            ya = int(self.video1.height() - self.video1_altimeter.height())
             self.video1_altimeter.move(xa, ya)
 
         # ---- Update analog variometer ----
@@ -3110,13 +3110,10 @@ class MainWindow(QMainWindow):
             else:
                 a = self.instrument_alpha
                 self.smooth_fpm = (1 - a) * self.smooth_fpm + a * row.gps_fpm
-
             self.video1_vario.fpm = self.smooth_fpm
             self.video1_vario.update()
-
-            # position bas gauche de l'altimètre
-            xv = xa - self.video1_vario.width() - 10
-            yv = ya
+            xv = int(self.video1.width() / 2 ) + 60 + self.video1_altimeter.width()
+            yv = int(self.video1.height() - self.video1_vario.height())
             self.video1_vario.move(xv, yv)
         # ---- Update vario overlay on video1 (bottom-right) ----
         if hasattr(self, "video1_fpm_label"):
