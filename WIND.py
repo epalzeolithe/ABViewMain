@@ -15,8 +15,12 @@ lon = 3.8328
 date = "2026-03-20"
 time = "09:00"
 
-# niveau pression correspondant ~1500 m
-pressure_level = "850"  # hPa
+ # niveaux correspondant aux altitudes demandées
+pressure_levels = {
+    "3000ft": "925",
+    "4000ft": "900",
+    "5000ft": "850",
+}
 
 output_file = "wind_era5.nc"
 
@@ -33,7 +37,7 @@ c.retrieve(
             "u_component_of_wind",
             "v_component_of_wind",
         ],
-        "pressure_level": pressure_level,
+        "pressure_level": list(pressure_levels.values()),
         "year": date[:4],
         "month": date[5:7],
         "day": date[8:10],
@@ -54,8 +58,11 @@ c.retrieve(
 # =========================
 ds = Dataset(output_file)
 
-u = ds.variables["u"][0, 0, :, :]  # vent zonal
-v = ds.variables["v"][0, 0, :, :]  # vent méridien
+# ERA5 utilise 'pressure_level' comme nom de variable
+u_all = ds.variables["u"][0, :, :, :]  # tous niveaux
+v_all = ds.variables["v"][0, :, :, :]
+# ERA5 utilise 'pressure_level' comme nom de variable
+levels = ds.variables["pressure_level"][:]
 
 lats = ds.variables["latitude"][:]
 lons = ds.variables["longitude"][:]
@@ -64,25 +71,26 @@ lons = ds.variables["longitude"][:]
 lat_idx = np.abs(lats - lat).argmin()
 lon_idx = np.abs(lons - lon).argmin()
 
-u_val = float(u[lat_idx, lon_idx])
-v_val = float(v[lat_idx, lon_idx])
-
-# =========================
-# CALCUL VENT
-# =========================
-
-# vitesse (m/s → km/h)
-speed_ms = np.sqrt(u_val**2 + v_val**2)
-speed_kmh = speed_ms * 3.6
-
-# direction (météo : d'où vient le vent)
-direction_rad = np.arctan2(-u_val, -v_val)
-direction_deg = (np.degrees(direction_rad) + 360) % 360
-
-# =========================
-# RESULTAT
-# =========================
 print(date, time)
-print("Vent à 1500 m (850 hPa)")
-print(f"Vitesse : {speed_kmh:.1f} km/h")
-print(f"Direction : {direction_deg:.0f}° (d'où vient le vent)")
+
+for alt_label, plevel in pressure_levels.items():
+    # trouver l'index du niveau
+    level_idx = np.where(levels == int(plevel))[0][0]
+
+    u_val = float(u_all[level_idx, lat_idx, lon_idx])
+    v_val = float(v_all[level_idx, lat_idx, lon_idx])
+
+    # vitesse (m/s → km/h)
+    speed_ms = np.sqrt(u_val**2 + v_val**2)
+    speed_kmh = speed_ms * 3.6
+
+    # direction (météo : d'où vient le vent)
+    direction_rad = np.arctan2(-u_val, -v_val)
+    direction_deg = (np.degrees(direction_rad) + 360) % 360
+
+    print(f"\n{alt_label} (~{plevel} hPa)")
+    print(f"  Vitesse : {speed_kmh:.1f} km/h")
+    print(f"  Direction : {direction_deg:.0f}°")
+
+# fermeture fichier
+ds.close()
