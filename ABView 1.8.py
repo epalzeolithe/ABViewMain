@@ -4076,7 +4076,6 @@ if __name__ == "__main__":
     palette.setColor(palette.AlternateBase, Qt.white)
     palette.setColor(palette.Text, Qt.black)
     palette.setColor(palette.WindowText, Qt.black)
-
     app.setPalette(palette)
     app.setStyleSheet(STYLE_SHEET)
     import subprocess
