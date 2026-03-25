@@ -1330,6 +1330,36 @@ class MainWindow(QMainWindow):
         g_min = -2.0
         g_max = 4.0
 
+        def get_color(g):
+            # points de contrôle (G, couleur RGB)
+            stops = [
+                (-2.0, (0, 120, 255)),   # bleu
+                (0.8,  (0, 200, 255)),   # cyan
+                (1.0,  (0, 255, 0)),     # vert
+                (1.2,  (255, 255, 0)),   # jaune
+                (2.0,  (255, 0, 0)),     # rouge
+            ]
+
+            # clamp
+            if g <= stops[0][0]:
+                return stops[0][1]
+            if g >= stops[-1][0]:
+                return stops[-1][1]
+
+            # interpolation
+            for i in range(len(stops) - 1):
+                g0, c0 = stops[i]
+                g1, c1 = stops[i + 1]
+
+                if g0 <= g <= g1:
+                    t = (g - g0) / (g1 - g0)
+
+                    r = int(c0[0] + (c1[0] - c0[0]) * t)
+                    gcol = int(c0[1] + (c1[1] - c0[1]) * t)
+                    b = int(c0[2] + (c1[2] - c0[2]) * t)
+
+                    return (r, gcol, b)
+
         for x in range(width):
             idx = int(x / width * (n - 1))
             g = values[idx]
@@ -1337,15 +1367,7 @@ class MainWindow(QMainWindow):
             # clamp
             g = max(g_min, min(g_max, g))
 
-            # même logique que ta G bar
-            if g < 0:
-                r, gcol, b = 0, 120, 255
-            elif g < 3:
-                r, gcol, b = 0, 255, 0
-            elif g < 5:
-                r, gcol, b = 255, 200, 0
-            else:
-                r, gcol, b = 255, 0, 0
+            r, gcol, b = get_color(g)
 
             color = (r << 16) | (gcol << 8) | b
 
@@ -3731,7 +3753,7 @@ class MainWindow(QMainWindow):
 
                 if not hasattr(self, "g_timeline_cursor"):
                     self.g_timeline_cursor = QFrame(self.g_timeline)
-                    self.g_timeline_cursor.setStyleSheet("background-color: white;")
+                    self.g_timeline_cursor.setStyleSheet("background-color: black;")
                     self.g_timeline_cursor.setGeometry(0, 0, 2, self.g_timeline.height())
                     self.g_timeline_cursor.show()
 
