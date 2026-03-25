@@ -348,22 +348,6 @@ def get_mp4_creation_datetime(path):
     raise RuntimeError(f"Date de création MP4 introuvable : {path}")
 
 # ======================================================
-# Metar Match
-# ======================================================
-def find_metar_for_time(df, t):
-    idx = df["time"].searchsorted(t)
-    if idx == 0:
-        return df.iloc[0]
-    if idx >= len(df):
-        return df.iloc[-1]
-    before = df.iloc[idx - 1]
-    after = df.iloc[idx]
-    if abs(t - before.time) < abs(after.time - t):
-        return before
-    else:
-        return after
-
-# ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
 def quat_to_rot(q):
@@ -708,6 +692,22 @@ class MainWindow(QMainWindow):
         TRACE = TRACE_DEFAULT
 
     # ======================================================
+    # Metar Match
+    # ======================================================
+    def find_metar_for_time(self, t):
+        idx = self.metar_df["time"].searchsorted(t)
+        if idx == 0:
+            return self.metar_df.iloc[0]
+        if idx >= len(self.metar_df):
+            return self.metar_df.iloc[-1]
+        before = self.metar_df.iloc[idx - 1]
+        after = self.metar_df.iloc[idx]
+        if abs(t - before.time) < abs(after.time - t):
+            return before
+        else:
+            return after
+
+    # ======================================================
     # DataFrame
     # ======================================================
     def load_dataframe(self, file):
@@ -864,7 +864,7 @@ class MainWindow(QMainWindow):
 
         # Metar management
         t_start = self.df['timestamp'][0]
-        metar_row = find_metar_for_time(self.metar_df, t_start)
+        metar_row = self.find_metar_for_time(t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
 
@@ -3017,22 +3017,15 @@ class MainWindow(QMainWindow):
     def update_metar(self):
         if self.i % 30 != 0:
             return
-        # ---- Update METAR overlay if needed ----
-        try:
-            current_time = self.row.timestamp
-            metar_row = find_metar_for_time(metar_df, current_time)
-            new_metar = metar_row.metar
-
-            if new_metar != self.last_metar:
-                self.last_metar = new_metar
-
-                if hasattr(self, "map_metar_label"):
-                    self.map_metar_label.setText(self.last_metar)
-                    self.map_metar_label.adjustSize()
-                    self._position_map_metar_label()
-
-        except Exception:
-            pass
+        current_time = self.row.timestamp
+        metar_row = self.find_metar_for_time(current_time)
+        new_metar = metar_row.metar
+        if new_metar != self.last_metar:
+            self.last_metar = new_metar
+            if hasattr(self, "map_metar_label"):
+                self.map_metar_label.setText(self.last_metar)
+                self.map_metar_label.adjustSize()
+                self._position_map_metar_label()
 
     # ==================================================
     # Real-time compensated main loop (absolute scheduling)
