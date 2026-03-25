@@ -706,7 +706,8 @@ class AnalogVario(QWidget):
         painter.setPen(QPen(QColor("white"), 1))
         for f in [-2000, -1000, 0, 1000, 2000]:
             angle = (f / 2000.0) * 120
-            theta = math.radians(angle - 90)
+            # 0 at left (180°), positive up, negative down
+            theta = math.radians(180 + angle)
             x1 = cx + r * 0.7 * math.cos(theta)
             y1 = cy + r * 0.7 * math.sin(theta)
             x2 = cx + r * 0.9 * math.cos(theta)
@@ -718,7 +719,8 @@ class AnalogVario(QWidget):
 
         # aiguille
         angle = (fpm / 2000.0) * 120
-        theta = math.radians(angle - 90)
+        # 0 at left (180°), positive up, negative down
+        theta = math.radians(180 + angle)
 
         x2 = cx + r * 0.8 * math.cos(theta)
         y2 = cy + r * 0.8 * math.sin(theta)
