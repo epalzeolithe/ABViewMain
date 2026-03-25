@@ -3085,8 +3085,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_badin"):
             self.video1_badin.speed = self.smooth_speed
             self.video1_badin.update()
-            yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 80
-            self.video1_badin.move(10, yb)
+            xb = int(self.video1.width()/2 - self.video1_badin.width()) - 60
+            yb = int(self.video1.height() - self.video1_badin.height())
+            self.video1_badin.move(xb, yb)
 
         # ---- Update analog altimeter with smoothing ----
         if self.smooth_alt is None:
