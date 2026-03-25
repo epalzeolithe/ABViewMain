@@ -19,36 +19,17 @@ from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
 from PyQt5.QtGui import QImage, QPixmap,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (
-    QShortcut,   QApplication,
-    QMainWindow,
-    QWidget,
-    QLabel,
-    QFrame,
-    QPushButton,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGridLayout,
-    QAction,
-    QSlider,
-    QSizePolicy,
-    QInputDialog)
+from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
 from pymediainfo import MediaInfo
-
-# ======================================================
-# ScreenCaptureKit sample buffer handler
-# ======================================================
 import CoreMedia
 import AVFoundation
 import ScreenCaptureKit
 from Cocoa import NSObject
 import objc
-# silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
-import warnings
+import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
 
 from ver import __version__
-
 
 #***********************************************
 #CONFIG
@@ -288,7 +269,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
     def setPixmap(self, *args): pass
 
 warnings.filterwarnings("ignore", category=ObjCPointerWarning)
-
 class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
 
     def init(self):
@@ -382,16 +362,6 @@ def find_metar_for_time(df, t):
         return before
     else:
         return after
-
-# ======================================================
-# VIDEO ANALYSIS
-# ======================================================
-container_probe = av.open(VIDEO1)
-stream_probe = container_probe.streams.video[0]
-
-frames_video = stream_probe.frames
-N = frames_video
-container_probe.close()
 
 # ======================================================
 # USEFUL FUNCTIONS
@@ -741,35 +711,6 @@ class AnalogAltimeter(QWidget):
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
-    #def create_cap10_item(self):
-    #    scale = 0.2
-
-    #    pts = np.array([
-    #        [1.0, 0.0, 0.0],  # nez
-    #        [-1.0, 0.0, 0.0],  # queue
-    #        [0.0, 1.2, 0.0],  # aile gauche
-    #        [0.0, -1.2, 0.0],  # aile droite
-
-    #        [-0.9, 0.5, 0.0],  # empennage G
-    #        [-0.9, -0.5, 0.0],  # empennage D
-
-    #        [-0.9, 0.0, 0.5],  # dérive
-    #        ], dtype=float) * scale
-
-    #    segments = np.array([
-    #        pts[0], pts[1],
-    #        pts[2], pts[3],
-    #        pts[4], pts[5],
-    #        pts[1], pts[6],
-    #    ])
-
-    #    return glpg.GLLinePlotItem(
-    #        pos=segments,
-    #        #color=(1, 0.8, 0, 1), # jaune
-    #        color=(0, 0, 0, 1), #black
-    #        width=30,
-    #        antialias=True,
-    #        mode='lines')
 
     def trace_plus(self):
         global TRACE
@@ -841,6 +782,11 @@ class MainWindow(QMainWindow):
         self.stutter_count = 0
 
         # ---- vidéos ----
+        container_probe = av.open(VIDEO1)
+        stream_probe = container_probe.streams.video[0] #VIDEO ANALYSIS
+        self.frames_video = stream_probe.frames
+        container_probe.close()
+
         self.video1_path=VIDEO1
         self.video2_path=VIDEO2
         self.container1 = av.open(self.video1_path)
@@ -1209,7 +1155,7 @@ class MainWindow(QMainWindow):
 
         # ---- slider + controls ----
         self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(0, N - 1)
+        self.slider.setRange(0, self.frames_video - 1)
         self.slider.valueChanged.connect(self.on_slider)
 
         self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
@@ -1378,7 +1324,7 @@ class MainWindow(QMainWindow):
         if slider_w == 0:
             return
 
-        total = max(1, (N - 1))
+        total = max(1, (self.frames_video - 1))
 
         for _, row in self.bookmarks_df.iterrows():
             try:
@@ -3455,13 +3401,13 @@ class MainWindow(QMainWindow):
 
     def jump_fwd_2s(self):
         fps = float(self.stream1.average_rate) or 30
-        frame = min(N - 1, int(self.i + fps * 2))
+        frame = min(self.frames_video - 1, int(self.i + fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
 
     def jump_fwd_10s(self):
         fps = float(self.stream1.average_rate) or 30
-        frame = min(N - 1, int(self.i + fps * 10))
+        frame = min(self.frames_video - 1, int(self.i + fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
 
@@ -3470,35 +3416,21 @@ class MainWindow(QMainWindow):
         self.slider.setValue(self.i)
 
     def seek_palier(self):
-        """
-        Cherche un pallier :
-        |gps_fpm| < 100 ft/min
-        gps_speed > 150 km/h
-        pendant 2 secondes
-        """
-
         window = int(DF_FREQ * 2)  # 2 secondes
-
         fpm = self.df["gps_fpm"].to_numpy()
         speed = self.df["gps_speed"].to_numpy()
-
         # start searching AFTER the current dataframe position (next palier behavior)
         start_idx = getattr(self, "idf", 0) + 1000
         for i in range(start_idx, len(self.df) - window):
-
             seg_fpm = fpm[i:i + window]
             seg_speed = speed[i:i + window]
-
             if np.all(np.abs(seg_fpm) < 150) and np.all(seg_speed > 150):
                 frame = self.get_video_frame_from_df_index(i)
                 self.seek_video(frame)
                 self.slider.setValue(self.i)
-
                 print("Palier trouvé @ frame", frame)
                 return
-
         print("Aucun palier trouvé")
-
 
     # ==================================================
     def read_video_frame(self, decoder):
@@ -3602,7 +3534,7 @@ class MainWindow(QMainWindow):
         frame_index = int(delta.total_seconds() * fps)
 
         # clamp sécurité
-        frame_index = max(0, min(frame_index, N - 1))
+        frame_index = max(0, min(frame_index, self.frames_video - 1))
 
         return frame_index
 
@@ -3613,10 +3545,9 @@ class MainWindow(QMainWindow):
         self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
         self.i += 1
         # ---- Auto stop recording at end of playback ----
-        if self.i >= N - 1 and self.recording:
+        if self.i >= self.frames_video - 1 and self.recording:
             self.toggle_recording(False)
             self.recording=False
-
 
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
