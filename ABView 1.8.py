@@ -35,8 +35,8 @@ from ver import __version__
 #CONFIG
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol16_2026_02_21.abv/"
-#BDL="data/Vol17_2026_03_20.abv/"
-#BDL="data/Vol18_2026_03_21.abv/"
+BDL="data/Vol17_2026_03_20.abv/"
+BDL="data/Vol18_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 INPUT_METAR = BDL + "metar.csv"
@@ -426,35 +426,26 @@ class ArtificialHorizon(QWidget):
         from PyQt5.QtGui import QPainter, QPen, QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-
         w = self.width();h = self.height()
         cx = w // 2;cy = h // 2
-
         painter.fillRect(self.rect(), Qt.transparent)
         painter.translate(cx, cy)
         painter.rotate(-self.bank)
-
         pitch_scale = 3
         pitch_offset = int(self.pitch * pitch_scale)
-
         painter.setBrush(QColor(80, 160, 255))
         painter.setPen(Qt.NoPen)
-
         # Large surfaces so the horizon never leaves the screen even inverted
         size = max(w, h) * 6
-
         # sky
         painter.drawRect(-size, -size + pitch_offset, size * 2, size)
-
         # ground
         painter.setBrush(QColor(160, 100, 40))
         painter.drawRect(-size, pitch_offset, size * 2, size)
-
         pen = QPen(QColor("white"))
         pen.setWidth(3)
         painter.setPen(pen)
         painter.drawLine(-w, pitch_offset, w, pitch_offset)
-
         # ---- Pitch reference lines (±10° ±20° ±30°) with EFIS ticks ----
         pen_ref = QPen(QColor("white"))
         pen_ref.setWidth(1)
@@ -462,37 +453,29 @@ class ArtificialHorizon(QWidget):
 
         for deg in (10, 20, 30,45, 60, 75, 90):
             offset = int(deg * pitch_scale)
-
             # longer line for 10°, shorter for others
             if deg <= 10:
                 half = w // 6
             else:
                 half = w // 12
-
             # +deg line
             y = pitch_offset - offset
             painter.drawLine(-half, y, half, y)
-
             # EFIS side ticks
             painter.drawLine(-half - 10, y, -half, y)
             painter.drawLine(half, y, half + 10, y)
-
             # numeric labels
             painter.drawText(-half - 40, y + 5, f"{deg}")
             painter.drawText(half + 15, y + 5, f"{deg}")
-
             # -deg line
             y = pitch_offset + offset
             painter.drawLine(-half, y, half, y)
-
             # EFIS side ticks
             painter.drawLine(-half - 10, y, -half, y)
             painter.drawLine(half, y, half + 10, y)
-
             # numeric labels
             painter.drawText(-half - 45, y + 5, f"-{deg}")
             painter.drawText(half + 15, y + 5, f"-{deg}")
-
         painter.resetTransform()
 
         if not self.show_triangle:
@@ -519,7 +502,6 @@ class ArtificialHorizon(QWidget):
             pen.setWidth(4)
             painter.setPen(pen)
             painter.drawPolygon(triangle)
-
         painter.end()
 
 
@@ -885,7 +867,6 @@ class MainWindow(QMainWindow):
         metar_row = find_metar_for_time(self.metar_df, t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
-
 
     def init_UI(self):
         # ---- UI ----
@@ -2582,9 +2563,6 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
 
-
-
-
     def update_gfx_orientation(self):
         #R = quat_to_rot(quats[self.i])
         row = self.row
@@ -3006,7 +2984,6 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
-
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
@@ -3032,7 +3009,6 @@ class MainWindow(QMainWindow):
 
     def calibrate_gfx_on_current_frame(self):
         self.calibrate_gfx(self.idf)
-
 
     def on_map_loaded(self, ok):
         if ok:
@@ -3063,27 +3039,20 @@ class MainWindow(QMainWindow):
     # ==================================================
     def main_loop(self):
         now = time.time()
-
         if self.last_frame_time is not None:
             dt = now - self.last_frame_time
             expected = 1.0 / self.target_fps
-
             if dt > expected * 1.5:  # seuil 50%
                 self.stutter_count += 1
                 print(f"⚠️ STUTTER dt={dt * 1000:.1f} ms")
-
         self.last_frame_time = now
-
         now = self.clock.elapsed()
-
         # initialize startup time once
         if self.startup_time_ms is None:
             self.startup_time_ms = now
-
         # initialize absolute schedule
         if self.next_frame_time == 0:
             self.next_frame_time = now
-
         if self.playing:
             # 🔊 audio ALWAYS runs
             self.update_audio()
@@ -3094,20 +3063,16 @@ class MainWindow(QMainWindow):
             else:
                 # temps cible dicté par l’audio
                 target_time = self.audio_clock_sec
-
                 # temps actuel vidéo
                 if self.current_video_time_utc is not None:
                     video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
                 else:
                     video_time = 0.0
-
                 # New sync logic with margin
                 margin = 0.05  # 50 ms tolerance
-
                 if video_time < target_time - margin:
                     # video late → catch up
                     self.update_all()
-
                 elif video_time > target_time + margin:
                     # video ahead → WAIT only if sync is stable
                     # after seek, allow video to move to avoid freeze
@@ -3115,14 +3080,11 @@ class MainWindow(QMainWindow):
                         pass
                     else:
                         self.update_all()
-
                 else:
                     # in sync → normal playback
                     self.update_all()
-
         # audio-driven → on tick très vite
         self.next_frame_time = now + 5
-
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -3171,7 +3133,6 @@ class MainWindow(QMainWindow):
         if not ok or name.strip() == "":
             return
         frame = int(self.i)
-
         # compute time since start of playback
         fps = float(self.stream1.average_rate)
         if fps <= 0:
@@ -3183,14 +3144,11 @@ class MainWindow(QMainWindow):
 
         new_row = pd.DataFrame([[time_str, name, frame]], columns=["time", "name", "frame"])
         self.bookmarks_df = pd.concat([self.bookmarks_df, new_row], ignore_index=True)
-
         # sort bookmarks by frame index
         self.bookmarks_df = self.bookmarks_df.sort_values("frame").reset_index(drop=True)
-
         self.save_bookmarks()
         self.refresh_bookmark_menu()
         self.update_bookmark_ticks()
-
 
     def reload_bookmarks(self):
         """Force reload of bookmark CSV file and refresh menu."""
@@ -3201,9 +3159,7 @@ class MainWindow(QMainWindow):
     # Centralized video seek (avoid repeating CAP_PROP_POS_FRAMES everywhere)
     # ==================================================
     def seek_video(self, frame):
-
         self.i = int(frame)
-
         # reset frame counter to avoid sync gating after seek
         if self.i < 5:
             self.i = int(frame)
@@ -3227,12 +3183,9 @@ class MainWindow(QMainWindow):
                 pass
 
         fps = float(self.stream1.average_rate)
-
         ts = int((frame / fps) / float(self.stream1.time_base))
-
         self.container1.seek(ts, stream=self.stream1)
         self.container2.seek(ts, stream=self.stream2)
-
         self.decoder1 = self.container1.decode(self.stream1)
         self.decoder2 = self.container2.decode(self.stream2)
 
@@ -3241,13 +3194,10 @@ class MainWindow(QMainWindow):
             try:
                 fps = float(self.stream1.average_rate)
                 ts_audio = int((frame / fps) / float(self.audio_stream.time_base))
-
                 # seek audio container
                 self.audio_container.seek(ts_audio, stream=self.audio_stream)
-
                 # recreate packet generator
                 self.audio_packets = self.audio_container.demux(self.audio_stream)
-
                 # clear buffered audio and restart buffering
                 self.audio_buffer = bytearray()
                 self.audio_clock_sec = 0.0
@@ -3265,7 +3215,6 @@ class MainWindow(QMainWindow):
     def goto_bookmark(self, frame):
         self.seek_video(frame)
         self.slider.setValue(self.i)
-
         # show bookmark overlay immediately when jumping to it
         if self.bookmarks_df is not None:
             row = self.bookmarks_df[self.bookmarks_df["frame"] == frame]
@@ -3276,32 +3225,25 @@ class MainWindow(QMainWindow):
     def goto_previous_bookmark(self):
         """Jump to the previous bookmark before the current frame.
         If called again within 2 seconds, jump one bookmark further back."""
-
         if self.bookmarks_df is None or self.bookmarks_df.empty:
             return
-
         import time
         now = time.time()
-
         # bookmarks before current frame
         past = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
-
         if past.empty:
             print("No previous bookmark")
             return
-
         # detect rapid consecutive press
         rapid = False
         if hasattr(self, "_last_prev_time"):
             if now - self._last_prev_time < 2.0:
                 rapid = True
-
         # choose which bookmark to jump to
         if rapid and len(past) >= 2:
             frame = int(past.iloc[-2]["frame"])
         else:
             frame = int(past.iloc[-1]["frame"])
-
         self._last_prev_time = now
         self.goto_bookmark(frame)
 
@@ -3373,7 +3315,6 @@ class MainWindow(QMainWindow):
     # time jump helpers
     # ==================================================
 
-
     def jump_back_10s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = max(0, int(self.i - fps * 10))
@@ -3433,98 +3374,70 @@ class MainWindow(QMainWindow):
     def update_audio(self):
         if self.audio_stream is None:
             return
-
         try:
             # 🔑 combien de place dispo dans le buffer audio OS
             if hasattr(self, "audio_output"):
                 bytes_free = max(self.audio_output.bytesFree(), 16384)
             else:
                 bytes_free = 16384
-
             # 🔑 on remplit un peu plus que nécessaire
             target_buffer = max(bytes_free * 4, 65536)
-
             # 🔑 décodage adaptatif
             while len(self.audio_buffer) < target_buffer:
                 packet = next(self.audio_packets)
-
                 for frame in packet.decode():
                     frames = self.audio_resampler.resample(frame)
-
                     if not isinstance(frames, (list, tuple)):
                         frames = [frames]
-
                     for f in frames:
                         if f is None:
                             continue
-
                         if f.pts is not None:
                             self.audio_clock_sec = float(f.pts * f.time_base)
-
                         self.audio_buffer += f.to_ndarray().tobytes()
-
         except StopIteration:
             return
         except Exception as e:
             print("audio error:", e)
             return
-
         # 🔊 écriture CONTINUE (critique)
         chunk_size = 8192
-
         if not hasattr(self, "audio_output"):
             return
-
         # ---- PREBUFFER (avoid stutter after start/seek) ----
         if not hasattr(self, "audio_prebuffer_done"):
             self.audio_prebuffer_done = False
-
         if not self.audio_prebuffer_done:
             if len(self.audio_buffer) < 65536:
                 return
             else:
                 self.audio_prebuffer_done = True
-
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
-
             if written <= 0:
                 break
-
             self.audio_buffer = self.audio_buffer[written:]
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
     def get_video_frame_from_df_index(self, df_index):
-        """
-        Calcule l'index frame vidéo à partir d'un index du dataframe.
-        Retourne l'index de frame correspondant dans la vidéo 1.
-        """
         if df_index < 0 or df_index >= self.frames_df:
             raise ValueError("df_index hors limites")
-
         # timestamp dataframe
         ts_df =self.df.timestamp.iloc[df_index]
-
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
-
         # delta par rapport au début vidéo 1
         delta = ts_video_utc - self.video1_start
-
         # récupération FPS vidéo
         fps = float(self.stream1.average_rate)
         if fps <= 0:
             fps = 30  # fallback sécurité
-
         # conversion en frame
         frame_index = int(delta.total_seconds() * fps)
-
         # clamp sécurité
         frame_index = max(0, min(frame_index, self.frames_video - 1))
-
         return frame_index
-
 
     # ==================================================
     def update_all(self):
@@ -3551,10 +3464,8 @@ class MainWindow(QMainWindow):
             for _, row_bm in self.bookmarks_df.iterrows():
                 frame = int(row_bm["frame"])
                 trigger_frame = frame - fps  # 1 second before
-
                 if self.i == trigger_frame:
                     name = str(row_bm["name"])
-
                     if frame != self.last_bookmark_frame:
                         self.show_bookmark_overlay(name)
                         self.last_bookmark_frame = frame
@@ -3564,16 +3475,13 @@ class MainWindow(QMainWindow):
             if self.current_video_time_utc is not None:
                 elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
-
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
                 s = total_sec % 60
-
                 if h > 0:
                     txt = f"{h:02d}:{m:02d}:{s:02d}"
                 else:
                     txt = f"{m:02d}:{s:02d}"
-
                 self.elapsed_time_overlay.setText(txt)
         except Exception:
             pass
@@ -3581,15 +3489,12 @@ class MainWindow(QMainWindow):
     # ==================================================
     def update_video(self, decoder, label, start_dt, stream):
         ret, frame, avframe = self.read_video_frame(decoder)
-
         if not ret:
             return
-
         ms = avframe.pts * float(stream.time_base) * 1000
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
         warmup_elapsed = 0 if self.startup_time_ms is None else (self.clock.elapsed() - self.startup_time_ms)
-
         if (
                 hasattr(self, "audio_clock_sec")
                 and self.audio_clock_sec > 0
@@ -3601,14 +3506,11 @@ class MainWindow(QMainWindow):
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
             sync_error = video_time_sec - self.audio_clock_sec
-
             sync_error = max(min(sync_error, 0.5), -0.5)
-
             # vidéo en avance → ne pas afficher
             if sync_error > 0.02:
                 # do not block display → avoid freeze
                 pass
-
             # vidéo en retard → skip
             if sync_error < -0.05:
                 try:
@@ -3650,11 +3552,9 @@ class MainWindow(QMainWindow):
 
         # cache dataframe row once per frame
         self.row =self.df.iloc[self.idf]
-
         self.slider.blockSignals(True)
         self.slider.setValue(self.i)
         self.slider.blockSignals(False)
-
         self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # ---- Elapsed time overlay update (compute txt here) ----
@@ -3662,16 +3562,13 @@ class MainWindow(QMainWindow):
             if self.current_video_time_utc is not None:
                 elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
-
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
                 s = total_sec % 60
-
                 if h > 0:
                     txt = f"{h:02d}:{m:02d}:{s:02d}"
                 else:
                     txt = f"{m:02d}:{s:02d}"
-
                 self.elapsed_time_overlay.setText(txt)
                 self.elapsed_time_overlay.adjustSize()
                 self._position_elapsed_time_overlay()
@@ -3682,21 +3579,18 @@ class MainWindow(QMainWindow):
         # ---- Previous bookmark overlay update ----
         try:
             if self.current_video_time_utc is not None and self.bookmarks_df is not None:
-                t = self.current_video_time_utc
+                #t = self.current_video_time_utc
                 df_b = self.bookmarks_df
-
                 # bookmarks passés uniquement
                 past = df_b[df_b["frame"] <= self.i]
                 if len(past) > 0:
                     last = past.iloc[-1]
                     name = str(last.get("name", last.get("label", "")))
-
                     self.prev_bookmark_overlay.setText(name)
                     self.prev_bookmark_overlay.show()
                     self.prev_bookmark_overlay.adjustSize()
                 else:
                     self.prev_bookmark_overlay.hide()
-
         except Exception:
             pass
 
@@ -3711,38 +3605,29 @@ class MainWindow(QMainWindow):
         """
         if df_index < 0 or df_index >= frames_df:
             raise ValueError("df_index hors limites")
-
         # timestamp dataframe
         ts_df =self.df.timestamp.iloc[df_index]
-
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
-
         # delta par rapport au début vidéo 1
         delta = ts_video_utc - self.video1_start
-
         # récupération FPS vidéo
         fps = float(self.stream1.average_rate)
         if fps <= 0:
             fps = 30  # fallback sécurité
-
         # conversion en frame
         frame_index = int(delta.total_seconds() * fps)
-
         # clamp sécurité
         frame_index = max(0, min(frame_index, N - 1))
-
         return frame_index
 
     # ==================================================
     def on_slider(self, value):
         # move both videos to the requested frame
         self.seek_video(value)
-
         # force an immediate refresh when paused
         if not self.playing:
             self.update_all()
-
         try:
             if self.map_ready:
                 self.map_view.page().runJavaScript("resetTrajectory();")
@@ -4094,7 +3979,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         event.accept()
-
 
     def detach_pyqtgraph_window(self):
         """Toggle detach/close for matplotlib GPS canvas."""
