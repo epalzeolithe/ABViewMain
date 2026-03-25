@@ -738,7 +738,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ABView Version "+__version__)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.resize(1600, 1000)
+        self.resize(1600, 1200)
 
         # ---- état ----
         self.load_dataframe(MERGED_DATA)
@@ -1126,7 +1126,26 @@ class MainWindow(QMainWindow):
         self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
 
-        self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
+        #self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
+        self.video2_date_label = QLabel("", self.video2)
+        self.video2_date_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
+        )
+        self.video2_date_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.video2_date_label.show()
+
+        ts0 = self.df.timestamp.iloc[0]
+        mois_fr = [
+            "janvier", "février", "mars", "avril", "mai", "juin",
+            "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+        ]
+
+        ts0 = self.df.timestamp.iloc[0]
+        text = f"{ts0.day} {mois_fr[ts0.month - 1]} {ts0.year}"
+
+        self.video2_date_label.setText(text)
+        self.video2_date_label.adjustSize()
+
 
         # ---- Elapsed time overlay (top center main window) ----
         self.elapsed_time_overlay = QLabel("", self.centralWidget())
@@ -1225,7 +1244,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_quitter)
 
         self.layout.addWidget(self.slider)
-        self.layout.addWidget(self.timestamp_label)
+        #self.layout.addWidget(self.timestamp_label)
         self.layout.addLayout(buttons_layout)
 
         # ---- Now load bookmarks and update ticks, after slider is created ----
@@ -2567,8 +2586,8 @@ class MainWindow(QMainWindow):
         self.df_info_label.raise_()
 
         # ---- Timestamp overlay (ensure multi-line support) ----
-        if hasattr(self, "timestamp_label"):
-            self.timestamp_label.setWordWrap(True)
+        #if hasattr(self, "timestamp_label"):
+        #    self.timestamp_label.setWordWrap(True)
 
         # ---- Pitch overlay (custom position) ----
         self.pitch_label = QLabel("Pitch:", self.gfx_canvas)
@@ -3041,6 +3060,11 @@ class MainWindow(QMainWindow):
             y_alt = y_fpm - self.video1_alt_label.height() - 5
             self.video1_alt_label.move(x_alt, y_alt)
 
+        if hasattr(self, "video2_date_label"):
+            self.video2_date_label.move(
+                self.video2.width() - self.video2_date_label.width() - 10,
+                self.video2.height() - self.video2_date_label.height() - 10
+            )
 
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
@@ -3657,7 +3681,7 @@ class MainWindow(QMainWindow):
         self.slider.blockSignals(True)
         self.slider.setValue(self.i)
         self.slider.blockSignals(False)
-        self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
+        #self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # ---- Elapsed time overlay update (compute txt here) ----
         try:
