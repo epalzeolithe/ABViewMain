@@ -677,23 +677,17 @@ class AnalogAltimeter(QWidget):
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
-
     def trace_plus(self):
         global TRACE
         TRACE += 2000
-
     def trace_minus(self):
         global TRACE
         if TRACE - 2000 >= 1000:
             TRACE -= 2000
-
     def reset_trace(self):
         global TRACE
         TRACE = TRACE_DEFAULT
 
-    # ======================================================
-    # Metar Match
-    # ======================================================
     def find_metar_for_time(self, t):
         idx = self.metar_df["time"].searchsorted(t)
         if idx == 0:
@@ -707,9 +701,6 @@ class MainWindow(QMainWindow):
         else:
             return after
 
-    # ======================================================
-    # DataFrame
-    # ======================================================
     def load_dataframe(self, file):
         # ---- ensure merged CSV exists before loading ----
         if not os.path.exists(file):
@@ -847,6 +838,8 @@ class MainWindow(QMainWindow):
 
         self.init_gfx()
         self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
+
+        self.compute_g_signed()
 
         # ---- realtime timer (compensated loop) ----
         self.target_fps = 30
@@ -1265,6 +1258,53 @@ class MainWindow(QMainWindow):
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
+    def compute_g_signed(self):
+        theta_x = np.deg2rad(self.montage_pitch_angle)
+        R_x_20 = np.array([
+            [1, 0, 0],
+            [0, np.cos(theta_x), -np.sin(theta_x)],
+            [0, np.sin(theta_x),  np.cos(theta_x)]
+        ])
+
+        down_original = np.array([0.0, 0.0, -1.0])
+
+        # ---- Acceleration vector (N x 3) ----
+        acc = np.column_stack((
+            -self.df["x4_acc_x"].to_numpy(),
+            -self.df["x4_acc_y"].to_numpy(),
+            -self.df["x4_acc_z"].to_numpy()
+        ))
+
+        # norme (G)
+        acc_norm = np.linalg.norm(acc, axis=1)
+        self.df["g_force"] = acc_norm / 9.81
+
+        # éviter division par 0
+        acc_norm_safe = np.where(acc_norm == 0, 1, acc_norm)
+
+        # vecteurs unitaires
+        acc_unit = acc / acc_norm_safe[:, None]
+
+        # ---- rotation (attention: vectorisation) ----
+        R_total = R_x_20 @ perm[R_recalage_repere]
+
+        # appliquer rotation à tous les vecteurs
+        acc_vec = (R_total @ acc_unit.T).T  # (N,3)
+
+        # ---- angle avec verticale ----
+        dot = np.einsum("ij,j->i", acc_vec, down_original)
+        norm_acc = np.linalg.norm(acc_vec, axis=1)
+        cos_theta = dot / norm_acc
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+
+        angles = np.degrees(np.arccos(cos_theta))
+
+        # signe du G
+        g_signed = self.df["g_force"].to_numpy().copy()
+        g_signed[angles > 90] *= -1
+
+        self.df["g_signed"] = g_signed
+
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
         if not hasattr(self, "slider"):
@@ -1350,9 +1390,6 @@ class MainWindow(QMainWindow):
             self.prev_bookmark_overlay.move(bx, by)
             self.prev_bookmark_overlay.raise_()
 
-    # ==================================================
-    # Screen recording using macOS ScreenCaptureKit (PyObjC)
-    # ==================================================
     def toggle_recording(self, checked):
         import os
         try:
