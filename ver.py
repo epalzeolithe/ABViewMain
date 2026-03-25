@@ -18,3 +18,5 @@ __version_commit__ = get_git_version()
 import re
 match = re.search(r"^\d+\.\d+\.\d+", __version_commit__)
 __version__ = match.group() if match else "0.0.0"
+
+# MAJOR.MINOR.PATCH

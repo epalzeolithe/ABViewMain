@@ -1,13 +1,82 @@
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QImage
-# === ADD THIS CLASS (near VideoYUVWidget or replace it entirely) ===
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
-from PyQt5.QtCore import Qt
 import OpenGL.GL as gl
 import pyqtgraph.opengl as glpg
+from stl import mesh
+import math
+import sys
+from datetime import datetime, timedelta, timezone
+import os
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+os.environ["QT_LOGGING_RULES"] = "*.warning=false"
+import av
+import time
+import numpy as np
+import pandas as pd
+import pygfx as gfx
+from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
+from PyQt5.QtGui import QImage, QPixmap,QKeySequence
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
+from PyQt5.QtWidgets import (
+    QShortcut,   QApplication,
+    QMainWindow,
+    QWidget,
+    QLabel,
+    QFrame,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QAction,
+    QSlider,
+    QSizePolicy,
+    QInputDialog)
+from pymediainfo import MediaInfo
+
+# ======================================================
+# ScreenCaptureKit sample buffer handler
+# ======================================================
+import CoreMedia
+import AVFoundation
+import ScreenCaptureKit
+from Cocoa import NSObject
+import objc
+# silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
+import warnings
+from objc import ObjCPointerWarning
+
+from ver import __version__
 
 
+#***********************************************
+#CONFIG
+MAINDIR="/Users/drax/Down/ABViewMain/"
+BDL="data/Vol16_2026_02_21.abv/"
+#BDL="data/Vol17_2026_03_20.abv/"
+#BDL="data/Vol18_2026_03_21.abv/"
+PDL=MAINDIR+BDL
+MERGED_DATA = PDL+"merged_data.csv"
+INPUT_METAR = BDL + "metar.csv"
+VIDEO1=PDL+"front.mp4"
+VIDEO2=PDL+"back.mp4"
+BOOKMARK_FILE=PDL+"bookmark.csv"
+STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
+STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
+BOX = 0.007*1.5 # taille box vision en °latitude
+DF_FREQ = 100
+TRACE = 6000 # taille de la trace 6000=1 minute
+TRACE_DEFAULT = TRACE
+TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
+TRACE_SLICING_FACTOR = 50
+VITESSE_MISE_EN_LIGNE = 80 #km/h
+PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
+OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
+R_recalage_repere=3 # données issues BB
+#R_recalage_repere=1 # données issues computed VQF
+refcam=[0,0,1] # données issues de BB
+#refcam=[0,0,-1] # données issues computed VQF
 
 class VideoYUVOpenGLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
@@ -218,144 +287,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
     def setScaledContents(self, *args): pass
     def setPixmap(self, *args): pass
 
-
-# ---- VideoYUVWidget: QWidget for direct YUV/RGB frame display ----
-class VideoYUVWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.frame = None
-
-    def setFrame(self, frame):
-        self.frame = frame
-        self.update()
-
-    # Compatibility with QLabel API used elsewhere
-    def setScaledContents(self, enabled):
-        # QWidget does not need this, ignore
-        pass
-
-    def setPixmap(self, pixmap):
-        # Not used in this widget, ignore to avoid crashes
-        pass
-
-    def paintEvent(self, event):
-        if self.frame is None:
-            return
-
-        try:
-            frame = self.frame
-
-            # 👉 accepte tous les formats YUV (yuv420p, yuvj420p, nv12, etc.)
-            fmt = (frame.format.name or "").lower()
-
-            if "yuv" in fmt:
-                frame = frame.reformat(format="rgb24")
-                print("Frame reformat!!!")
-            elif frame.format.name != "rgb24":
-                frame = frame.to_rgb()
-                print("Frame reformat!!!")
-
-            plane = frame.planes[0]
-
-            img = QImage(
-                plane,
-                frame.width,
-                frame.height,
-                plane.line_size,
-                QImage.Format_RGB888
-            )
-
-            painter = QPainter(self)
-            painter.drawImage(self.rect(), img)
-
-        except Exception as e:
-            print("paint error:", e)
-
-from stl import mesh
-
-import math
-import sys
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
-
-# ---- Enable HiDPI scaling via environment variables BEFORE Qt loads ----
-import os
-os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-os.environ["QT_LOGGING_RULES"] = "*.warning=false"
-import av
-import time
-import numpy as np
-import pandas as pd
-import pygfx as gfx
-from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (
-    QShortcut,   QApplication,
-    QMainWindow,
-    QWidget,
-    QLabel,
-    QFrame,
-    QPushButton,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGridLayout,
-    QAction,
-    QSlider,
-    QSizePolicy,
-    QInputDialog
-)
-from pymediainfo import MediaInfo
-
-from PyQt5.QtGui import QKeySequence
-
-
-# ======================================================
-# ScreenCaptureKit sample buffer handler
-# ======================================================
-import CoreMedia
-import AVFoundation
-import ScreenCaptureKit
-from Cocoa import NSObject
-import objc
-# silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
-import warnings
-from objc import ObjCPointerWarning
-
-
-from ver import __version__
-
-
-#***********************************************
-#CONFIG
-# MAJOR.MINOR.PATCH
-MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol16_2026_02_21.abv/"
-#BDL="data/Vol17_2026_03_20.abv/"
-#BDL="data/Vol18_2026_03_21.abv/"
-PDL=MAINDIR+BDL
-MERGED_DATA = PDL+"merged_data.csv"
-VIDEO1=PDL+"front.mp4"
-VIDEO2=PDL+"back.mp4"
-BOOKMARK_FILE=PDL+"bookmark.csv"
-STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
-STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
-BOX = 0.007*1.5 # taille box vision en °latitude
-DF_FREQ = 100
-TRACE = 6000 # taille de la trace 6000=1 minute
-TRACE_DEFAULT = TRACE
-TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
-TRACE_SLICING_FACTOR = 50
-VITESSE_MISE_EN_LIGNE = 80 #km/h
-PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
-OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
-R_recalage_repere=3 # données issues BB
-#R_recalage_repere=1 # données issues computed VQF
-refcam=[0,0,1] # données issues de BB
-#refcam=[0,0,-1] # données issues computed VQF
-
 warnings.filterwarnings("ignore", category=ObjCPointerWarning)
 
 class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
@@ -437,47 +368,16 @@ def get_mp4_creation_datetime(path):
     raise RuntimeError(f"Date de création MP4 introuvable : {path}")
 
 # ======================================================
-# DataFrame
+# Metar Match
 # ======================================================
-import os
-
-# ---- ensure merged CSV exists before loading ----
-if not os.path.exists(MERGED_DATA):
-    print("ERROR: merged data file not found:")
-    print("  ", MERGED_DATA)
-    print("Current working directory:", os.getcwd())
-    print("Hint: verify that the merged CSV was generated or that the 'data' folder path is correct.")
-    sys.exit(1)
-
-df = pd.read_csv(MERGED_DATA, low_memory=False)
-df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", utc=True)
-df = df.sort_values("timestamp").reset_index(drop=True)
-frames_df = len(df)
-
-# ---- numpy caches for fast access inside the realtime loop ----
-gps_lat_vals = df["gps_lat"].to_numpy()
-gps_lon_vals = df["gps_lon"].to_numpy()
-gps_alt_vals = df["gps_alt"].to_numpy()
-timestamp_vals = df["timestamp"].to_numpy()
-
-INPUT_METAR = BDL + "metar.csv"
-metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
-#metar_df["time"] = pd.to_datetime(metar_df["time"])
-metar_df["time"] = pd.to_datetime(metar_df["time"], format="mixed", utc=True)
-
 def find_metar_for_time(df, t):
-
     idx = df["time"].searchsorted(t)
-
     if idx == 0:
         return df.iloc[0]
-
     if idx >= len(df):
         return df.iloc[-1]
-
     before = df.iloc[idx - 1]
     after = df.iloc[idx]
-
     if abs(t - before.time) < abs(after.time - t):
         return before
     else:
@@ -493,15 +393,6 @@ frames_video = stream_probe.frames
 N = frames_video
 container_probe.close()
 
-# ======================================================
-# TOP remarquables
-# ======================================================
-mask = df['gps_speed'] > VITESSE_MISE_EN_LIGNE
-index_enligne_devol= mask.idxmax()
-mask = df['gps_alt'] > 3000
-index_entree_3000= mask.idxmax()
-gps_max_alt = round(df['gps_alt'].max())
-print("Max Alt : ",gps_max_alt)
 # ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
@@ -537,8 +428,6 @@ perm = np.array([
 [[ 0, 0,-1],[ 0, 1, 0],[ 1, 0, 0]],
 [[ 0, 0,-1],[-1, 0, 0],[ 0, 1, 0]],
 [[ 0, 0,-1],[ 0,-1, 0],[-1, 0, 0]]])
-
-
 
 def angle_between(u, v):
     u = np.array(u);
@@ -894,6 +783,43 @@ class MainWindow(QMainWindow):
     def reset_trace(self):
         global TRACE
         TRACE = TRACE_DEFAULT
+
+    # ======================================================
+    # DataFrame
+    # ======================================================
+    def load_dataframe(self, file):
+        # ---- ensure merged CSV exists before loading ----
+        if not os.path.exists(file):
+            print("ERROR: merged data file not found:")
+            print("  ", file)
+            print("Current working directory:", os.getcwd())
+            print("Hint: verify that the merged CSV was generated or that the 'data' folder path is correct.")
+            sys.exit(1)
+
+        self.df = pd.read_csv(MERGED_DATA, low_memory=False)
+        self.df["timestamp"] = pd.to_datetime(self.df["timestamp"], format="mixed", utc=True)
+        self.df = self.df.sort_values("timestamp").reset_index(drop=True)
+        self.frames_df = len(self.df)
+
+        # ---- numpy caches for fast access inside the realtime loop ----
+        self.gps_lat_vals = self.df["gps_lat"].to_numpy()
+        self.gps_lon_vals = self.df["gps_lon"].to_numpy()
+        self.gps_alt_vals = self.df["gps_alt"].to_numpy()
+        self.timestamp_vals = self.df["timestamp"].to_numpy()
+
+        self.metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+        self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
+
+        # ======================================================
+        # TOP remarquables
+        # ======================================================
+        mask = self.df['gps_speed'] > VITESSE_MISE_EN_LIGNE
+        self.index_enligne_devol = mask.idxmax()
+        mask = self.df['gps_alt'] > 3000
+        selfindex_entree_3000 = mask.idxmax()
+        self.gps_max_alt = round(self.df['gps_alt'].max())
+        print("Max Alt : ", self.gps_max_alt)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ABView Version "+__version__)
@@ -901,6 +827,7 @@ class MainWindow(QMainWindow):
         self.resize(1600, 1000)
 
         # ---- état ----
+        self.load_dataframe(MERGED_DATA)
         self.i = 0
         self.idf = 0
         self.playing = True
@@ -964,7 +891,7 @@ class MainWindow(QMainWindow):
         self.decoder2 = self.container2.decode(self.stream2)
         self.video1_start = get_mp4_creation_datetime(self.video1_path)
         self.video2_start = get_mp4_creation_datetime(self.video2_path)
-        self.video_df_offset = df.timestamp.iloc[0] - self.video1_start # 🔑 OFFSET TEMPOREL (clé du problème)
+        self.video_df_offset =self.df.timestamp.iloc[0] - self.video1_start # 🔑 OFFSET TEMPOREL (clé du problème)
 
         self.recording=False
 
@@ -1021,8 +948,8 @@ class MainWindow(QMainWindow):
         self.timer.start(1)  # controlled manually
 
         # Metar management
-        t_start = df['timestamp'][0]
-        metar_row = find_metar_for_time(metar_df, t_start)
+        t_start = self.df['timestamp'][0]
+        metar_row = find_metar_for_time(self.metar_df, t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
 
@@ -1154,8 +1081,6 @@ class MainWindow(QMainWindow):
         self.grid.setColumnStretch(2, 1)
         self.grid.setColumnStretch(3, 1)
 
-        #self.video1 = VideoYUVWidget(self)
-        #self.video2 = VideoYUVWidget(self)
         self.video1 = VideoYUVOpenGLWidget(self)
         self.video2 = VideoYUVOpenGLWidget(self)
         # ---- GPS heading overlay on video1 (top center, text sized) ----
@@ -1767,8 +1692,8 @@ class MainWindow(QMainWindow):
         self.map_ready = False
         self.map_view = QWebEngineView()
         # HTML Leaflet avec OpenStreetMap
-        lat0 = df.gps_lat.iloc[0]
-        lon0 = df.gps_lon.iloc[0]
+        lat0 =self.df.gps_lat.iloc[0]
+        lon0 =self.df.gps_lon.iloc[0]
         self.map_view.setHtml(f"""
                 <!DOCTYPE html>
                 <html>
@@ -2133,7 +2058,7 @@ class MainWindow(QMainWindow):
 
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
-        altitude_scale = list(range(0, max(5500, int(math.ceil(gps_max_alt / 500) * 500)) + 500, 500))
+        altitude_scale = list(range(0, max(5500, int(math.ceil(self.gps_max_alt / 500) * 500)) + 500, 500))
 
         for z in altitude_scale:
             label = QLabel(f"{z}ft", self.gps_view)
@@ -2295,7 +2220,7 @@ class MainWindow(QMainWindow):
         top = 10
         height = self.gps_view.height() - 20
 
-        max_alt = int(gps_max_alt / 500 + 1) * 500
+        max_alt = int(self.gps_max_alt / 500 + 1) * 500
 
         # position altitude bar near the right edge
         bar_x = self.gps_view.width() - 60
@@ -2953,8 +2878,8 @@ class MainWindow(QMainWindow):
 
         # ---- Update dataframe info label ----
         # compute elapsed time since start of dataset
-        t0 = df.timestamp.iloc[0]
-        t_now = df.timestamp.iloc[self.idf]
+        t0 =self.df.timestamp.iloc[0]
+        t_now =self.df.timestamp.iloc[self.idf]
         elapsed = t_now - t0
         elapsed_s = int(elapsed.total_seconds())
         em = elapsed_s // 60
@@ -3152,9 +3077,9 @@ class MainWindow(QMainWindow):
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
-        end = min(len(df), where + 50)
+        end = min(len(self.df), where + 50)
 
-        acc = df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
+        acc =self.df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
         grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
         self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
@@ -3541,7 +3466,7 @@ class MainWindow(QMainWindow):
         self.slider.setValue(self.i)
 
     def goto_mise_en_ligne(self):
-        self.seek_video(self.get_video_frame_from_df_index(index_enligne_devol))
+        self.seek_video(self.get_video_frame_from_df_index(self.index_enligne_devol))
         self.slider.setValue(self.i)
 
     def seek_palier(self):
@@ -3554,12 +3479,12 @@ class MainWindow(QMainWindow):
 
         window = int(DF_FREQ * 2)  # 2 secondes
 
-        fpm = df["gps_fpm"].to_numpy()
-        speed = df["gps_speed"].to_numpy()
+        fpm = self.df["gps_fpm"].to_numpy()
+        speed = self.df["gps_speed"].to_numpy()
 
         # start searching AFTER the current dataframe position (next palier behavior)
         start_idx = getattr(self, "idf", 0) + 1000
-        for i in range(start_idx, len(df) - window):
+        for i in range(start_idx, len(self.df) - window):
 
             seg_fpm = fpm[i:i + window]
             seg_speed = speed[i:i + window]
@@ -3656,11 +3581,11 @@ class MainWindow(QMainWindow):
         Calcule l'index frame vidéo à partir d'un index du dataframe.
         Retourne l'index de frame correspondant dans la vidéo 1.
         """
-        if df_index < 0 or df_index >= frames_df:
+        if df_index < 0 or df_index >= self.frames_df:
             raise ValueError("df_index hors limites")
 
         # timestamp dataframe
-        ts_df = df.timestamp.iloc[df_index]
+        ts_df =self.df.timestamp.iloc[df_index]
 
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
@@ -3719,7 +3644,7 @@ class MainWindow(QMainWindow):
         # ---- Elapsed time overlay update ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
 
                 h = total_sec // 3600
@@ -3794,19 +3719,19 @@ class MainWindow(QMainWindow):
     # ==================================================
     def sync_dataframe_on_video(self):
         ts = self.current_video_time_utc + self.video_df_offset
-        idx = df["timestamp"].searchsorted(ts)
+        idx = self.df["timestamp"].searchsorted(ts)
 
         if idx <= 0:
             self.idf = 0
-        elif idx >= frames_df:
-            self.idf = frames_df - 1
+        elif idx >= self.frames_df:
+            self.idf = self.frames_df - 1
         else:
-            before = df.timestamp.iloc[idx - 1]
-            after = df.timestamp.iloc[idx]
+            before =self.df.timestamp.iloc[idx - 1]
+            after =self.df.timestamp.iloc[idx]
             self.idf = idx - 1 if abs(ts - before) <= abs(after - ts) else idx
 
         # cache dataframe row once per frame
-        self.row = df.iloc[self.idf]
+        self.row =self.df.iloc[self.idf]
 
         self.slider.blockSignals(True)
         self.slider.setValue(self.i)
@@ -3817,7 +3742,7 @@ class MainWindow(QMainWindow):
         # ---- Elapsed time overlay update (compute txt here) ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
 
                 h = total_sec // 3600
@@ -3870,7 +3795,7 @@ class MainWindow(QMainWindow):
             raise ValueError("df_index hors limites")
 
         # timestamp dataframe
-        ts_df = df.timestamp.iloc[df_index]
+        ts_df =self.df.timestamp.iloc[df_index]
 
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
@@ -3945,13 +3870,13 @@ class MainWindow(QMainWindow):
             start = 0
 
         # center trajectory on current aircraft position
-        lon = gps_lon_vals[start:end]
-        lat = gps_lat_vals[start:end]
-        alt = gps_alt_vals[start:end]
+        lon = self.gps_lon_vals[start:end]
+        lat = self.gps_lat_vals[start:end]
+        alt = self.gps_alt_vals[start:end]
 
-        lon0 = gps_lon_vals[end]
-        lat0 = gps_lat_vals[end]
-        alt0 = gps_alt_vals[end]
+        lon0 = self.gps_lon_vals[end]
+        lat0 = self.gps_lat_vals[end]
+        #alt0 = self.gps_alt_vals[end]
 
         # convert degrees to approximate meters
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
@@ -4008,7 +3933,7 @@ class MainWindow(QMainWindow):
                 line.setData(pos=pts_off, color=colors)
 
 
-        if end < len(gps_lat_vals):
+        if end < len(self.gps_lat_vals):
             # aircraft stays at center
 
             # ---- rotation using Euler angles (heading, pitch, roll) ----
@@ -4399,6 +4324,7 @@ if __name__ == "__main__":
     """)
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
+
     win = MainWindow()
     win.show()
     caffeinate.terminate()
