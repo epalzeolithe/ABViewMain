@@ -3095,7 +3095,7 @@ class MainWindow(QMainWindow):
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
-        end = min(len(self.df), where + 50)
+        end = min(self.frames_df, where + 50)
 
         acc =self.df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
         grav = np.mean(acc, axis=0)
@@ -3450,7 +3450,7 @@ class MainWindow(QMainWindow):
         speed = self.df["gps_speed"].to_numpy()
         # start searching AFTER the current dataframe position (next palier behavior)
         start_idx = getattr(self, "idf", 0) + 1000
-        for i in range(start_idx, len(self.df) - window):
+        for i in range(start_idx, self.frames_df - window):
             seg_fpm = fpm[i:i + window]
             seg_speed = speed[i:i + window]
             if np.all(np.abs(seg_fpm) < 150) and np.all(seg_speed > 150):
@@ -3555,6 +3555,7 @@ class MainWindow(QMainWindow):
         self.update_gps_pyqtgraph()
         self.update_metar()
         self.update_gfx_orientation()
+        self.update_g_timeline_cursor()
 
         if self.bookmarks_df is not None and not self.bookmarks_df.empty:
             fps = float(self.stream1.average_rate)
@@ -3722,6 +3723,15 @@ class MainWindow(QMainWindow):
         frame_index = max(0, min(frame_index, N - 1))
         return frame_index
 
+    def update_g_timeline_cursor(self):
+        x = int(self.idf / self.frames_df * self.g_timeline.width())
+        if not hasattr(self, "g_timeline_cursor"):
+            self.g_timeline_cursor = QFrame(self.g_timeline)
+            self.g_timeline_cursor.setStyleSheet("background-color: black;")
+            self.g_timeline_cursor.setGeometry(0, 0, 2, self.g_timeline.height())
+            self.g_timeline_cursor.show()
+        self.g_timeline_cursor.move(x, 0)
+
     # ==================================================
     def on_slider(self, value):
         # move both videos to the requested frame
@@ -3734,30 +3744,6 @@ class MainWindow(QMainWindow):
                 self.map_view.page().runJavaScript("resetTrajectory();")
         except Exception:
             pass
-        if hasattr(self, "g_timeline") and self.g_timeline.pixmap():
-            w = self.g_timeline.width()
-            n = len(self.df)
-
-            if n > 0:
-                # value = video frame index, need to convert to dataframe index
-                if hasattr(self, "idf"):
-                    x = int(self.idf / n * w)
-                else:
-                    x = int(value / n * w)
-
-                # ensure dataframe index is up to date when scrubbing
-                try:
-                    self.sync_dataframe_on_video()
-                except Exception:
-                    pass
-
-                if not hasattr(self, "g_timeline_cursor"):
-                    self.g_timeline_cursor = QFrame(self.g_timeline)
-                    self.g_timeline_cursor.setStyleSheet("background-color: black;")
-                    self.g_timeline_cursor.setGeometry(0, 0, 2, self.g_timeline.height())
-                    self.g_timeline_cursor.show()
-
-                self.g_timeline_cursor.move(x, 0)
 
     def update_gps_pyqtgraph(self):
         # skip updates only during playback
