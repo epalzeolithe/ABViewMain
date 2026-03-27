@@ -6,6 +6,28 @@ from netCDF4 import Dataset
 #url: https://cds.climate.copernicus.eu/api
 #key: 3fbb3d97-320a-43d3-bb61-43a3ab32216b
 
+from pathlib import Path
+
+def create_cdsapirc(api_key: str):
+    home = Path.home()
+    file_path = home / ".cdsapirc"
+
+    content = (
+        "url: https://cds.climate.copernicus.eu/api\n"
+        f"key: {api_key}\n"
+    )
+
+    with open(file_path, "w") as f:
+        f.write(content)
+
+    print(f"Fichier créé : {file_path}")
+    # Home/.cdsapirc
+    # url: https://cds.climate.copernicus.eu/api
+    # key: 3fbb3d97-320a-43d3-bb61-43a3ab32216b
+
+
+create_cdsapirc("3fbb3d97-320a-43d3-bb61-43a3ab32216b")
+
 # =========================
 # PARAMETRES
 # =========================
@@ -17,12 +39,17 @@ time = "09:00"
 
  # niveaux correspondant aux altitudes demandées
 pressure_levels = {
+    "0ft": "1000",
+    "1000ft": "975",
+    "2000ft": "950",
     "3000ft": "925",
     "4000ft": "900",
     "5000ft": "850",
+    "6000ft": "825",
+    "7000ft": "800",
 }
 
-output_file = "wind_era5.nc"
+output_file = "data/raw/temp/wind_era5.nc"
 
 # =========================
 # TELECHARGEMENT ERA5
@@ -63,6 +90,8 @@ u_all = ds.variables["u"][0, :, :, :]  # tous niveaux
 v_all = ds.variables["v"][0, :, :, :]
 # ERA5 utilise 'pressure_level' comme nom de variable
 levels = ds.variables["pressure_level"][:]
+
+print(levels)
 
 lats = ds.variables["latitude"][:]
 lons = ds.variables["longitude"][:]
