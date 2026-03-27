@@ -14,8 +14,14 @@ import pandas as pd
 from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
 from pathlib import Path
-
 import requests
+import cdsapi
+import numpy as np
+from netCDF4 import Dataset
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+
 
 # -------- SUBPROCESS STREAM (REAL-TIME) --------
 def run_cmd_stream(cmd):
@@ -73,13 +79,11 @@ class Worker(QThread):
     def run(self):
         try:
             main()
-            if CONSOLE_WINDOW:
-                print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
+            print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
             self.finished_signal.emit(True)
         except Exception as e:
             print("\nErreur :", e)
-            if CONSOLE_WINDOW:
-                print("Appuyez sur une touche dans la fenêtre pour fermer...")
+            print("Appuyez sur une touche dans la fenêtre pour fermer...")
             self.finished_signal.emit(False)
 
 def get_last_two_insv_files(directory):
@@ -449,15 +453,6 @@ def find_metar_for_time(df, t):
     else:
         return after
 
-
-import cdsapi
-import numpy as np
-from netCDF4 import Dataset
-import pandas as pd
-from pathlib import Path
-from datetime import datetime
-
-
 def create_cdsapirc(api_key: str):
     home = Path.home()
     file_path = home / ".cdsapirc"
@@ -530,6 +525,124 @@ def get_wind(lat, lon, dt: datetime):
     ds.close()
     df = pd.DataFrame(results)
     return df
+
+# =========================
+# ADD WIND FUNCTION
+# =========================
+def add_wind(merged):
+
+    box_lat = 43.475
+    box_lon = 3.8328
+    runway_lat = 43.572
+    runway_lon = 3.957
+
+    ts_local = pd.to_datetime(merged["timestamp"].iloc[0])
+    ts_utc = ts_local.tz_localize("Europe/Paris").tz_convert("UTC")
+    ts = ts_utc.floor("h").tz_localize(None)
+    dt = ts.to_pydatetime()
+    print(dt)
+
+    df_wind_box = get_wind(box_lat, box_lon, dt)
+    df_wind_runway = get_wind(runway_lat, runway_lon, dt)
+
+    print(df_wind_box)
+    print(df_wind_runway)
+
+    def haversine_vec(lat1, lon1, lat2, lon2):
+        R = 6371e3
+        phi1 = np.radians(lat1)
+        phi2 = np.radians(lat2)
+        dphi = np.radians(lat2 - lat1)
+        dlambda = np.radians(lon2 - lon1)
+        a = np.sin(dphi / 2) ** 2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda / 2) ** 2
+        return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+    def prepare_wind_df(df):
+        df = df.copy()
+        df["alt_ft"] = df["wind_altitude"].str.replace("ft", "").astype(int)
+        return df.sort_values("alt_ft")
+
+    df_wind_box_p = prepare_wind_df(df_wind_box)
+    df_wind_runway_p = prepare_wind_df(df_wind_runway)
+
+    lat_arr = merged["gps_lat"].to_numpy()
+    lon_arr = merged["gps_lon"].to_numpy()
+    alt_arr = merged["gps_alt"].to_numpy()
+
+    d_box = haversine_vec(lat_arr, lon_arr, box_lat, box_lon)
+    d_runway = haversine_vec(lat_arr, lon_arr, runway_lat, runway_lon)
+
+    use_box = d_box < d_runway
+
+    def extract_arrays(df):
+        return (
+            df["alt_ft"].to_numpy(),
+            df["wind_speed"].to_numpy(),
+            np.radians(df["wind_direction"].to_numpy())
+        )
+
+    alt_b, spd_b, dir_b = extract_arrays(df_wind_box_p)
+    alt_r, spd_r, dir_r = extract_arrays(df_wind_runway_p)
+
+    alt_clamped = np.clip(alt_arr, min(alt_b.min(), alt_r.min()), max(alt_b.max(), alt_r.max()))
+
+    speed_box = np.interp(alt_clamped, alt_b, spd_b)
+    speed_runway = np.interp(alt_clamped, alt_r, spd_r)
+
+    def interp_dir(altitudes, dirs_rad, alt_vals):
+        sin_comp = np.sin(dirs_rad)
+        cos_comp = np.cos(dirs_rad)
+        sin_i = np.interp(alt_vals, altitudes, sin_comp)
+        cos_i = np.interp(alt_vals, altitudes, cos_comp)
+        return (np.degrees(np.arctan2(sin_i, cos_i)) + 360) % 360
+
+    dir_box = interp_dir(alt_b, dir_b, alt_clamped)
+    dir_runway = interp_dir(alt_r, dir_r, alt_clamped)
+
+    era5_speed = np.where(use_box, speed_box, speed_runway)
+    era5_dir = np.where(use_box, dir_box, dir_runway)
+
+    merged["era5_wind_speed"] = era5_speed
+    merged["era5_wind_direction"] = era5_dir
+
+    return merged
+
+# =========================
+# ADD IAS FUNCTION
+# =========================
+def add_ias(merged):
+
+    # arrays
+    speed = merged["gps_speed"].to_numpy(dtype=float)
+    heading = merged["gps_heading"].to_numpy(dtype=float)
+    wind_speed = merged["era5_wind_speed"].to_numpy(dtype=float)
+    wind_dir = merged["era5_wind_direction"].to_numpy(dtype=float)
+
+    # handle NaN safely
+    valid = ~np.isnan(speed) & ~np.isnan(heading) & ~np.isnan(wind_speed) & ~np.isnan(wind_dir)
+
+    # init result
+    ias = np.full_like(speed, np.nan)
+
+    # compute only valid values
+    rel_angle = np.radians(wind_dir[valid] - heading[valid])
+
+    # wind direction is FROM, so headwind positive when cos(angle) > 0
+    headwind = wind_speed[valid] * np.cos(rel_angle)
+
+    # condition: only apply wind correction if speed >= 50
+    valid_fast = valid.copy()
+    valid_fast[valid] = speed[valid] >= 50
+
+    # default: IAS = ground speed
+    ias[valid] = speed[valid]
+
+    # apply correction only for fast points
+    ias[valid_fast] = speed[valid_fast] + headwind[ speed[valid] >= 50 ]
+
+    merged["gps_ias"] = ias
+
+    return merged
 
 def main():
 
@@ -671,89 +784,8 @@ def main():
     else:
         merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
 
-    # put wind
-    box_lat = 43.475
-    box_lon = 3.8328
-    runway_lat = 43.572
-    runway_lon = 3.957
-    ##dt = datetime(2026, 3, 20, 9, 0)
-    ts = pd.to_datetime(merged["timestamp"].iloc[0]).floor("h")
-    dt = ts.to_pydatetime()
-    print(dt)
-    df_wind_box = get_wind(box_lat, box_lon, dt)
-    df_wind_runway = get_wind(runway_lat, runway_lon, dt)
-    print(df_wind_box)
-    print(df_wind_runway)
-
-    # =========================
-    # WIND INTERPOLATION PER ROW
-    # =========================
-
-    def haversine(lat1, lon1, lat2, lon2):
-        R = 6371e3  # Earth radius (m)
-        phi1 = np.radians(lat1)
-        phi2 = np.radians(lat2)
-        dphi = np.radians(lat2 - lat1)
-        dlambda = np.radians(lon2 - lon1)
-        a = np.sin(dphi / 2) ** 2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda / 2) ** 2
-        return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-
-    # convert altitude labels to numeric ft
-    def prepare_wind_df(df):
-        df = df.copy()
-        df["alt_ft"] = df["wind_altitude"].str.replace("ft", "").astype(int)
-        df = df.sort_values("alt_ft")
-        return df
-
-    df_wind_box_p = prepare_wind_df(df_wind_box)
-    df_wind_runway_p = prepare_wind_df(df_wind_runway)
-
-    era5_speed = []
-    era5_dir = []
-
-    total_rows = len(merged)
-    for i, (_, row) in enumerate(merged.iterrows(), start=1):
-        lat = row.get("gps_lat")
-        lon = row.get("gps_lon")
-        alt = row.get("gps_alt")
-        print(f"\rProgress: {i}/{total_rows} ({i / total_rows * 100:5.1f}%)", end="", flush=True)
-        if pd.isna(lat) or pd.isna(lon) or pd.isna(alt):
-            era5_speed.append(np.nan)
-            era5_dir.append(np.nan)
-            continue
-
-        # distances
-        d_box = haversine(lat, lon, box_lat, box_lon)
-        d_runway = haversine(lat, lon, runway_lat, runway_lon)
-
-        wind_df = df_wind_box_p if d_box < d_runway else df_wind_runway_p
-
-        # interpolation altitude
-        altitudes = wind_df["alt_ft"].values
-        speeds = wind_df["wind_speed"].values
-        directions = wind_df["wind_direction"].values
-
-        # clamp altitude
-        alt_clamped = np.clip(alt, altitudes.min(), altitudes.max())
-        speed_interp = np.interp(alt_clamped, altitudes, speeds)
-
-        # direction interpolation (circular)
-        dirs_rad = np.radians(directions)
-        sin_comp = np.sin(dirs_rad)
-        cos_comp = np.cos(dirs_rad)
-
-        sin_interp = np.interp(alt_clamped, altitudes, sin_comp)
-        cos_interp = np.interp(alt_clamped, altitudes, cos_comp)
-
-        dir_interp = (np.degrees(np.arctan2(sin_interp, cos_interp)) + 360) % 360
-
-        era5_speed.append(speed_interp)
-        era5_dir.append(dir_interp)
-
-    print()  # newline after progress
-
-    merged["era5_wind_speed"] = era5_speed
-    merged["era5_wind_direction"] = era5_dir
+    merged = add_wind(merged)
+    merged = add_ias(merged)
 
 
 
@@ -763,10 +795,12 @@ def main():
 
     print("Done.")
 
+
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
 
     if CONSOLE_WINDOW:
+        app = QApplication(sys.argv)
+
         console = ConsoleWindow()
         console.show()
 
@@ -776,7 +810,15 @@ if __name__ == "__main__":
         sys.stdout = stream
         sys.stderr = stream
 
-    worker = Worker()
-    worker.start()
+        worker = Worker()
+        worker.start()
 
-    sys.exit(app.exec_())
+        sys.exit(app.exec_())
+
+    else:
+        # mode console simple (pas de Qt)
+        try:
+            main()
+        except Exception as e:
+            print("Erreur :", e)
+        sys.exit(0)
