@@ -1,4 +1,9 @@
-
+# -------- CONFIG --------
+SKIP_X4_EXPORT = True
+SKIP_GNS3000_IMPORT = True
+SKIP_IPHONE_IMPORT = False
+SKIP_METAR = True
+CONSOLE_WINDOW = False
 import os,re
 from datetime import time as dt_time
 from datetime import datetime, timedelta, timezone
@@ -68,11 +73,13 @@ class Worker(QThread):
     def run(self):
         try:
             main()
-            print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
+            if CONSOLE_WINDOW:
+                print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
             self.finished_signal.emit(True)
         except Exception as e:
             print("\nErreur :", e)
-            print("Appuyez sur une touche dans la fenêtre pour fermer...")
+            if CONSOLE_WINDOW:
+                print("Appuyez sur une touche dans la fenêtre pour fermer...")
             self.finished_signal.emit(False)
 
 def get_last_two_insv_files(directory):
@@ -134,12 +141,6 @@ GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
 #X4_INSV_2 = "VID_20260320_131559_00_054.insv"
 #GPS_GNS3000 = "LOG00005.TXT"
 IPHONE_SENSORLOG = "sensorlog.csv"
-
-# -------- CONFIG --------
-SKIP_X4_EXPORT = False
-SKIP_GNS3000_IMPORT = False
-SKIP_IPHONE_IMPORT = False
-SKIP_METAR = False
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
 WINDOW_ACCX4 = 50 # taille moyenne glissante pour lissage accéléros X4
@@ -449,6 +450,87 @@ def find_metar_for_time(df, t):
         return after
 
 
+import cdsapi
+import numpy as np
+from netCDF4 import Dataset
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+
+
+def create_cdsapirc(api_key: str):
+    home = Path.home()
+    file_path = home / ".cdsapirc"
+    content = (
+        "url: https://cds.climate.copernicus.eu/api\n"
+        f"key: {api_key}\n")
+    with open(file_path, "w") as f:
+        f.write(content)
+    print(f"Fichier créé : {file_path}")
+
+def get_wind(lat, lon, dt: datetime):
+    pressure_levels = {
+        "0ft": "1000",
+        "1000ft": "975",
+        "2000ft": "950",
+        "3000ft": "925",
+        "4000ft": "900",
+        "5000ft": "850",
+        "6000ft": "825",
+        "7000ft": "800",}
+    output_file = "data/raw/temp/wind_era5.nc"
+    create_cdsapirc("3fbb3d97-320a-43d3-bb61-43a3ab32216b")
+    c = cdsapi.Client()
+    c.retrieve(
+        "reanalysis-era5-pressure-levels",
+        {
+            "product_type": "reanalysis",
+            "variable": [
+                "u_component_of_wind",
+                "v_component_of_wind",
+            ],
+            "pressure_level": list(pressure_levels.values()),
+            "year": dt.strftime("%Y"),
+            "month": dt.strftime("%m"),
+            "day": dt.strftime("%d"),
+            "time": dt.strftime("%H:%M"),
+            "format": "netcdf",
+            "area": [
+                lat + 0.1,
+                lon - 0.1,
+                lat - 0.1,
+                lon + 0.1,
+            ],
+        },
+        output_file,
+    )
+
+    ds = Dataset(output_file)
+    u_all = ds.variables["u"][0, :, :, :]
+    v_all = ds.variables["v"][0, :, :, :]
+    levels = ds.variables["pressure_level"][:]
+    lats = ds.variables["latitude"][:]
+    lons = ds.variables["longitude"][:]
+    lat_idx = np.abs(lats - lat).argmin()
+    lon_idx = np.abs(lons - lon).argmin()
+    results = []
+    for alt_label, plevel in pressure_levels.items():
+        level_idx = np.abs(levels - int(plevel)).argmin()
+        u_val = float(u_all[level_idx, lat_idx, lon_idx])
+        v_val = float(v_all[level_idx, lat_idx, lon_idx])
+        speed_ms = np.sqrt(u_val**2 + v_val**2)
+        speed_kmh = speed_ms * 3.6
+        direction_rad = np.arctan2(-u_val, -v_val)
+        direction_deg = (np.degrees(direction_rad) + 360) % 360
+        results.append({
+            "wind_altitude": alt_label,
+            "wind_speed": speed_kmh,
+            "wind_direction": round(direction_deg),
+        })
+    ds.close()
+    df = pd.DataFrame(results)
+    return df
+
 def main():
 
     #print(TMP)
@@ -589,6 +671,93 @@ def main():
     else:
         merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
 
+    # put wind
+    box_lat = 43.475
+    box_lon = 3.8328
+    runway_lat = 43.572
+    runway_lon = 3.957
+    ##dt = datetime(2026, 3, 20, 9, 0)
+    ts = pd.to_datetime(merged["timestamp"].iloc[0]).floor("h")
+    dt = ts.to_pydatetime()
+    print(dt)
+    df_wind_box = get_wind(box_lat, box_lon, dt)
+    df_wind_runway = get_wind(runway_lat, runway_lon, dt)
+    print(df_wind_box)
+    print(df_wind_runway)
+
+    # =========================
+    # WIND INTERPOLATION PER ROW
+    # =========================
+
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371e3  # Earth radius (m)
+        phi1 = np.radians(lat1)
+        phi2 = np.radians(lat2)
+        dphi = np.radians(lat2 - lat1)
+        dlambda = np.radians(lon2 - lon1)
+        a = np.sin(dphi / 2) ** 2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda / 2) ** 2
+        return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+    # convert altitude labels to numeric ft
+    def prepare_wind_df(df):
+        df = df.copy()
+        df["alt_ft"] = df["wind_altitude"].str.replace("ft", "").astype(int)
+        df = df.sort_values("alt_ft")
+        return df
+
+    df_wind_box_p = prepare_wind_df(df_wind_box)
+    df_wind_runway_p = prepare_wind_df(df_wind_runway)
+
+    era5_speed = []
+    era5_dir = []
+
+    total_rows = len(merged)
+    for i, (_, row) in enumerate(merged.iterrows(), start=1):
+        lat = row.get("gps_lat")
+        lon = row.get("gps_lon")
+        alt = row.get("gps_alt")
+        print(f"\rProgress: {i}/{total_rows} ({i / total_rows * 100:5.1f}%)", end="", flush=True)
+        if pd.isna(lat) or pd.isna(lon) or pd.isna(alt):
+            era5_speed.append(np.nan)
+            era5_dir.append(np.nan)
+            continue
+
+        # distances
+        d_box = haversine(lat, lon, box_lat, box_lon)
+        d_runway = haversine(lat, lon, runway_lat, runway_lon)
+
+        wind_df = df_wind_box_p if d_box < d_runway else df_wind_runway_p
+
+        # interpolation altitude
+        altitudes = wind_df["alt_ft"].values
+        speeds = wind_df["wind_speed"].values
+        directions = wind_df["wind_direction"].values
+
+        # clamp altitude
+        alt_clamped = np.clip(alt, altitudes.min(), altitudes.max())
+        speed_interp = np.interp(alt_clamped, altitudes, speeds)
+
+        # direction interpolation (circular)
+        dirs_rad = np.radians(directions)
+        sin_comp = np.sin(dirs_rad)
+        cos_comp = np.cos(dirs_rad)
+
+        sin_interp = np.interp(alt_clamped, altitudes, sin_comp)
+        cos_interp = np.interp(alt_clamped, altitudes, cos_comp)
+
+        dir_interp = (np.degrees(np.arctan2(sin_interp, cos_interp)) + 360) % 360
+
+        era5_speed.append(speed_interp)
+        era5_dir.append(dir_interp)
+
+    print()  # newline after progress
+
+    merged["era5_wind_speed"] = era5_speed
+    merged["era5_wind_direction"] = era5_dir
+
+
+
+
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
     print("\nMerged for ABView :"+OUTPUT)
 
@@ -597,14 +766,15 @@ def main():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    console = ConsoleWindow()
-    console.show()
+    if CONSOLE_WINDOW:
+        console = ConsoleWindow()
+        console.show()
 
-    stream = ConsoleStream()
-    stream.new_text.connect(console.append_text)
+        stream = ConsoleStream()
+        stream.new_text.connect(console.append_text)
 
-    sys.stdout = stream
-    sys.stderr = stream
+        sys.stdout = stream
+        sys.stderr = stream
 
     worker = Worker()
     worker.start()
