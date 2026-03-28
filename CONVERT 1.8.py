@@ -121,6 +121,7 @@ X4_INSV_2=SUBDIR+X4_INSV_2
 
 
 CROP_FRONT = "1200:675" #default 1200:675
+CROP_FRONT = "1080:608" #default 1200:675
 CROP_BACK = "960:540" #default 1080:608
 PITCH_FRONT = -25 #inclinaison pour voir le manche
 
