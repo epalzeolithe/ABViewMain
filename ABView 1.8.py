@@ -2301,6 +2301,14 @@ class MainWindow(QMainWindow):
         )
         self.gps_view.addItem(self.gps_shadow)
 
+        self.gps_box_projection = glpg.GLLinePlotItem(
+            pos=np.zeros((2, 3)),
+            # color=(0, 0, 1, 0.6), # gray
+            color=(0, 0, 0, 1),  # black
+            width=2,
+            antialias=True
+        )
+        self.gps_view.addItem(self.gps_box_projection)
 
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
@@ -4122,10 +4130,43 @@ class MainWindow(QMainWindow):
 
         # ---- update ground projection (shadow) ----
         if len(pts) > 1:
+            # ---- projection au sol (plan XY, Z constant) ----
             pts_ground = pts.copy()
             pts_ground[:, 2] = -1.0
             try:
                 self.gps_shadow.setData(pos=pts_ground)
+            except Exception:
+                pass
+
+            # ---- projection sur un plan vertical incliné de 50° par rapport à XZ ----
+            pts_box = pts.copy()
+            try:
+                theta = np.radians(BOX_HEADING)
+
+                cos_t = np.cos(theta)
+                sin_t = np.sin(theta)
+
+                Rz = np.array([
+                    [cos_t, -sin_t, 0.0],
+                    [sin_t,  cos_t, 0.0],
+                    [0.0,    0.0,   1.0]
+                ])
+
+                # 1) rotation inverse pour aligner le plan avec XZ
+                pts_box = pts_box @ Rz
+
+                # 2) projection sur XZ
+                pts_box[:, 1] = -1
+
+                # 3) retour dans le repère initial
+                pts_box = pts_box @ Rz.T
+
+            except Exception:
+                pass
+
+            try:
+                if hasattr(self, "gps_box_projection"):
+                    self.gps_box_projection.setData(pos=pts_box)
             except Exception:
                 pass
 
