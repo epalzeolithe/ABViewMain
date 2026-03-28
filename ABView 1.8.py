@@ -974,6 +974,8 @@ class MainWindow(QMainWindow):
         self.compute_g_signed()
         self.build_g_timeline()
 
+        self.build_altitude_timeline()
+
         # ---- realtime timer (compensated loop) ----
         self.target_fps = 30
         self.frame_period_ms = 1000 / self.target_fps
@@ -1278,6 +1280,11 @@ class MainWindow(QMainWindow):
         self.g_timeline.setStyleSheet("background-color: black;")
         self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
+        self.alt_timeline = QLabel(self)
+        self.alt_timeline.setFixedHeight(12)
+        self.alt_timeline.setStyleSheet("background-color: black;")
+        self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
+
 
         #self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
         self.video2_date_label = QLabel("", self.video2)
@@ -1561,6 +1568,75 @@ class MainWindow(QMainWindow):
             self.g_timeline_legend.raise_()
 
             self.g_timeline_legend.show()
+
+        except Exception:
+            pass
+
+    def build_altitude_timeline(self):
+        if "gps_alt" not in self.df.columns:
+            return
+
+        import numpy as np
+        from PyQt5.QtGui import QImage, QPixmap
+
+        values = self.df["gps_alt"].to_numpy()
+        n = len(values)
+
+        width = max(500, min(2000, n // 3))
+        height = 12
+
+        img = QImage(width, height, QImage.Format_RGB888)
+
+        alt_min = np.min(values)
+        alt_max = np.max(values)
+
+        def get_color(a):
+            # gradient: bleu (bas) -> vert -> rouge (haut)
+            t = (a - alt_min) / (alt_max - alt_min + 1e-6)
+
+            if t < 0.5:
+                # bleu -> vert
+                tt = t / 0.5
+                r = 0
+                g = int(255 * tt)
+                b = int(255 * (1 - tt))
+            else:
+                # vert -> rouge
+                tt = (t - 0.5) / 0.5
+                r = int(255 * tt)
+                g = int(255 * (1 - tt))
+                b = 0
+
+            return (r, g, b)
+
+        for x in range(width):
+            idx = int(x / width * (n - 1))
+            alt = values[idx]
+
+            r, g, b = get_color(alt)
+            color = (r << 16) | (g << 8) | b
+
+            for y in range(height):
+                img.setPixel(x, y, color)
+
+        self.alt_timeline.setPixmap(QPixmap.fromImage(img))
+
+        # ---- Legend "Altitude" ----
+        try:
+            if not hasattr(self, "alt_timeline_legend"):
+                from PyQt5.QtWidgets import QLabel
+                from PyQt5.QtCore import Qt
+
+                self.alt_timeline_legend = QLabel("Altitude", self.alt_timeline)
+                self.alt_timeline_legend.setStyleSheet(
+                    "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
+                )
+                self.alt_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
+                self.alt_timeline_legend.raise_()
+
+            self.alt_timeline_legend.adjustSize()
+            self.alt_timeline_legend.move(0, 0)
+            self.alt_timeline_legend.show()
 
         except Exception:
             pass
