@@ -2310,9 +2310,8 @@ class MainWindow(QMainWindow):
         self.gps_box_projection = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
             # color=(0, 0, 1, 0.6), # gray
-            color=(0, 0, 0, 1),  # black
-            width=2,
-            antialias=True
+            color=(0, 0, 1, 1),  # 🔵 bleu (RGBA)
+            width=2,antialias=True
         )
         self.gps_view.addItem(self.gps_box_projection)
 
@@ -4176,10 +4175,8 @@ class MainWindow(QMainWindow):
         if len(pts) > 1:
             # ---- color segments based on altitude (3000 → 5000 ft) ----
             z_abs = alt  # original altitude values in ft
-
             zmin = 3000.0
             zmax = 5000.0
-
             # normalize altitude in 0..1 within [3000,5000]
             zn = (z_abs - zmin) / (zmax - zmin)
             zn = np.clip(zn, 0.0, 1.0)
