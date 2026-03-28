@@ -1,19 +1,17 @@
 # -------- CONFIG --------
-SKIP_X4_EXPORT = True
-SKIP_GNS3000_IMPORT = True
+SKIP_X4_EXPORT = False
+SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
-SKIP_METAR = True
+SKIP_METAR = False
 CONSOLE_WINDOW = False
+
 import os,re
 from datetime import time as dt_time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import subprocess
-import numpy as np
-import pandas as pd
 from scipy.signal import butter, filtfilt
 from pymediainfo import MediaInfo
-from pathlib import Path
 import requests
 import cdsapi
 import numpy as np
@@ -21,7 +19,9 @@ from netCDF4 import Dataset
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-
+import sys
+from PyQt5.QtWidgets import QApplication, QTextEdit
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
 
 # -------- SUBPROCESS STREAM (REAL-TIME) --------
 def run_cmd_stream(cmd):
@@ -44,9 +44,6 @@ def run_cmd_stream(cmd):
         raise subprocess.CalledProcessError(proc.returncode, cmd)
 
 # -------- QT CONSOLE --------
-import sys
-from PyQt5.QtWidgets import QApplication, QTextEdit
-from PyQt5.QtCore import QObject, pyqtSignal, QThread
 
 class ConsoleStream(QObject):
     new_text = pyqtSignal(str)
@@ -139,8 +136,8 @@ from ver import __version__
 
 SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
-X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
-GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
+#X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
+#GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
 X4_INSV_1 = "VID_20260320_131559_00_053.insv"
 X4_INSV_2 = "VID_20260320_131559_00_054.insv"
 GPS_GNS3000 = "LOG00005.TXT"
