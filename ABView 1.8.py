@@ -688,17 +688,27 @@ class AnalogVario(QWidget):
         painter.setBrush(QColor(0, 0, 0, 120))
         painter.drawEllipse(int(cx - r), int(cy - r), int(2 * r), int(2 * r))
 
-        # graduations simples
+        # graduations + labels
         painter.setPen(QPen(QColor("white"), 1))
+
         for f in [-2000, -1000, 0, 1000, 2000]:
             angle = (f / 2000.0) * 120
-            # 0 at left (180°), positive up, negative down
             theta = math.radians(180 + angle)
+
             x1 = cx + r * 0.7 * math.cos(theta)
             y1 = cy + r * 0.7 * math.sin(theta)
             x2 = cx + r * 0.9 * math.cos(theta)
             y2 = cy + r * 0.9 * math.sin(theta)
+
             painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+            # ---- LABEL (÷1000) ----
+            label = str(int(f / 1000))
+
+            xt = cx + r * 0.55 * math.cos(theta)
+            yt = cy + r * 0.55 * math.sin(theta)
+
+            painter.drawText(int(xt - 6), int(yt + 5), label)
 
         # clamp
         fpm = max(-2000, min(2000, self.fpm))
@@ -713,6 +723,9 @@ class AnalogVario(QWidget):
 
         painter.setPen(QPen(QColor("white"), 3))
         painter.drawLine(int(cx), int(cy), int(x2), int(y2))
+
+
+
 # ======================================================
 # Main Window
 # ======================================================
