@@ -3138,7 +3138,7 @@ class MainWindow(QMainWindow):
 
         # ---- Update badin (GPS speed) overlay on video1 (bottom-left) ----
         if hasattr(self, "video1_speed_label"):
-            self.video1_speed_label.setText(f"{row.gps_speed:.0f} km/h")
+            self.video1_speed_label.setText(f"IAS {row.gps_ias:.0f} km/h\nGS {row.gps_speed:.0f} km/h")
             self.video1_speed_label.adjustSize()
             x_speed = 10
             y_speed = self.video1.height() - self.video1_speed_label.height() - 10
