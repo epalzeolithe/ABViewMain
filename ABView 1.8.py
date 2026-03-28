@@ -252,6 +252,13 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
+        # ---- draw only on video1 ----
+        if self.objectName() != "video1":
+            painter.end()
+            self.program.release()
+            return
+
+
         w = self.width()
         h = self.height()
 
@@ -260,23 +267,29 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         cy = h // 2
 
         # rotation
+        painter.save()
         painter.translate(cx, cy)
-        painter.rotate(-getattr(self, "roll", 0))
+        painter.rotate(-getattr(self, "roll_w", 0))
 
-        pitch = getattr(self, "pitch", 0)
+        pitch = getattr(self, "pitch_w", 0)
         pitch_offset = int(pitch * 3)
-
         # ---- horizon ----
-        painter.setPen(QPen(QColor("white"), 2))
+        painter.setPen(QPen(QColor(0, 0, 139), 2))
         painter.drawLine(-50, pitch_offset, 50, pitch_offset)
+        painter.restore()
 
-        # ---- triangle (wing horizon) ----
-        size = 20
-        painter.setPen(QPen(QColor(255, 220, 0), 3))
+        # ---- triangle FIXE ----
+        size = 40
+        painter.setPen(QPen(QColor(128, 0, 128), 3))
 
-        painter.drawLine(0, 0, 0, -size)
-        painter.drawLine(0, -size, -size, 0)
-        painter.drawLine(0, -size, size, 0)
+        # position gauche milieu (même que horizon)
+        cx = 60
+        cy = h // 2
+
+        painter.drawLine(cx, cy, cx, cy - size)
+        painter.drawLine(cx, cy - size, cx - size, cy)
+        painter.drawLine(cx, cy - size, cx + size, cy)
+        painter.drawLine(cx - size, cy, cx + size, cy)
 
         painter.end()
 
@@ -1102,7 +1115,10 @@ class MainWindow(QMainWindow):
         self.grid.setColumnStretch(3, 1)
 
         self.video1 = VideoYUVOpenGLWidget(self)
+        self.video1.setObjectName("video1")
+
         self.video2 = VideoYUVOpenGLWidget(self)
+        self.video2.setObjectName("video2")
         # ---- GPS heading overlay on video1 (top center, text sized) ----
         self.video1_heading_label = QLabel("", self.video1)
         self.video1_heading_label.setAlignment(Qt.AlignCenter)
@@ -3367,8 +3383,8 @@ class MainWindow(QMainWindow):
                 self.video2.height() - self.video2_date_label.height() - 10
             )
 
-        self.video1.pitch = -self.pitch_w
-        self.video1.roll = self.roll_w
+        self.video1.pitch_w = -self.pitch_w
+        self.video1.roll_w = self.roll_w
         self.video1.heading = self.heading_deg
 
     def calibrate_gfx(self, where):
