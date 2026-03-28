@@ -37,7 +37,7 @@ from ver import __version__
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
-#BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 INPUT_METAR = BDL + "metar.csv"
@@ -1238,6 +1238,12 @@ class MainWindow(QMainWindow):
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
 
+        self.act_toggle_grid_xz = QAction("Grille verticale XZ", self)
+        self.act_toggle_grid_xz.setCheckable(True)
+        self.act_toggle_grid_xz.setChecked(False)  # caché par défaut
+        self.act_toggle_grid_xz.triggered.connect(self.toggle_grid_vertical_xz)
+        menu_settings.addAction(self.act_toggle_grid_xz)
+
         # ---- Toggle 3D axes visibility ----
         self.act_toggle_axes = QAction("Afficher axes 3D", self)
         self.act_toggle_axes.setCheckable(True)
@@ -1869,6 +1875,13 @@ class MainWindow(QMainWindow):
             self.gfx_axes_y.visible = visible
             self.gfx_axes_z.visible = visible
 
+    def toggle_grid_vertical_xz(self, checked):
+        try:
+            if hasattr(self, "grid_vertical_xz"):
+                self.grid_vertical_xz.setVisible(checked)
+        except Exception:
+            pass
+
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
         self.map_ready = False
@@ -2208,7 +2221,7 @@ class MainWindow(QMainWindow):
 
         # ground grid (visual reference in meters)
         grid = glpg.GLGridItem()
-        grid.setSize(2, 2)   # 2 km x 2 km area
+        grid.setSize(4, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
         grid.rotate(BOX_HEADING, 0, 0, 1)
@@ -2217,7 +2230,7 @@ class MainWindow(QMainWindow):
 
         # ---- vertical grid (YZ plane) ----
         self.grid_vertical_yz = glpg.GLGridItem()
-        self.grid_vertical_yz.setSize(2, 2)
+        self.grid_vertical_yz.setSize(4, 2)
         self.grid_vertical_yz.setSpacing(0.25,0.25)
         self.grid_vertical_yz.rotate(90, 1, 0, 0)
         self.grid_vertical_yz.translate(0, -1, 0)
@@ -2232,6 +2245,7 @@ class MainWindow(QMainWindow):
         self.grid_vertical_xz.translate(-1,0, 0)
         self.grid_vertical_xz.setColor((135, 206, 235))
         self.gps_view.addItem(self.grid_vertical_xz)
+        self.grid_vertical_xz.setVisible(False)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
         #self.gps_view.addItem(self.gps_point)
@@ -4146,12 +4160,14 @@ class MainWindow(QMainWindow):
             self.grid_vertical_yz.rotate(90, 1, 0, 0)
             self.grid_vertical_yz.translate(0, yz, 0)
             self.grid_vertical_yz.rotate(BOX_HEADING, 0, 0, 1)
+
             if az == -202.5 or az == -112.5 or az == -157.5 or az == -67.5:
                 xz = 1
             self.grid_vertical_xz.resetTransform()
             self.grid_vertical_xz.rotate(90, 0, 1, 0)
             self.grid_vertical_xz.translate(xz, 0, 0)
             self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
+            #self.grid_vertical_xz.setVisible(False)
 
         # ---- update ground projection (shadow) ----
         if len(pts) > 1:
