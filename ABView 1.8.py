@@ -2291,7 +2291,7 @@ class MainWindow(QMainWindow):
         # vertical line from aircraft to ground
         self.gps_vertical_line = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
-            color=(0, 0, 1, 1),
+            color=(1, 0, 1, 1),  # violet
             width=3,
             antialias=True
         )
@@ -2301,7 +2301,7 @@ class MainWindow(QMainWindow):
         self.gps_shadow = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
             #color=(0, 0, 1, 0.6), # gray
-            color=(0, 0, 0, 1), #black
+            color=(0.6, 0.3, 0.1, 1),  # marron
             width=2,
             antialias=True
         )
