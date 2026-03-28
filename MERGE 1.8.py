@@ -784,8 +784,8 @@ def main():
     else:
         merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
 
-    merged = add_wind(merged)
-    merged = add_ias(merged)
+    #merged = add_wind(merged)
+    #merged = add_ias(merged)
 
 
 
