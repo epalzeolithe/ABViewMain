@@ -248,6 +248,38 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         gl.glActiveTexture(gl.GL_TEXTURE2)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_v)
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+
+        # position gauche milieu
+        cx = 60
+        cy = h // 2
+
+        # rotation
+        painter.translate(cx, cy)
+        painter.rotate(-getattr(self, "roll", 0))
+
+        pitch = getattr(self, "pitch", 0)
+        pitch_offset = int(pitch * 3)
+
+        # ---- horizon ----
+        painter.setPen(QPen(QColor("white"), 2))
+        painter.drawLine(-50, pitch_offset, 50, pitch_offset)
+
+        # ---- triangle (wing horizon) ----
+        size = 20
+        painter.setPen(QPen(QColor(255, 220, 0), 3))
+
+        painter.drawLine(0, 0, 0, -size)
+        painter.drawLine(0, -size, -size, 0)
+        painter.drawLine(0, -size, size, 0)
+
+        painter.end()
+
         self.program.release()
 
     # QLabel compatibility
@@ -386,11 +418,14 @@ class ArtificialHorizon(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setStyleSheet("background: transparent;")
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.pitch = 0.0
         self.bank = 0.0
         self.heading = 0.0
         # optional aerobatic triangle marker (used for wingtip reference)
         self.show_triangle = False
+        self.transparent_mode = False
 
     def paintEvent(self, event):
         from PyQt5.QtGui import QPainter, QPen, QColor
@@ -398,7 +433,13 @@ class ArtificialHorizon(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         w = self.width();h = self.height()
         cx = w // 2;cy = h // 2
-        painter.fillRect(self.rect(), Qt.transparent)
+        # ---- gestion transparence ----
+        if self.transparent_mode:
+            painter.setCompositionMode(QPainter.CompositionMode_Source)
+            painter.fillRect(self.rect(), Qt.transparent)
+            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        else:
+            painter.fillRect(self.rect(), Qt.transparent)
         painter.translate(cx, cy)
         painter.rotate(-self.bank)
         pitch_scale = 3
@@ -1137,13 +1178,6 @@ class MainWindow(QMainWindow):
         )
         self.video1_alt_label.adjustSize()
         self.video1_alt_label.raise_()
-
-        # ---- Wing Horizon overlay on video1 (left middle) ----
-        self.video1_horizon_wing = ArtificialHorizon(self.video1)
-
-        self.video1_horizon_wing.setGeometry(0, 100, 120, 120)  # position provisoire
-        self.video1_horizon_wing.show_triangle = True
-        self.video1_horizon_wing.show()
 
         # ---- GPS vario overlay on video1 (above altitude) ----
         self.video1_fpm_label = QLabel("", self.video1)
@@ -3333,20 +3367,9 @@ class MainWindow(QMainWindow):
                 self.video2.height() - self.video2_date_label.height() - 10
             )
 
-        if hasattr(self, "video1_horizon_wing"):
-            w = self.video1_horizon_wing.width()
-            h = self.video1_horizon_wing.height()
-
-            x = 0
-            y = (self.video1.height() - h) // 2
-
-            self.video1_horizon_wing.move(x, y)
-            self.video1_horizon_wing.pitch = -self.pitch_w
-            self.video1_horizon_wing.bank = self.roll_w
-            self.video1_horizon_wing.heading = self.heading_deg
-            self.video1_horizon_wing.update()
-
-
+        self.video1.pitch = -self.pitch_w
+        self.video1.roll = self.roll_w
+        self.video1.heading = self.heading_deg
 
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
