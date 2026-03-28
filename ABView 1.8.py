@@ -20,6 +20,8 @@ from PyQt5.QtGui import QImage, QPixmap,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
+from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform
+from PyQt5.QtCore import QPoint
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -1947,6 +1949,37 @@ class MainWindow(QMainWindow):
 
         self._position_map_wind_label()
 
+        # ---- Wind arrow base (pointing UP) ----
+        size = 40
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setBrush(QColor("black"))
+        p.setPen(Qt.NoPen)
+
+        arrow = QPolygon([
+            QPoint(size // 2, 10),                # shorter tip
+            QPoint(size - 14, size - 12),         # wings even closer
+            QPoint(size // 2 + 1, size - 12),
+            QPoint(size // 2 + 1, size - 8),      # shorter head height
+            QPoint(size // 2 - 1, size - 8),
+            QPoint(size // 2 - 1, size - 12),
+            QPoint(14, size - 12),                # left wing even closer
+        ])
+
+        p.drawPolygon(arrow)
+        p.end()
+
+        self.wind_arrow_base = pix
+
+        self.map_wind_arrow = QLabel(parent_widget)
+        self.map_wind_arrow.setPixmap(pix)
+        self.map_wind_arrow.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.map_wind_arrow.adjustSize()
+        self.map_wind_arrow.raise_()
+
     def _position_map_metar_label(self):
         """Position the METAR label centered at the bottom of the OSM map."""
         if not hasattr(self, "map_metar_label") or not hasattr(self, "map_view"):
@@ -1979,6 +2012,15 @@ class MainWindow(QMainWindow):
 
         self.map_wind_label.move(x, y)
         self.map_wind_label.raise_()
+
+        if hasattr(self, "map_wind_arrow"):
+            self.map_wind_arrow.adjustSize()
+
+            x_arrow = x + (self.map_wind_label.width() - self.map_wind_arrow.width()) // 2
+            y_arrow = y + self.map_wind_label.height() + 5
+
+            self.map_wind_arrow.move(x_arrow, y_arrow)
+            self.map_wind_arrow.raise_()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -3665,12 +3707,21 @@ class MainWindow(QMainWindow):
 
     def update_wind(self):
         try:
-            ws = self.gps_wind_speed_vals[self.idf]/ 1.852
+            ws = self.gps_wind_speed_vals[self.idf] / 1.852
             wd = self.gps_wind_direction_vals[self.idf]
 
             self.map_wind_label.setText(f"{ws:.0f} kt\n{wd:.0f}°")
             self.map_wind_label.adjustSize()
+
+            # rotation de la flèche (direction du vent)
+            if hasattr(self, "wind_arrow_base"):
+                transform = QTransform().rotate(wd)
+                rotated = self.wind_arrow_base.transformed(transform, Qt.SmoothTransformation)
+                self.map_wind_arrow.setPixmap(rotated)
+                self.map_wind_arrow.adjustSize()
+
             self._position_map_wind_label()
+
         except Exception:
             pass
 
