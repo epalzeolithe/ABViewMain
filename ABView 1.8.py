@@ -274,13 +274,13 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         pitch = getattr(self, "pitch_w", 0)
         pitch_offset = int(pitch * 3)
         # ---- horizon ----
-        painter.setPen(QPen(QColor(0, 0, 139), 2))
+        painter.setPen(QPen(QColor(20, 20, 139), 2))
         painter.drawLine(-50, pitch_offset, 50, pitch_offset)
         painter.restore()
 
         # ---- triangle FIXE ----
         size = 40
-        painter.setPen(QPen(QColor(128, 0, 128), 3))
+        painter.setPen(QPen(QColor(128, 0, 150), 3))
 
         # position gauche milieu (même que horizon)
         cx = 60
