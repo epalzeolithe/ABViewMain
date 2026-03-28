@@ -4128,6 +4128,25 @@ class MainWindow(QMainWindow):
 
         pts = np.column_stack([x, y, z])
 
+        az = -int(row.gps_heading / 45) * 45 - 22.5
+        yz = -1
+        xz = -1
+        if az != self.last_azim:
+            self.last_azim = az
+            self.gps_view.setCameraPosition(azimuth=az)
+            if az == -67.5 or az == -22.5 or az == -112.5 or az == -337.5:
+                yz = 1
+            self.grid_vertical_yz.resetTransform()
+            self.grid_vertical_yz.rotate(90, 1, 0, 0)
+            self.grid_vertical_yz.translate(0, yz, 0)
+            self.grid_vertical_yz.rotate(BOX_HEADING, 0, 0, 1)
+            if az == -202.5 or az == -112.5 or az == -157.5 or az == -67.5:
+                xz = 1
+            self.grid_vertical_xz.resetTransform()
+            self.grid_vertical_xz.rotate(90, 0, 1, 0)
+            self.grid_vertical_xz.translate(xz, 0, 0)
+            self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
+
         # ---- update ground projection (shadow) ----
         if len(pts) > 1:
             # ---- projection au sol (plan XY, Z constant) ----
@@ -4137,27 +4156,26 @@ class MainWindow(QMainWindow):
                 self.gps_shadow.setData(pos=pts_ground)
             except Exception:
                 pass
-
             # ---- projection sur un plan vertical incliné de 50° par rapport à XZ ----
             pts_box = pts.copy()
             try:
                 theta = np.radians(BOX_HEADING)
-
                 cos_t = np.cos(theta)
                 sin_t = np.sin(theta)
-
                 Rz = np.array([
                     [cos_t, -sin_t, 0.0],
                     [sin_t,  cos_t, 0.0],
                     [0.0,    0.0,   1.0]
                 ])
-
                 # 1) rotation inverse pour aligner le plan avec XZ
                 pts_box = pts_box @ Rz
-
                 # 2) projection sur XZ
-                pts_box[:, 1] = -1
+                print(az, xz, yz)
+                px=-1
+                if az == -112.5 or az == -337.5 or az== -22.5 or az==-67.5:
+                   px=1
 
+                pts_box[:, 1] = px
                 # 3) retour dans le repère initial
                 pts_box = pts_box @ Rz.T
 
@@ -4333,30 +4351,6 @@ class MainWindow(QMainWindow):
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
-
-
-        az = -int(row.gps_heading / 45) * 45 - 22.5
-        if az!= self.last_azim:
-            self.last_azim = az
-            self.gps_view.setCameraPosition(azimuth=az)
-            print(az)
-            yz=-1
-            if az==-67.5 or az==-22.5 or az==-112.5 or az==-337.5 :
-                yz=1
-
-            self.grid_vertical_yz.resetTransform()
-            self.grid_vertical_yz.rotate(90, 1, 0, 0)
-            self.grid_vertical_yz.translate(0, yz, 0)
-            self.grid_vertical_yz.rotate(BOX_HEADING, 0, 0, 1)
-
-            xz = -1
-            if az==-202.5 or az == -112.5 or az==-157.5 or az==-67.5:
-                xz = 1
-
-            self.grid_vertical_xz.resetTransform()
-            self.grid_vertical_xz.rotate(90, 0, 1, 0)
-            self.grid_vertical_xz.translate(xz,0, 0)
-            self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
 
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
