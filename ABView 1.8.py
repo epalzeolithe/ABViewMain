@@ -20,7 +20,7 @@ from PyQt5.QtGui import QImage, QPixmap,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
-from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform
+from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
 from PyQt5.QtCore import QPoint
 from pymediainfo import MediaInfo
 import CoreMedia
@@ -1955,20 +1955,20 @@ class MainWindow(QMainWindow):
 
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
-        p.setBrush(QColor("black"))
-        p.setPen(Qt.NoPen)
 
-        arrow = QPolygon([
-            QPoint(size // 2, 10),                # shorter tip
-            QPoint(size - 14, size - 12),         # wings even closer
-            QPoint(size // 2 + 1, size - 12),
-            QPoint(size // 2 + 1, size - 8),      # shorter head height
-            QPoint(size // 2 - 1, size - 8),
-            QPoint(size // 2 - 1, size - 12),
-            QPoint(14, size - 12),                # left wing even closer
-        ])
+        pen = QPen(QColor("black"))
+        pen.setWidth(2)
+        p.setPen(pen)
 
-        p.drawPolygon(arrow)
+        cx = size // 2
+
+        # ---- tige ----
+        p.drawLine(cx, size - 5, cx, 10)
+
+        # ---- tête (2 petits traits) ----
+        p.drawLine(cx, 10, cx - 6, 16)
+        p.drawLine(cx, 10, cx + 6, 16)
+
         p.end()
 
         self.wind_arrow_base = pix
