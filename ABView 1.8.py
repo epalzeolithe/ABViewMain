@@ -1138,6 +1138,13 @@ class MainWindow(QMainWindow):
         self.video1_alt_label.adjustSize()
         self.video1_alt_label.raise_()
 
+        # ---- Wing Horizon overlay on video1 (left middle) ----
+        self.video1_horizon_wing = ArtificialHorizon(self.video1)
+
+        self.video1_horizon_wing.setGeometry(0, 100, 120, 120)  # position provisoire
+        self.video1_horizon_wing.show_triangle = True
+        self.video1_horizon_wing.show()
+
         # ---- GPS vario overlay on video1 (above altitude) ----
         self.video1_fpm_label = QLabel("", self.video1)
         self.video1_fpm_label.setAlignment(Qt.AlignCenter)
@@ -3033,18 +3040,18 @@ class MainWindow(QMainWindow):
             fwd_proj = fwd_proj / norm_proj
             # angle par rapport à l'axe X
             heading_rad = np.arctan2(fwd_proj[1], fwd_proj[0])
-            heading_deg = np.degrees(heading_rad)
-            if heading_deg < 0:
-                heading_deg += 360
-            heading_deg=360-heading_deg
+            self.heading_deg = np.degrees(heading_rad)
+            if self.heading_deg < 0:
+                self.heading_deg += 360
+            self.heading_deg=360-self.heading_deg
         else:
-            heading_deg = 0.0
+            self.heading_deg = 0.0
 
         # ---- Update Artificial Horizon ----
         if hasattr(self, "hud_horizon"):
             self.hud_horizon.pitch = pitch_deg
             self.hud_horizon.bank = bank_deg
-            self.hud_horizon.heading = heading_deg
+            self.hud_horizon.heading = self.heading_deg
             self.hud_horizon.update()
 
         # ---- Update Wingtip Artificial Horizon ----
@@ -3064,18 +3071,18 @@ class MainWindow(QMainWindow):
             up_w  = R_wing.T @ np.array([0.0, 0.0, 1.0])
 
             # pitch in wing reference
-            pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
+            self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
 
             # roll in wing reference
             # compute roll around the wing viewing axis using Y/Z plane
             # this remains stable when aircraft pitch approaches vertical
-            right_w = np.cross(fwd_w, up_w)
-            roll_w = np.degrees(np.arctan2(right_w[2], up_w[2]))
+            self.right_w = np.cross(fwd_w, up_w)
+            self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
 
             # invert pitch sign for wingtip reference (viewed from the side)
-            self.hud_horizon_wing.pitch = -pitch_w
-            self.hud_horizon_wing.bank = roll_w
-            self.hud_horizon_wing.heading = heading_deg
+            self.hud_horizon_wing.pitch = -self.pitch_w
+            self.hud_horizon_wing.bank = self.roll_w
+            self.hud_horizon_wing.heading = self.heading_deg
             self.hud_horizon_wing.update()
 
         # ---- Update dataframe info label ----
@@ -3325,6 +3332,20 @@ class MainWindow(QMainWindow):
                 self.video2.width() - self.video2_date_label.width() - 10,
                 self.video2.height() - self.video2_date_label.height() - 10
             )
+
+        if hasattr(self, "video1_horizon_wing"):
+            w = self.video1_horizon_wing.width()
+            h = self.video1_horizon_wing.height()
+
+            x = 0
+            y = (self.video1.height() - h) // 2
+
+            self.video1_horizon_wing.move(x, y)
+            self.video1_horizon_wing.pitch = -self.pitch_w
+            self.video1_horizon_wing.bank = self.roll_w
+            self.video1_horizon_wing.heading = self.heading_deg
+            self.video1_horizon_wing.update()
+
 
 
     def calibrate_gfx(self, where):
