@@ -1587,27 +1587,36 @@ class MainWindow(QMainWindow):
 
         img = QImage(width, height, QImage.Format_RGB888)
 
-        alt_min = np.min(values)
-        alt_max = np.max(values)
-
+        # No more alt_min/alt_max-based gradient; use fixed stops
         def get_color(a):
-            # gradient: bleu (bas) -> vert -> rouge (haut)
-            t = (a - alt_min) / (alt_max - alt_min + 1e-6)
+            # points de contrôle (altitude ft, couleur RGB)
+            stops = [
+                (0,    (0, 120, 255)),   # bleu (bas)
+                (3000, (0, 200, 255)),   # cyan
+                (4000, (0, 255, 0)),     # vert
+                (5000, (255, 255, 0)),   # jaune
+                (7000, (255, 0, 0)),     # rouge (haut)
+            ]
 
-            if t < 0.5:
-                # bleu -> vert
-                tt = t / 0.5
-                r = 0
-                g = int(255 * tt)
-                b = int(255 * (1 - tt))
-            else:
-                # vert -> rouge
-                tt = (t - 0.5) / 0.5
-                r = int(255 * tt)
-                g = int(255 * (1 - tt))
-                b = 0
+            # clamp
+            if a <= stops[0][0]:
+                return stops[0][1]
+            if a >= stops[-1][0]:
+                return stops[-1][1]
 
-            return (r, g, b)
+            # interpolation linéaire entre stops
+            for i in range(len(stops) - 1):
+                a0, c0 = stops[i]
+                a1, c1 = stops[i + 1]
+
+                if a0 <= a <= a1:
+                    t = (a - a0) / (a1 - a0 + 1e-6)
+
+                    r = int(c0[0] + (c1[0] - c0[0]) * t)
+                    g = int(c0[1] + (c1[1] - c0[1]) * t)
+                    b = int(c0[2] + (c1[2] - c0[2]) * t)
+
+                    return (r, g, b)
 
         for x in range(width):
             idx = int(x / width * (n - 1))
