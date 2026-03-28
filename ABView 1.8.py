@@ -759,6 +759,7 @@ class MainWindow(QMainWindow):
         self.gps_lat_vals = self.df["gps_lat"].to_numpy()
         self.gps_lon_vals = self.df["gps_lon"].to_numpy()
         self.gps_alt_vals = self.df["gps_alt"].to_numpy()
+        self.gps_heading_vals = self.df["gps_heading"].to_numpy()
         self.gps_ias_vals = self.df["gps_ias"].to_numpy()
         self.gps_wind_speed_vals = self.df["era5_wind_speed"].to_numpy()
         self.gps_wind_direction_vals = self.df["era5_wind_direction"].to_numpy()
