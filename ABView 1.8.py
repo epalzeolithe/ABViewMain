@@ -37,7 +37,7 @@ from ver import __version__
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol16_2026_02_21.abv/"
 BDL="data/Vol17_2026_03_20.abv/"
-BDL="data/Vol_2026_03_21.abv/"
+#BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 INPUT_METAR = BDL + "metar.csv"

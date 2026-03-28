@@ -141,9 +141,9 @@ SUBDIR="data/raw/"
 TMP=SUBDIR+"temp/"
 X4_INSV_1, X4_INSV_2 = get_last_two_insv_files(SUBDIR)
 GPS_GNS3000=get_last_GPS_log_file(SUBDIR)
-#X4_INSV_1 = "VID_20260320_131559_00_053.insv"
-#X4_INSV_2 = "VID_20260320_131559_00_054.insv"
-#GPS_GNS3000 = "LOG00005.TXT"
+X4_INSV_1 = "VID_20260320_131559_00_053.insv"
+X4_INSV_2 = "VID_20260320_131559_00_054.insv"
+GPS_GNS3000 = "LOG00005.TXT"
 IPHONE_SENSORLOG = "sensorlog.csv"
 
 WINDOW = 4 # taille moyenne glissante pour lissage GNS3000
@@ -792,6 +792,9 @@ def main():
 
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
     print("\nMerged for ABView :"+OUTPUT)
+
+    with open("data/" + get_bundle_name_from_insv(X4_INSV_1) + "/version.txt", "w") as f:
+        f.write(__version__)
 
     print("Done.")
 
