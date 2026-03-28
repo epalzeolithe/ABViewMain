@@ -765,6 +765,19 @@ class MainWindow(QMainWindow):
         self.gps_wind_direction_vals = self.df["era5_wind_direction"].to_numpy()
         self.timestamp_vals = self.df["timestamp"].to_numpy()
 
+        # ---- Wind components (vectorized) ----
+        heading = np.radians(self.gps_heading_vals)
+        wind_dir = np.radians(self.gps_wind_direction_vals)
+
+        # angle relatif (normalisé -pi à pi)
+        theta =  heading -wind_dir
+        theta = (theta + np.pi) % (2 * np.pi) - np.pi
+
+        wind_speed_kt = self.gps_wind_speed_vals / 1.852
+
+        self.headwind_vals = - wind_speed_kt * np.cos(theta)
+        self.crosswind_vals = wind_speed_kt * np.sin(theta)
+
         self.metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
         self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
         self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
@@ -1080,6 +1093,14 @@ class MainWindow(QMainWindow):
         )
         self.video1_speed_label.adjustSize()
         self.video1_speed_label.raise_()
+
+        self.video1_wind_label = QLabel("", self.video1)
+        self.video1_wind_label.setAlignment(Qt.AlignCenter)
+        self.video1_wind_label.setStyleSheet(
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 16px; font-weight: bold;"
+        )
+        self.video1_wind_label.adjustSize()
+        self.video1_wind_label.raise_()
 
         # ---- Analog badin (circular airspeed indicator) ----
         self.video1_badin = AnalogBadin(self.video1)
@@ -3144,6 +3165,26 @@ class MainWindow(QMainWindow):
             x_speed = 10
             y_speed = self.video1.height() - self.video1_speed_label.height() - 10
             self.video1_speed_label.move(x_speed, y_speed)
+
+        self.video1_wind_label.adjustSize()
+
+        x = self.video1_speed_label.x()
+        y = self.video1_speed_label.y() - self.video1_wind_label.height() - 5
+
+        self.video1_wind_label.move(x, y)
+
+        try:
+            hw = self.headwind_vals[self.idf]
+            cw = self.crosswind_vals[self.idf]
+
+            # format lisible
+            hw_txt = f"{hw:.0f} kt"
+            cw_txt = f"{abs(cw):.0f} kt {'R' if cw > 0 else 'L'}"
+
+            self.video1_wind_label.setText(f"HW {hw_txt}\nXW {cw_txt}")
+
+        except Exception:
+            pass
 
         # ---- Update analog badin with smoothing ----
         if self.smooth_speed is None:
