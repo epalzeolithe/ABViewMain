@@ -52,6 +52,7 @@ TRACE = 6000 # taille de la trace 6000=1 minute
 TRACE_DEFAULT = TRACE
 TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
+BOX_HEADING = 50
 VITESSE_MISE_EN_LIGNE = 80 #km/h
 PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
 OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
@@ -2204,6 +2205,7 @@ class MainWindow(QMainWindow):
         grid.setSize(2, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
+        grid.rotate(BOX_HEADING, 0, 0, 1)
         grid.setColor((150,150,150))
         self.gps_view.addItem(grid)
 
@@ -4291,25 +4293,29 @@ class MainWindow(QMainWindow):
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
 
+
         az = -int(row.gps_heading / 45) * 45 - 22.5
         if az!= self.last_azim:
             self.last_azim = az
             self.gps_view.setCameraPosition(azimuth=az)
+            print(az)
             yz=-1
-            if az==-67.5 or az==-22.5 or az==-112.5 or az==-157.5:
+            if az==-67.5 or az==-22.5 or az==-112.5 or az==-337.5 :
                 yz=1
 
             self.grid_vertical_yz.resetTransform()
             self.grid_vertical_yz.rotate(90, 1, 0, 0)
             self.grid_vertical_yz.translate(0, yz, 0)
+            self.grid_vertical_yz.rotate(BOX_HEADING, 0, 0, 1)
 
             xz = -1
-            if az==-202.5 or az == -247.5 or az == -112.5 or az==-157.5:
+            if az==-202.5 or az == -112.5 or az==-157.5 or az==-67.5:
                 xz = 1
 
             self.grid_vertical_xz.resetTransform()
             self.grid_vertical_xz.rotate(90, 0, 1, 0)
             self.grid_vertical_xz.translate(xz,0, 0)
+            self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
 
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
