@@ -35,8 +35,8 @@ from ver import __version__
 #CONFIG
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol16_2026_02_21.abv/"
-#rBDL="data/Vol17_2026_03_20.abv/"
-#BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol17_2026_03_20.abv/"
+BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
 INPUT_METAR = BDL + "metar.csv"
@@ -758,9 +758,13 @@ class MainWindow(QMainWindow):
         self.gps_lat_vals = self.df["gps_lat"].to_numpy()
         self.gps_lon_vals = self.df["gps_lon"].to_numpy()
         self.gps_alt_vals = self.df["gps_alt"].to_numpy()
+        self.gps_ias_vals = self.df["gps_ias"].to_numpy()
+        self.gps_wind_speed_vals = self.df["era5_wind_speed"].to_numpy()
+        self.gps_wind_direction_vals = self.df["era5_wind_direction"].to_numpy()
         self.timestamp_vals = self.df["timestamp"].to_numpy()
 
         self.metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+        self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
         self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
 
         # ======================================================
@@ -1931,6 +1935,18 @@ class MainWindow(QMainWindow):
         # initial position of METAR label (bottom center of map)
         self._position_map_metar_label()
 
+        # ---- Wind overlay (top-right of OSM map) ----
+        self.map_wind_label = QLabel("", parent_widget)
+        self.map_wind_label.setAlignment(Qt.AlignCenter)
+        self.map_wind_label.setStyleSheet(
+            "color: black; background-color: white; padding: 6px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
+        )
+        self.map_wind_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.map_wind_label.adjustSize()
+        self.map_wind_label.raise_()
+
+        self._position_map_wind_label()
+
     def _position_map_metar_label(self):
         """Position the METAR label centered at the bottom of the OSM map."""
         if not hasattr(self, "map_metar_label") or not hasattr(self, "map_view"):
@@ -1950,11 +1966,28 @@ class MainWindow(QMainWindow):
         self.map_metar_label.raise_()
         self.map_metar_label.show()
 
+    def _position_map_wind_label(self):
+        if not hasattr(self, "map_wind_label") or not hasattr(self, "map_view"):
+            return
+
+        geom = self.map_view.geometry()
+
+        self.map_wind_label.adjustSize()
+
+        x = geom.x() + geom.width() - self.map_wind_label.width() - 10
+        y = geom.y() + 10
+
+        self.map_wind_label.move(x, y)
+        self.map_wind_label.raise_()
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
 
         if hasattr(self, "map_metar_label"):
             self._position_map_metar_label()
+
+        if hasattr(self, "map_wind_label"):
+            self._position_map_wind_label()
 
         if hasattr(self, "elapsed_time_overlay"):
             self._position_elapsed_time_overlay()
@@ -3630,6 +3663,17 @@ class MainWindow(QMainWindow):
         frame_index = max(0, min(frame_index, self.frames_video - 1))
         return frame_index
 
+    def update_wind(self):
+        try:
+            ws = self.gps_wind_speed_vals[self.idf]/ 1.852
+            wd = self.gps_wind_direction_vals[self.idf]
+
+            self.map_wind_label.setText(f"{ws:.0f} kt\n{wd:.0f}°")
+            self.map_wind_label.adjustSize()
+            self._position_map_wind_label()
+        except Exception:
+            pass
+
     # ==================================================
     def update_all(self):
         self.update_video(self.decoder1, self.video1, self.video1_start, self.stream1)
@@ -3644,6 +3688,7 @@ class MainWindow(QMainWindow):
             self.sync_dataframe_on_video()
         self.update_gps_pyqtgraph()
         self.update_metar()
+        self.update_wind()
         self.update_gfx_orientation()
         self.update_g_timeline_cursor()
 
