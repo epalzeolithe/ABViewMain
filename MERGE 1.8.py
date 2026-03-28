@@ -638,7 +638,7 @@ def add_ias(merged):
     ias[valid] = speed[valid]
 
     # apply correction only for fast points
-    ias[valid_fast] = speed[valid_fast] + headwind[ speed[valid] >= 50 ]
+    ias[valid_fast] = speed[valid_fast] - headwind[ speed[valid] >= 50 ]
 
     merged["gps_ias"] = ias
 

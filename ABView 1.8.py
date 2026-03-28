@@ -3146,10 +3146,10 @@ class MainWindow(QMainWindow):
 
         # ---- Update analog badin with smoothing ----
         if self.smooth_speed is None:
-            self.smooth_speed = row.gps_speed
+            self.smooth_speed = row.gps_ias
         else:
             a = self.instrument_alpha
-            self.smooth_speed = (1 - a) * self.smooth_speed + a * row.gps_speed
+            self.smooth_speed = (1 - a) * self.smooth_speed + a * row.gps_ias
 
         if hasattr(self, "video1_badin"):
             self.video1_badin.speed = self.smooth_speed
