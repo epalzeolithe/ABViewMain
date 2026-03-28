@@ -61,6 +61,12 @@ R_recalage_repere=3 # données issues BB
 refcam=[0,0,1] # données issues de BB
 #refcam=[0,0,-1] # données issues computed VQF
 
+
+ROT_BOX = np.array([
+    [np.cos(np.radians(BOX_HEADING)), -np.sin(np.radians(BOX_HEADING)), 0.0],
+    [np.sin(np.radians(BOX_HEADING)),  np.cos(np.radians(BOX_HEADING)), 0.0],
+    [0.0,    0.0,   1.0]])
+
 class VideoYUVOpenGLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -4152,41 +4158,20 @@ class MainWindow(QMainWindow):
             # ---- projection au sol (plan XY, Z constant) ----
             pts_ground = pts.copy()
             pts_ground[:, 2] = -1.0
-            try:
-                self.gps_shadow.setData(pos=pts_ground)
-            except Exception:
-                pass
+            self.gps_shadow.setData(pos=pts_ground)
+
             # ---- projection sur un plan vertical incliné de 50° par rapport à XZ ----
             pts_box = pts.copy()
-            try:
-                theta = np.radians(BOX_HEADING)
-                cos_t = np.cos(theta)
-                sin_t = np.sin(theta)
-                Rz = np.array([
-                    [cos_t, -sin_t, 0.0],
-                    [sin_t,  cos_t, 0.0],
-                    [0.0,    0.0,   1.0]
-                ])
-                # 1) rotation inverse pour aligner le plan avec XZ
-                pts_box = pts_box @ Rz
-                # 2) projection sur XZ
-                print(az, xz, yz)
-                px=-1
-                if az == -112.5 or az == -337.5 or az== -22.5 or az==-67.5:
-                   px=1
-
-                pts_box[:, 1] = px
-                # 3) retour dans le repère initial
-                pts_box = pts_box @ Rz.T
-
-            except Exception:
-                pass
-
-            try:
-                if hasattr(self, "gps_box_projection"):
-                    self.gps_box_projection.setData(pos=pts_box)
-            except Exception:
-                pass
+            # 1) rotation inverse pour aligner le plan avec XZ
+            pts_box = pts_box @ ROT_BOX # 1) rotation inverse pour aligner le plan avec XZ
+            px=-1
+            if az == -112.5 or az == -337.5 or az== -22.5 or az==-67.5:
+               px=1
+            # 2) projection sur XZ
+            pts_box[:, 1] = px
+            # 3) retour dans le repère initial
+            pts_box = pts_box @ ROT_BOX.T
+            self.gps_box_projection.setData(pos=pts_box)
 
         if len(pts) > 1:
             # ---- color segments based on altitude (3000 → 5000 ft) ----
