@@ -1097,7 +1097,7 @@ class MainWindow(QMainWindow):
         self.video1_wind_label = QLabel("", self.video1)
         self.video1_wind_label.setAlignment(Qt.AlignCenter)
         self.video1_wind_label.setStyleSheet(
-            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 16px; font-weight: bold;"
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
         )
         self.video1_wind_label.adjustSize()
         self.video1_wind_label.raise_()
@@ -3168,8 +3168,8 @@ class MainWindow(QMainWindow):
 
         self.video1_wind_label.adjustSize()
 
-        x = self.video1_speed_label.x()
-        y = self.video1_speed_label.y() - self.video1_wind_label.height() - 5
+        x = self.video1_speed_label.x() + self.video1_speed_label.width() + 10
+        y = self.video1.height() - self.video1_wind_label.height() - 10
 
         self.video1_wind_label.move(x, y)
 
