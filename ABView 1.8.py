@@ -1766,6 +1766,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "row"):
             try:
                 self.update_gfx_orientation()
+                self.update_video_label()
             except Exception:
                 pass
 
@@ -1778,6 +1779,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "row"):
             try:
                 self.update_gfx_orientation()
+                self.update_video_label()
             except Exception:
                 pass
 
@@ -3117,6 +3119,58 @@ class MainWindow(QMainWindow):
         )
 
         # ---- Update GPS speed / altitude overlay ----
+        self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
+        # update GS max
+        if row.gps_speed > self.gs_max:
+            self.gs_max = row.gps_speed
+        self.gps_label_speed.adjustSize()
+        self.gps_label_speed.move(
+            self.gfx_canvas.width() - self.gps_label_speed.width() - 10,
+            0)
+
+        # update GSmax label
+        self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
+        self.gsmax_label.adjustSize()
+        self.gsmax_label.move(
+            self.gfx_canvas.width() - self.gsmax_label.width() - 10,
+            45)
+
+        # update speed vector geometry & color
+        r = 0;g = 0;b = 0
+        if row.gps_speed < 113:
+            r=g=0; b=255
+        else:
+            if row.gps_speed > 112 and row.gps_speed < 236:
+                r=0; g=255; b=0
+            else:
+                if row.gps_speed > 235 and row.gps_speed < 300:
+                    r=int((row.gps_speed-235)/(300-235)*255); g=255-int((row.gps_speed-235)/(300-235)*255); b=0
+                else:
+                    r=255;g=0;b=0
+
+        # apply same color to velocity vector (gfx_vec_y)
+        if hasattr(self, "gfx_vec_y"):
+            self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+        if hasattr(self, "gfx_y_arrow"):
+            self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+
+        self.gps_label_speed.setStyleSheet(
+            f"color: rgb({r},{g},{b}); "
+            "background-color: transparent; padding: 10px; "
+            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+
+        self.gps_label_alt.setText(f"Alt {row.gps_alt:.0f} ft")
+        self.gps_label_alt.adjustSize()
+        self.gps_label_alt.move(
+            self.gfx_canvas.width() - self.gps_label_alt.width(),60)
+
+        self.gps_label_vario.setText(f"{row.gps_fpm:.0f} ft/min")
+        self.gps_label_vario.adjustSize()
+        self.gps_label_vario.move(
+            self.gfx_canvas.width() - self.gps_label_vario.width(),100)
+
+    def update_video_label(self):
+        row = self.row
         # ---- Update heading overlay on video1 ----
         if hasattr(self, "video1_heading_label"):
             self.video1_heading_label.setText(f"{row.gps_heading:.0f}°")
@@ -3141,10 +3195,9 @@ class MainWindow(QMainWindow):
                 40  # 👈 sous le premier
             )
 
-
         # ---- Update pitch overlay on video1 (above bank) ----
         if hasattr(self, "video1_pitch_label"):
-            self.video1_pitch_label.setText(f"Pitch {pitch_deg:.0f}°")
+            self.video1_pitch_label.setText(f"Pitch {self.pitch_deg:.0f}°")
             self.video1_pitch_label.adjustSize()
             x_pitch = int((self.video1.width() - self.video1_pitch_label.width()) / 2)
             y_pitch = self.video1.height() - self.video1_pitch_label.height() - 45
@@ -3152,7 +3205,7 @@ class MainWindow(QMainWindow):
 
         # ---- Update bank overlay below pitch ----
         if hasattr(self, "video1_bank_label"):
-            self.video1_bank_label.setText(f"Bank {bank_deg:.0f}°")
+            self.video1_bank_label.setText(f"Bank {self.bank_deg:.0f}°")
             self.video1_bank_label.adjustSize()
             x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
             y_bank = y_pitch + self.video1_pitch_label.height() + 5
@@ -3260,55 +3313,6 @@ class MainWindow(QMainWindow):
                 self.video2.height() - self.video2_date_label.height() - 10
             )
 
-        self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
-        # update GS max
-        if row.gps_speed > self.gs_max:
-            self.gs_max = row.gps_speed
-        self.gps_label_speed.adjustSize()
-        self.gps_label_speed.move(
-            self.gfx_canvas.width() - self.gps_label_speed.width() - 10,
-            0)
-
-        # update GSmax label
-        self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
-        self.gsmax_label.adjustSize()
-        self.gsmax_label.move(
-            self.gfx_canvas.width() - self.gsmax_label.width() - 10,
-            45)
-
-        # update speed vector geometry & color
-        r = 0;g = 0;b = 0
-        if row.gps_speed < 113:
-            r=g=0; b=255
-        else:
-            if row.gps_speed > 112 and row.gps_speed < 236:
-                r=0; g=255; b=0
-            else:
-                if row.gps_speed > 235 and row.gps_speed < 300:
-                    r=int((row.gps_speed-235)/(300-235)*255); g=255-int((row.gps_speed-235)/(300-235)*255); b=0
-                else:
-                    r=255;g=0;b=0
-
-        # apply same color to velocity vector (gfx_vec_y)
-        if hasattr(self, "gfx_vec_y"):
-            self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
-        if hasattr(self, "gfx_y_arrow"):
-            self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
-
-        self.gps_label_speed.setStyleSheet(
-            f"color: rgb({r},{g},{b}); "
-            "background-color: transparent; padding: 10px; "
-            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
-
-        self.gps_label_alt.setText(f"Alt {row.gps_alt:.0f} ft")
-        self.gps_label_alt.adjustSize()
-        self.gps_label_alt.move(
-            self.gfx_canvas.width() - self.gps_label_alt.width(),60)
-
-        self.gps_label_vario.setText(f"{row.gps_fpm:.0f} ft/min")
-        self.gps_label_vario.adjustSize()
-        self.gps_label_vario.move(
-            self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
@@ -3330,6 +3334,7 @@ class MainWindow(QMainWindow):
         # refresh graphics immediately (useful when paused)
         try:
             self.update_gfx_orientation()
+            self.update_video_label()
         except Exception:
             pass
 
@@ -3794,6 +3799,7 @@ class MainWindow(QMainWindow):
         self.update_metar()
         self.update_wind()
         self.update_gfx_orientation()
+        self.update_video_label()
         self.update_g_timeline_cursor()
 
         if self.bookmarks_df is not None and not self.bookmarks_df.empty:
