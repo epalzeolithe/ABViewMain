@@ -4208,9 +4208,26 @@ class MainWindow(QMainWindow):
             self.g_timeline_cursor.setGeometry(0, 0, 2, total_height)
             self.g_timeline_cursor.show()
 
+        # ---- triangle indicator (top of cursor) ----
+        if not hasattr(self, "g_timeline_cursor_triangle"):
+            self.g_timeline_cursor_triangle = QLabel("▼", self)
+            self.g_timeline_cursor_triangle.setStyleSheet(
+                "color: black; background: transparent; font-size: 12px;"
+            )
+            self.g_timeline_cursor_triangle.adjustSize()
+            self.g_timeline_cursor_triangle.show()
+
         # update geometry
         self.g_timeline_cursor.setGeometry(x_global, y_top, 2, total_height)
         self.g_timeline_cursor.raise_()
+
+        # position triangle at top of cursor
+        if hasattr(self, "g_timeline_cursor_triangle"):
+            self.g_timeline_cursor_triangle.move(
+                x_global - self.g_timeline_cursor_triangle.width() // 2 + 1,
+                y_top - self.g_timeline_cursor_triangle.height()
+            )
+            self.g_timeline_cursor_triangle.raise_()
 
     # ==================================================
     def on_slider(self, value):
