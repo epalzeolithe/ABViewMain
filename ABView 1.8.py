@@ -35,7 +35,7 @@ from ver import __version__
 #CONFIG
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol16_2026_02_21.abv/"
-BDL="data/Vol17_2026_03_20.abv/"
+#rBDL="data/Vol17_2026_03_20.abv/"
 #BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
 MERGED_DATA = PDL+"merged_data.csv"
@@ -132,56 +132,41 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
 
         # --- Configure vertex attributes ONCE (avoid per-frame overhead) ---
         pos_attr = 0  # matches layout(location = 0)
-
         gl.glBindVertexArray(self.vao)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-
         gl.glEnableVertexAttribArray(pos_attr)
-
         gl.glVertexAttribPointer(
             pos_attr,
             2,
             gl.GL_FLOAT,
             False,
             0,
-            None
-        )
-
+            None)
 
     def paintGL(self):
         if self.frame is None:
             return
-
         frame = self.frame
-
         if "yuv" not in frame.format.name.lower():
             return
-
         y = frame.planes[0]
         u = frame.planes[1]
         v = frame.planes[2]
-
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
         self.program.bind()
-
         def upload(tex_id, plane, w, h, unit, pbo):
             # Activate texture unit BEFORE any glBindTexture
             gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
-
             # Safety: ensure clean state before texture ops
             gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-
             if tex_id is None:
                 tex_id = gl.glGenTextures(1)
                 gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
-
                 # Set texture parameters ONCE after creation
                 gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
                 gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
                 gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
                 gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-
                 # IMPORTANT: ensure no PBO is bound when allocating texture
                 gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
                 gl.glTexImage2D(
@@ -1362,31 +1347,23 @@ class MainWindow(QMainWindow):
         # norme (G)
         acc_norm = np.linalg.norm(acc, axis=1)
         self.df["g_force"] = acc_norm / 9.81
-
         # éviter division par 0
         acc_norm_safe = np.where(acc_norm == 0, 1, acc_norm)
-
         # vecteurs unitaires
         acc_unit = acc / acc_norm_safe[:, None]
-
         # ---- rotation (attention: vectorisation) ----
         R_total = R_x_20 @ perm[R_recalage_repere]
-
         # appliquer rotation à tous les vecteurs
         acc_vec = (R_total @ acc_unit.T).T  # (N,3)
-
         # ---- angle avec verticale ----
         dot = np.einsum("ij,j->i", acc_vec, down_original)
         norm_acc = np.linalg.norm(acc_vec, axis=1)
         cos_theta = dot / norm_acc
         cos_theta = np.clip(cos_theta, -1.0, 1.0)
-
         angles = np.degrees(np.arccos(cos_theta))
-
         # signe du G
         g_signed = self.df["g_force"].to_numpy().copy()
         g_signed[angles > 90] *= -1
-
         self.df["g_signed"] = g_signed
 
     def build_g_timeline(self):
@@ -2759,6 +2736,14 @@ class MainWindow(QMainWindow):
         theta_x = np.deg2rad(self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
         R_x_20 = np.array([[1, 0, 0],[0, np.cos(theta_x), -np.sin(theta_x)],[0, np.sin(theta_x),  np.cos(theta_x)]])
         R_final = R_x_20 @ perm[R_recalage_repere] @ R
+        # ---- sanitize rotation matrix (avoid NaN/inf and non-orthogonal matrices) ----
+        if not np.isfinite(R_final).all():
+            return
+        try:
+            U, _, Vt = np.linalg.svd(R_final)
+            R_final = U @ Vt
+        except Exception:
+            return
 
         # Forward and Up original vectors
         fwd_original = np.array([0.0, 1.0, 0.0])
@@ -2779,7 +2764,14 @@ class MainWindow(QMainWindow):
         # ---- Update acceleration vector ----
         acc = np.array([-row.x4_acc_x,-row.x4_acc_y,-row.x4_acc_z])# rotation
         self.g = np.linalg.norm(acc) / 9.81
-        acc = acc / np.linalg.norm(acc) # normer vecteur
+
+        norm_acc = np.linalg.norm(acc)
+
+        if not np.isfinite(norm_acc) or norm_acc < 1e-6:
+            acc = np.array([0.0, 0.0, 0.0])
+        else:
+            acc = acc / norm_acc
+
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
         self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
         # ---- low-pass filter to smooth G vector trail ----
@@ -2888,8 +2880,10 @@ class MainWindow(QMainWindow):
             "background-color: transparent; padding: 10px; "
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         #rotation de l'objet
-        M = np.eye(4);M[:3, :3] = R_final.T
-        self.gfx_object.local.matrix = M
+        M = np.eye(4)
+        M[:3, :3] = R_final.T
+        if np.isfinite(M).all():
+            self.gfx_object.local.matrix = M
 
         # ---- Compute Pitch (angle between rotated Y and XY plane) ----
         v_original = np.array([0.0, 1.0, 0.0])
@@ -2899,9 +2893,10 @@ class MainWindow(QMainWindow):
         plane_normal = np.array([0.0, 0.0, 1.0])
         dot = np.dot(v_rotated, plane_normal)
         norm_v = np.linalg.norm(v_rotated)
-
-        # angle between vector and plane
-        pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
+        if norm_v < 1e-6 or not np.isfinite(norm_v):
+            pitch_rad = 0.0
+        else:
+            pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
         pitch_deg = np.degrees(pitch_rad)
         self.pitch_deg = pitch_deg
 
