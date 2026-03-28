@@ -1097,7 +1097,7 @@ class MainWindow(QMainWindow):
         self.video1_wind_label = QLabel("", self.video1)
         self.video1_wind_label.setAlignment(Qt.AlignCenter)
         self.video1_wind_label.setStyleSheet(
-            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
+            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
         )
         self.video1_wind_label.adjustSize()
         self.video1_wind_label.raise_()
@@ -3177,11 +3177,23 @@ class MainWindow(QMainWindow):
             hw = self.headwind_vals[self.idf]
             cw = self.crosswind_vals[self.idf]
 
-            # format lisible
-            hw_txt = f"{hw:.0f} kt"
-            cw_txt = f"{abs(cw):.0f} kt {'R' if cw > 0 else 'L'}"
+            # flèche headwind / tailwind
+            if hw >= 0:
+                hw_arrow = "↓"  # vent de face
+            else:
+                hw_arrow = "↑"  # vent arrière
 
-            self.video1_wind_label.setText(f"HW {hw_txt}\nXW {cw_txt}")
+            hw_txt = f"{hw_arrow} {abs(hw):.0f} kt"
+
+            # flèche crosswind
+            if cw > 0:
+                cw_arrow = "←"  # vent venant de la droite → pousse vers la gauche
+            else:
+                cw_arrow = "→"  # vent venant de la gauche → pousse vers la droite
+
+            cw_txt = f"{cw_arrow} {abs(cw):.0f} kt"
+
+            self.video1_wind_label.setText(f"{hw_txt}\n{cw_txt}")
 
         except Exception:
             pass
