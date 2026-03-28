@@ -1540,6 +1540,31 @@ class MainWindow(QMainWindow):
 
         self.g_timeline.setPixmap(QPixmap.fromImage(img))
 
+        # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
+        try:
+            if not hasattr(self, "g_timeline_legend"):
+                from PyQt5.QtWidgets import QLabel
+                from PyQt5.QtCore import Qt
+
+                # IMPORTANT: parent = g_timeline (not main window)
+                self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
+                self.g_timeline_legend.setStyleSheet(
+                    "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
+                )
+                self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
+                self.g_timeline_legend.raise_()
+
+            self.g_timeline_legend.adjustSize()
+
+            # position INSIDE the bar (top-left)
+            self.g_timeline_legend.move(0, 0)
+            self.g_timeline_legend.raise_()
+
+            self.g_timeline_legend.show()
+
+        except Exception:
+            pass
+
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
         if not hasattr(self, "slider"):
@@ -1579,7 +1604,7 @@ class MainWindow(QMainWindow):
             x = int(slider_x + t * slider_w)
 
             tick = QFrame(self.centralWidget())
-            tick.setStyleSheet("background-color: red;")
+            tick.setStyleSheet("background-color: rgb(80,80,80);")  # gris foncé
             tick.setGeometry(x, slider_y - 6, 2, 6)
 
             # tooltip (optionnel)
