@@ -30,7 +30,6 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
-
 from ver import __version__
 
 #***********************************************
