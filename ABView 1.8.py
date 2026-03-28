@@ -535,7 +535,6 @@ class ArtificialHorizon(QWidget):
             painter.drawPolygon(triangle)
         painter.end()
 
-
 # ======================================================
 # Analog Badin (Circular Airspeed Indicator)
 # ======================================================
@@ -784,8 +783,6 @@ class AnalogVario(QWidget):
 
         painter.setPen(QPen(QColor("white"), 3))
         painter.drawLine(int(cx), int(cy), int(x2), int(y2))
-
-
 
 # ======================================================
 # Main Window
@@ -4499,7 +4496,6 @@ class MainWindow(QMainWindow):
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
-
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
         if getattr(self, "gfx_detached", False):
@@ -4629,7 +4625,6 @@ class MainWindow(QMainWindow):
             pass
         event.accept()
 
-
 STYLE_SHEET = """
     QPushButton {
         background-color: #f0f0f0;
@@ -4691,7 +4686,6 @@ STYLE_SHEET = """
     }
 
     """
-
 # ======================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
