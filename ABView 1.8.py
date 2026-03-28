@@ -1591,11 +1591,12 @@ class MainWindow(QMainWindow):
         def get_color(a):
             # points de contrôle (altitude ft, couleur RGB)
             stops = [
-                (0,    (0, 120, 255)),   # bleu (bas)
-                (3000, (0, 200, 255)),   # cyan
-                (4000, (0, 255, 0)),     # vert
-                (5000, (255, 255, 0)),   # jaune
-                (7000, (255, 0, 0)),     # rouge (haut)
+                (0,    (120, 120, 120)),   # gris (sol)
+                (3000, (0, 200, 255)),     # cyan
+                (4000, (0, 255, 0)),       # vert
+                (5000, (255, 255, 0)),     # rouge
+                (6000, (255, 0, 0)),  # rouge
+                (7000, (160, 0, 255)),     # violet (haut)
             ]
 
             # clamp
@@ -4182,13 +4183,34 @@ class MainWindow(QMainWindow):
         return frame_index
 
     def update_g_timeline_cursor(self):
-        x = int(self.idf / self.frames_df * self.g_timeline.width())
+        # compute x inside timeline
+        x_local = int(self.idf / self.frames_df * self.g_timeline.width())
+
+        # compute global position
+        x_global = self.g_timeline.x() + x_local
+
+        # compute vertical span (G + Alt timelines)
+        if hasattr(self, "alt_timeline"):
+            y_top = min(self.g_timeline.y(), self.alt_timeline.y())
+            y_bottom = max(
+                self.g_timeline.y() + self.g_timeline.height(),
+                self.alt_timeline.y() + self.alt_timeline.height()
+            )
+            total_height = y_bottom - y_top
+        else:
+            y_top = self.g_timeline.y()
+            total_height = self.g_timeline.height()
+
+        # create cursor once (IMPORTANT: parent = self, not g_timeline)
         if not hasattr(self, "g_timeline_cursor"):
-            self.g_timeline_cursor = QFrame(self.g_timeline)
+            self.g_timeline_cursor = QFrame(self)
             self.g_timeline_cursor.setStyleSheet("background-color: black;")
-            self.g_timeline_cursor.setGeometry(0, 0, 2, self.g_timeline.height())
+            self.g_timeline_cursor.setGeometry(0, 0, 2, total_height)
             self.g_timeline_cursor.show()
-        self.g_timeline_cursor.move(x, 0)
+
+        # update geometry
+        self.g_timeline_cursor.setGeometry(x_global, y_top, 2, total_height)
+        self.g_timeline_cursor.raise_()
 
     # ==================================================
     def on_slider(self, value):
