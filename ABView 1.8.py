@@ -3456,7 +3456,8 @@ class MainWindow(QMainWindow):
             expected = 1.0 / self.target_fps
             if dt > expected * 1.5:  # seuil 50%
                 self.stutter_count += 1
-                print(f"⚠️ STUTTER dt={dt * 1000:.1f} ms")
+                if dt>0.1:
+                    print(f"⚠️ STUTTER dt={dt * 1000:.1f} ms")
         self.last_frame_time = now
         now = self.clock.elapsed()
         # initialize startup time once
