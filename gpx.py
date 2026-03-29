@@ -119,15 +119,50 @@ def read_EXIFTOOL_GPX(gpx_file):
             for p in segment.points:
                 data.append({
                     "timestamp": p.time.strftime("%Y-%m-%d %H:%M:%S") if p.time else None,
-                    "lat": p.latitude,
-                    "lon": p.longitude,
-                    "alt": round(p.elevation * 3.28084,0)
+                    "gpx_lat": p.latitude,
+                    "gpx_lon": p.longitude,
+                    "gpx_alt": round(p.elevation * 3.28084,0)
                 })
 
     df = pd.DataFrame(data)
 
+    import numpy as np
+
+    # Convert timestamp to datetime
+    df["dt_obj"] = pd.to_datetime(df["timestamp"], errors="coerce")
+
+    # Compute time difference in seconds
+    df["dt"] = df["dt_obj"].diff().dt.total_seconds()
+
+    # Haversine distance (meters)
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371000.0
+        lat1 = np.radians(lat1)
+        lon1 = np.radians(lon1)
+        lat2 = np.radians(lat2)
+        lon2 = np.radians(lon2)
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = np.sin(dlat/2)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2)**2
+        return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+
+    # Compute distance between consecutive points
+    df["dist"] = haversine(
+        df["gpx_lat"].shift(1), df["gpx_lon"].shift(1),
+        df["gpx_lat"], df["gpx_lon"]
+    )
+
+    # Speed in km/h
+    df["gpx_speed"] = (df["dist"] / df["dt"]) * 3.6
+
+    # Clean
+    df["gpx_speed"] = df["gpx_speed"].fillna(0).round(0)
+    # Cap unrealistic GPS speeds (km/h)
+    df.loc[df["gpx_speed"] > 340, "gpx_speed"] = 340
+    df = df.drop(columns=["dt_obj", "dt", "dist"], errors="ignore")
+
     # nettoyage optionnel
-    df = df.dropna(subset=["timestamp", "lat", "lon", "alt"])
+    df = df.dropna(subset=["timestamp", "gpx_lat", "gpx_lon", "gpx_alt", "gpx_speed"])
     return df
 
 def get_datas_from_insv(insv):
