@@ -3,6 +3,7 @@ SKIP_X4_EXPORT = True
 SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
 SKIP_METAR = True
+SKIP_WIND = True
 CONSOLE_WINDOW = False
 
 import os,re
@@ -740,7 +741,20 @@ def read_EXIFTOOL_GPX(gpx_file):
         df["gps_lon"]
     )
 
-    df["gps_heading"] = df["gps_heading"].fillna(method="bfill").round(1)
+    df["gps_heading"] = df["gps_heading"].bfill().round(1)
+
+    # Compute vertical speed (feet per minute) safely
+    dt_safe = df["dt"].replace(0, np.nan)
+
+    dz = df["gps_alt"].diff()
+    df["gps_fpm"] = (dz / dt_safe) * 60
+
+    # forward/backward fill small gaps
+    df["gps_fpm"] = df["gps_fpm"].bfill().ffill()
+
+    # Clean NaN / inf values
+    df["gps_fpm"] = df["gps_fpm"].replace([np.inf, -np.inf], np.nan)
+    df["gps_fpm"] = df["gps_fpm"].fillna(0).round(0)
 
     # Cap unrealistic GPS speeds (km/h)
     df.loc[df["gps_speed"] > 340, "gps_speed"] = 340
@@ -907,6 +921,7 @@ def main():
         merged = pd.merge_asof(merged, gdf, on="timestamp", direction="nearest")
     else:
         merged = pd.merge_asof(xdf, gdf, on="timestamp", direction="nearest")
+
 
     merged = add_wind(merged)
     merged = add_ias(merged)
