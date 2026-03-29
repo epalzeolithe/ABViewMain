@@ -263,14 +263,15 @@ def main():
     back=pdl+"back.mp4"
     cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
     print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
-    print("\nAppuyez sur une touche POUR CONFIRMER la conversion - RISQUE ECRASEMENT...")
-    app = QApplication.instance()
-    console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
 
-    while console is not None and not console.start_requested:
-        app.processEvents()
-        time.sleep(0.05)
+    if os.path.exists(back) or os.path.exists(front):
+        print("\nFichiers MP4 existants !!!! Appuyez sur une touche POUR CONFIRMER la conversion et l'écrasement\n"+back+"\n"+front)
+        app = QApplication.instance()
+        console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
 
+        while console is not None and not console.start_requested:
+            app.processEvents()
+            time.sleep(0.05)
 
     print("SKIP_CONVERSION", SKIP_CONVERSION)
     print("SHORT_CONVERT", SHORT_CONVERT)
