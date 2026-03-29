@@ -870,6 +870,7 @@ class MainWindow(QMainWindow):
         self.resize(1600, 1200)
 
         # ---- état ----
+        self.alive = True
         self.load_dataframe(MERGED_DATA)
         self.i = 0
         self.idf = 0
@@ -992,6 +993,28 @@ class MainWindow(QMainWindow):
         metar_row = self.find_metar_for_time(t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
+
+    def closeEvent(self, event):
+        """Sécurise la fermeture (évite crash wgpu async)"""
+        try:
+            self.alive = False
+
+            # fermer proprement le canvas pygfx
+            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
+                try:
+                    self.gfx_canvas.close()
+                    self.gfx_canvas.deleteLater()
+                except Exception:
+                    pass
+
+            # vider les callbacks Qt en attente
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+
+        except Exception:
+            pass
+
+        event.accept()
 
     def init_UI(self):
         # ---- UI ----
@@ -4528,6 +4551,7 @@ class MainWindow(QMainWindow):
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
         try:
+            self.alive = False
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
