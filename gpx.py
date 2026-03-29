@@ -121,7 +121,7 @@ def read_EXIFTOOL_GPX(gpx_file):
                     "time": p.time.timestamp() if p.time else None,
                     "lat": p.latitude,
                     "lon": p.longitude,
-                    "alt": p.elevation
+                    "alt": round(p.elevation * 3.28084,0)
                 })
 
     df = pd.DataFrame(data)
