@@ -1,8 +1,8 @@
 # -------- CONFIG --------
-SKIP_X4_EXPORT = False
+SKIP_X4_EXPORT = True
 SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
-SKIP_METAR = False
+SKIP_METAR = True
 CONSOLE_WINDOW = False
 
 import os,re
@@ -20,6 +20,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import sys
+import gpxpy
 from PyQt5.QtWidgets import QApplication, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
 
@@ -150,6 +151,8 @@ X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
 GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
+EXIFTOOL = "data/ressources/exiftool"
+EXIFFMT = "data/ressources/gpx.fmt"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
 
@@ -654,6 +657,108 @@ def add_ias(merged):
 
     return merged
 
+def export_EXIFTOOL_GPX_from_insv(insv_path):
+    PATH = os.getcwd() + "/"
+    input_file = PATH  + SUBDIR + insv_path
+    output_file = PATH + TMP + insv_path + ".gpx"
+    cmd = [
+        PATH + EXIFTOOL,
+        "-ee",
+        "-p", EXIFFMT,
+        input_file]
+    print("Running EXIFTOOL:", " ".join(cmd))
+    with open(output_file, "w") as f:
+        subprocess.run(cmd, stdout=f, check=True)
+    print("GPX créé:", output_file)
+
+def read_EXIFTOOL_GPX(gpx_file):
+    with open(gpx_file, "r") as f:
+        gpx = gpxpy.parse(f)
+
+    data = []
+
+    for track in gpx.tracks:
+        for segment in track.segments:
+            for p in segment.points:
+                data.append({
+                    "timestamp": p.time.strftime("%Y-%m-%d %H:%M:%S") if p.time else None,
+                    "gps_lat": p.latitude,
+                    "gps_lon": p.longitude,
+                    "gps_alt": round(p.elevation * 3.28084,0)
+                })
+
+    df = pd.DataFrame(data)
+
+    import numpy as np
+
+    # Convert timestamp to datetime
+    df["dt_obj"] = pd.to_datetime(df["timestamp"], errors="coerce")
+
+    # Compute time difference in seconds
+    df["dt"] = df["dt_obj"].diff().dt.total_seconds()
+
+    # Haversine distance (meters)
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371000.0
+        lat1 = np.radians(lat1)
+        lon1 = np.radians(lon1)
+        lat2 = np.radians(lat2)
+        lon2 = np.radians(lon2)
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = np.sin(dlat/2)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2)**2
+        return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+
+    # Compute distance between consecutive points
+    df["dist"] = haversine(
+        df["gps_lat"].shift(1), df["gps_lon"].shift(1),
+        df["gps_lat"], df["gps_lon"]
+    )
+
+    # Speed in km/h
+    df["gps_speed"] = (df["dist"] / df["dt"]) * 3.6
+
+    # Clean
+    df["gps_speed"] = df["gps_speed"].fillna(0).round(0)
+
+    # Compute heading (degrees from North)
+    def compute_heading(lat1, lon1, lat2, lon2):
+        lat1 = np.radians(lat1)
+        lat2 = np.radians(lat2)
+        dlon = np.radians(lon2 - lon1)
+
+        x = np.sin(dlon) * np.cos(lat2)
+        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+
+        heading = np.degrees(np.arctan2(x, y))
+        return (heading + 360) % 360
+
+    df["gps_heading"] = compute_heading(
+        df["gps_lat"].shift(1),
+        df["gps_lon"].shift(1),
+        df["gps_lat"],
+        df["gps_lon"]
+    )
+
+    df["gps_heading"] = df["gps_heading"].fillna(method="bfill").round(1)
+
+    # Cap unrealistic GPS speeds (km/h)
+    df.loc[df["gps_speed"] > 340, "gps_speed"] = 340
+    df = df.drop(columns=["dt_obj", "dt", "dist"], errors="ignore")
+
+    # nettoyage optionnel
+    df = df.dropna(subset=["timestamp", "gps_lat", "gps_lon", "gps_alt", "gps_speed"])
+
+    return df
+
+def get_gps_from_insv(insv):
+    # insv > BB tool > export gpx
+    export_EXIFTOOL_GPX_from_insv(insv)
+    print("Export GPX done")
+    gbb_df = read_EXIFTOOL_GPX(TMP+insv+".gpx")
+    gbb_df.to_csv(TMP+insv+".gpx.csv", index=True, encoding="utf-8")
+    return gbb_df
+
 def main():
 
     #print(TMP)
@@ -680,6 +785,15 @@ def main():
         gloaded=True
     else:
         print("GNS3000 log file not found")
+        print(("Trying with GPX export"))
+        if os.path.exists(SUBDIR + X4_INSV_1):
+            gdf=get_gps_from_insv(X4_INSV_1)
+            gloaded = True
+        if os.path.exists(SUBDIR + X4_INSV_2):
+            gdf2=get_gps_from_insv(X4_INSV_2)
+        print("INSV>GPX>CSV done")
+        #STICHING TODO
+
 
     if os.path.exists(SUBDIR+IPHONE_SENSORLOG):
         print("Loading Datas from iPhone sensorlog")
@@ -798,13 +912,33 @@ def main():
     merged = add_ias(merged)
 
 
-
-
     merged.to_csv(OUTPUT, index=True, encoding="utf-8")
     print("\nMerged for ABView :"+OUTPUT)
 
     with open("data/" + get_bundle_name_from_insv(X4_INSV_1) + "/version.txt", "w") as f:
         f.write(__version__)
+
+    # extract METAR
+
+    if not SKIP_METAR:
+        # start / end time of the video from merged dataframe
+        start = pd.to_datetime(merged["timestamp"].iloc[0], utc=True)
+        # round start down to previous 3‑hour boundary (00,03,06,09,12,15,18,21 UTC)
+        h = (start.hour // 3) * 3 - 3
+        start = start.replace(hour=6, minute=0, second=0, microsecond=0)
+        end = start + timedelta(hours=12)
+        print("Start time", start)
+        print("End time", end)
+
+        metar_df = download_metar_history("LFMT", start, end)
+        # print(metar_df)
+        OUTPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
+        metar_df.to_csv(OUTPUT_METAR, index=False, encoding="utf-8")
+    else:
+        print(".....Skipping METAR export")
+        INPUT_METAR = "data/" + get_bundle_name_from_insv(X4_INSV_1) + "/metar.csv"
+        metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+        # print(metar_df)
 
     print("Done.")
 

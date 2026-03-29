@@ -165,7 +165,7 @@ def read_EXIFTOOL_GPX(gpx_file):
     df = df.dropna(subset=["timestamp", "gpx_lat", "gpx_lon", "gpx_alt", "gpx_speed"])
     return df
 
-def get_datas_from_insv(insv):
+def get_gps_from_insv(insv):
     # insv > BB tool > export gpx
     export_EXIFTOOL_GPX_from_insv(insv)
     print("Export GPX done")
@@ -182,14 +182,14 @@ def main():
     print("X4_INSV_2:", X4_INSV_2)
     if os.path.exists(SUBDIR+X4_INSV_1):
         print("Loading Datas from .insv")
-        xdf = get_datas_from_insv(X4_INSV_1)
+        xdf = get_gps_from_insv(X4_INSV_1)
         print("Datas from .insv loaded")
     else:
         print(".insv file not found")
 
     if os.path.exists(SUBDIR+X4_INSV_2):
         print("Loading Datas from 2nd insv")
-        xdf2 = get_datas_from_insv(X4_INSV_2)
+        xdf2 = get_gps_from_insv(X4_INSV_2)
         print("Datas from 2nd .insv loaded")
     else:
         print("2nd .insv file not found")
