@@ -25,6 +25,8 @@ class ConsoleStream(QObject):
 class ConsoleWindow(QTextEdit):
     def __init__(self):
         super().__init__()
+        self.allow_close = False
+        self.start_requested = False
         self.setWindowTitle("MERGE "+__version__+" - Console")
         self.setReadOnly(True)
         self.resize(900, 500)
@@ -46,8 +48,12 @@ class ConsoleWindow(QTextEdit):
         self.ensureCursorVisible()
 
     def keyPressEvent(self, event):
-        # Close on any key press
-        QApplication.quit()
+        if not self.start_requested:
+            self.start_requested = True
+        elif self.allow_close:
+            QApplication.quit()
+        else:
+            event.ignore()
 
 class Worker(QThread):
     finished_signal = pyqtSignal(bool)
@@ -56,10 +62,18 @@ class Worker(QThread):
         try:
             main()
             print("\nAppuyez sur une touche dans la fenêtre pour fermer...")
+            app = QApplication.instance()
+            console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
+            if console is not None:
+                console.allow_close = True
             self.finished_signal.emit(True)
         except Exception as e:
             print("\nErreur :", e)
             print("Appuyez sur une touche dans la fenêtre pour fermer...")
+            app = QApplication.instance()
+            console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
+            if console is not None:
+                console.allow_close = True
             self.finished_signal.emit(False)
 
 def get_last_two_insv_files(directory):
@@ -249,6 +263,15 @@ def main():
     back=pdl+"back.mp4"
     cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
     print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
+    print("\nAppuyez sur une touche POUR CONFIRMER la conversion - RISQUE ECRASEMENT...")
+    app = QApplication.instance()
+    console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
+
+    while console is not None and not console.start_requested:
+        app.processEvents()
+        time.sleep(0.05)
+
+
     print("SKIP_CONVERSION", SKIP_CONVERSION)
     print("SHORT_CONVERT", SHORT_CONVERT)
 
