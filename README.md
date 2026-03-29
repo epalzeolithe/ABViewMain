@@ -1,9 +1,12 @@
 # ABView - Aerobatic Flight Viewer
 
+DEMO https://youtu.be/CWQwiJPiQm4
+
 **ABView** is a desktop application for visualizing and analyzing aerobatic flight data. It synchronizes multiple video feeds with inertial (IMU), GPS, and accelerometer data recorded during aerobatic flights, providing a real-time multi-panel view of the aircraft's attitude, trajectory, and flight parameters.
 
-> **Current version:** 0.9 Direct Import
 
+
+> **Current version:** 1.9 GPX import
 ---
 
 ## Features
