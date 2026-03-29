@@ -39,11 +39,6 @@ BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
 BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
-MERGED_DATA = PDL+"merged_data.csv"
-INPUT_METAR = BDL + "metar.csv"
-VIDEO1=PDL+"front.mp4"
-VIDEO2=PDL+"back.mp4"
-BOOKMARK_FILE=PDL+"bookmark.csv"
 STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
 STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
@@ -4710,9 +4705,69 @@ STYLE_SHEET = """
     }
 
     """
+
+from PyQt5.QtWidgets import QFileDialog
+import os
+
+
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
+import os
+
+def select_abv_folder():
+    base_path = MAINDIR + "data/"
+
+    dialog = QDialog()
+    dialog.setWindowTitle("Sélectionner un vol (.abv)")
+    layout = QVBoxLayout(dialog)
+
+    list_widget = QListWidget()
+
+    # scan des dossiers .abv
+    abv_list = [
+        f for f in os.listdir(base_path)
+        if f.endswith(".abv") and os.path.isdir(os.path.join(base_path, f))
+    ]
+
+    list_widget.addItems(sorted(abv_list))
+    layout.addWidget(list_widget)
+
+    btn = QPushButton("OK")
+    layout.addWidget(btn)
+
+    selected_folder = {"value": None}
+
+    def on_select():
+        item = list_widget.currentItem()
+        if item:
+            selected_folder["value"] = os.path.join(base_path, item.text()) + "/"
+            dialog.accept()
+
+    btn.clicked.connect(on_select)
+    list_widget.itemDoubleClicked.connect(lambda _: on_select())
+
+    dialog.exec_()
+
+    return selected_folder["value"]
+
 # ======================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    # ---- Sélection utilisateur ----
+    selected = select_abv_folder()
+
+    if selected:
+        PDL = selected
+        print("PDL sélectionné :", PDL)
+    else:
+        print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
+
+    MERGED_DATA = PDL + "merged_data.csv"
+    INPUT_METAR = PDL + "metar.csv"
+    VIDEO1 = PDL + "front.mp4"
+    VIDEO2 = PDL + "back.mp4"
+    BOOKMARK_FILE = PDL + "bookmark.csv"
+
     palette = app.palette()
     palette.setColor(palette.Window, Qt.white)
     palette.setColor(palette.Base, Qt.white)
