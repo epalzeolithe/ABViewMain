@@ -11,7 +11,7 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 os.environ["QT_LOGGING_RULES"] = "*.warning=false"
 import av
-import time
+import sip
 import numpy as np
 import pandas as pd
 import pygfx as gfx
@@ -870,7 +870,6 @@ class MainWindow(QMainWindow):
         self.resize(1600, 1200)
 
         # ---- état ----
-        self.alive = True
         self.load_dataframe(MERGED_DATA)
         self.i = 0
         self.idf = 0
@@ -963,6 +962,7 @@ class MainWindow(QMainWindow):
         self.enable_matplotlib_gps = True
         self.init_gps_pyqtgraph()
 
+        self.gfx_alive = True
         self.init_gfx()
         self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
 
@@ -994,7 +994,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Sécurise la fermeture (évite crash wgpu / rendercanvas)"""
         try:
-            self.alive = False
 
             # ---- stop Qt timer FIRST ----
             if hasattr(self, "timer"):
@@ -3079,7 +3078,10 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show()
 
     def update_gfx_orientation(self):
-        #R = quat_to_rot(quats[self.i])
+        if not getattr(self, "gfx_alive", True):
+            return
+        if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
+            return
         row = self.row
         R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
 
@@ -4564,9 +4566,10 @@ class MainWindow(QMainWindow):
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
         try:
-            self.alive = False
+            self.gfx_alive = False
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+            self.gfx_alive = True
             self.gfx_detached = False
             # restore overlay button when returning to main window
             if hasattr(self, "btn_detach_gfx"):
