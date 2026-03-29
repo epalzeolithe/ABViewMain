@@ -21,6 +21,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
 from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
+from PyQt5.QtCore import QPoint
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -29,21 +30,20 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
-from PyQt5.QtWidgets import QFileDialog
-import os
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
-import os
 from ver import __version__
 
 #***********************************************
 #CONFIG
-SKIP_BDL_SELECTION = False
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
-BDL="data/Vol_2026_03_21.abv/"
-BDL="data/Vol_2026_02_15.abv/"
+#BDL="data/Vol_2026_03_21.abv/"
 PDL=MAINDIR+BDL
+MERGED_DATA = PDL+"merged_data.csv"
+INPUT_METAR = BDL + "metar.csv"
+VIDEO1=PDL+"front.mp4"
+VIDEO2=PDL+"back.mp4"
+BOOKMARK_FILE=PDL+"bookmark.csv"
 STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
 STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
@@ -877,6 +877,9 @@ class MainWindow(QMainWindow):
         self.playing = True
         self.speed = 1
         self.current_video_time_utc = None
+        self.frame_skipped_count = 0
+        self.frame_last_delay = 0
+        self.last_frame_time = None
         self.stutter_count = 0
         self.recording = False
 
@@ -992,49 +995,21 @@ class MainWindow(QMainWindow):
         #print(f"Metar at start: {self.last_metar}")
 
     def closeEvent(self, event):
-        """Sécurise la fermeture (évite crash wgpu / rendercanvas)"""
+        """Sécurise la fermeture (évite crash wgpu async)"""
         try:
             self.alive = False
 
-            # ---- stop Qt timer FIRST ----
-            if hasattr(self, "timer"):
-                try:
-                    self.timer.stop()
-                except Exception:
-                    pass
-
-            # ---- stop pygfx / rendercanvas cleanly ----
+            # fermer proprement le canvas pygfx
             if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
                 try:
-                    # ---- CRITICAL: stop rendercanvas loop BEFORE Qt deletes widget ----
-                    try:
-                        if hasattr(self.gfx_canvas, "_rc_canvas"):
-                            loop = getattr(self.gfx_canvas._rc_canvas, "_loop", None)
-                            if loop is not None:
-                                loop.stop(force=True)
-                    except Exception:
-                        pass
-
-                    # ---- detach from Qt ----
-                    self.gfx_canvas.setParent(None)
-                    self.gfx_canvas.hide()
-                except Exception:
-                    pass
-
-            # ---- process remaining Qt events (flush callbacks) ----
-            from PyQt5.QtWidgets import QApplication
-            QApplication.processEvents()
-
-            # ---- now safe deletion ----
-            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
-                try:
-                    try:
-                        self.gfx_canvas.close()
-                    except Exception:
-                        pass
+                    self.gfx_canvas.close()
                     self.gfx_canvas.deleteLater()
                 except Exception:
                     pass
+
+            # vider les callbacks Qt en attente
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
 
         except Exception:
             pass
@@ -3620,7 +3595,15 @@ class MainWindow(QMainWindow):
     # Real-time compensated main loop (absolute scheduling)
     # ==================================================
     def main_loop(self):
-
+        now = time.time()
+        if self.last_frame_time is not None:
+            dt = now - self.last_frame_time
+            expected = 1.0 / self.target_fps
+            if dt > expected * 1.5:  # seuil 50%
+                self.stutter_count += 1
+                if dt>0.1:
+                    print(f"⚠️ STUTTER dt={dt * 1000:.1f} ms")
+        self.last_frame_time = now
         now = self.clock.elapsed()
         # initialize startup time once
         if self.startup_time_ms is None:
@@ -3628,8 +3611,6 @@ class MainWindow(QMainWindow):
         # initialize absolute schedule
         if self.next_frame_time == 0:
             self.next_frame_time = now
-
-
         if self.playing:
             # 🔊 audio ALWAYS runs
             self.update_audio()
@@ -3646,7 +3627,7 @@ class MainWindow(QMainWindow):
                 else:
                     video_time = 0.0
                 # New sync logic with margin
-                margin = 0.03  # 50 ms tolerance
+                margin = 0.05  # 50 ms tolerance
                 if video_time < target_time - margin:
                     # video late → catch up
                     self.update_all()
@@ -3783,7 +3764,7 @@ class MainWindow(QMainWindow):
                 self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
                 self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
-                #self.audio_prebuffer_done = False
+                self.audio_prebuffer_done = False
 
             except Exception:
                 pass
@@ -3954,11 +3935,11 @@ class MainWindow(QMainWindow):
         try:
             # 🔑 combien de place dispo dans le buffer audio OS
             if hasattr(self, "audio_output"):
-                bytes_free = self.audio_output.bytesFree()
+                bytes_free = max(self.audio_output.bytesFree(), 16384)
             else:
                 bytes_free = 16384
             # 🔑 on remplit un peu plus que nécessaire
-            target_buffer = max(bytes_free * 2, 16384)
+            target_buffer = max(bytes_free * 4, 65536)
             # 🔑 décodage adaptatif
             while len(self.audio_buffer) < target_buffer:
                 packet = next(self.audio_packets)
@@ -3978,11 +3959,17 @@ class MainWindow(QMainWindow):
             print("audio error:", e)
             return
         # 🔊 écriture CONTINUE (critique)
-        chunk_size = 4096
+        chunk_size = 8192
         if not hasattr(self, "audio_output"):
             return
-        bytes_free = self.audio_output.bytesFree()
-
+        # ---- PREBUFFER (avoid stutter after start/seek) ----
+        if not hasattr(self, "audio_prebuffer_done"):
+            self.audio_prebuffer_done = False
+        if not self.audio_prebuffer_done:
+            if len(self.audio_buffer) < 65536:
+                return
+            else:
+                self.audio_prebuffer_done = True
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
@@ -4723,94 +4710,9 @@ STYLE_SHEET = """
     }
 
     """
-
-
-def select_abv_folder():
-    base_path = MAINDIR + "data/"
-
-    dialog = QDialog()
-    dialog.setWindowTitle("Sélectionner un vol (.abv)")
-    layout = QVBoxLayout(dialog)
-
-    list_widget = QListWidget()
-
-    # scan des dossiers .abv
-    abv_list = [
-        f for f in os.listdir(base_path)
-        if f.endswith(".abv") and os.path.isdir(os.path.join(base_path, f))
-    ]
-
-    list_widget.addItems(sorted(abv_list))
-    layout.addWidget(list_widget)
-
-    countdown_label = QLabel("Fermeture dans 3s")
-    layout.addWidget(countdown_label)
-
-    btn = QPushButton("OK")
-    layout.addWidget(btn)
-
-    selected_folder = {"value": None}
-
-    # ---- TIMER (IMPORTANT : AVANT callbacks) ----
-    timer = QTimer(dialog)
-    timer.setInterval(1000)
-
-    remaining = {"t": 3}
-
-    def update_countdown():
-        remaining["t"] -= 1
-        countdown_label.setText(f"Fermeture dans {remaining['t']}s")
-
-        if remaining["t"] <= 0:
-            timer.stop()
-            dialog.done(0)
-            dialog.close()
-
-    timer.timeout.connect(update_countdown)
-    timer.start()
-
-    # ---- CALLBACKS ----
-    def on_select():
-        timer.stop()
-        item = list_widget.currentItem()
-        if item:
-            selected_folder["value"] = os.path.join(base_path, item.text()) + "/"
-            dialog.done(1)   # 🔥 ferme proprement exec_()
-
-    def reset_timer():
-        remaining["t"] = 3
-        countdown_label.setText("Fermeture dans 3s")
-        timer.start()
-
-    # ---- SIGNALS ----
-    btn.clicked.connect(on_select)
-    list_widget.itemDoubleClicked.connect(lambda _: on_select())
-    list_widget.itemClicked.connect(lambda _: reset_timer())
-    list_widget.currentItemChanged.connect(lambda *_: reset_timer())
-
-    dialog.exec_()
-
-    return selected_folder["value"]
-
 # ======================================================
 if __name__ == "__main__":
-    #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
-
-    if not SKIP_BDL_SELECTION:
-        selected = select_abv_folder()
-        if selected:
-            PDL = selected
-            print("PDL sélectionné :", PDL)
-        else:
-            print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
-
-    MERGED_DATA = PDL + "merged_data.csv"
-    INPUT_METAR = PDL + "metar.csv"
-    VIDEO1 = PDL + "front.mp4"
-    VIDEO2 = PDL + "back.mp4"
-    BOOKMARK_FILE = PDL + "bookmark.csv"
-
     palette = app.palette()
     palette.setColor(palette.Window, Qt.white)
     palette.setColor(palette.Base, Qt.white)
@@ -4819,11 +4721,9 @@ if __name__ == "__main__":
     palette.setColor(palette.WindowText, Qt.black)
     app.setPalette(palette)
     app.setStyleSheet(STYLE_SHEET)
-
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
     win = MainWindow()
     win.show()
-    #QTimer.singleShot(0, start_app)
     caffeinate.terminate()
     sys.exit(app.exec_())

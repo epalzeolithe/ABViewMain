@@ -1,11 +1,13 @@
-from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
-import OpenGL.GL as gl
-import pyqtgraph.opengl as glpg
+import numpy as np
+import pyqtgraph.opengl as gl
 from stl import mesh
+
 import math
 import sys
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+# ---- Enable HiDPI scaling via environment variables BEFORE Qt loads ----
 import os
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
@@ -16,34 +18,59 @@ import numpy as np
 import pandas as pd
 import pygfx as gfx
 from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
-from PyQt5.QtGui import QImage, QPixmap,QKeySequence
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
-from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
+from PyQt5.QtWidgets import (
+    QShortcut,   QApplication,
+    QMainWindow,
+    QWidget,
+    QLabel,
+    QFrame,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QAction,
+    QSlider,
+    QSizePolicy,
+    QInputDialog
+)
 from pymediainfo import MediaInfo
+
+from PyQt5.QtGui import QKeySequence
+
+import pyqtgraph.opengl as gl
+
+# ======================================================
+# ScreenCaptureKit sample buffer handler
+# ======================================================
 import CoreMedia
 import AVFoundation
 import ScreenCaptureKit
 from Cocoa import NSObject
 import objc
-import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
+# silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
+import warnings
 from objc import ObjCPointerWarning
-from PyQt5.QtWidgets import QFileDialog
-import os
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
-import os
+
+
 from ver import __version__
+
 
 #***********************************************
 #CONFIG
-SKIP_BDL_SELECTION = False
+# MAJOR.MINOR.PATCH
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_03_20.abv/"
 BDL="data/Vol_2026_03_21.abv/"
 BDL="data/Vol_2026_02_15.abv/"
 PDL=MAINDIR+BDL
+MERGED_DATA = PDL+"merged_data.csv"
+VIDEO1=PDL+"front.mp4"
+VIDEO2=PDL+"back.mp4"
+BOOKMARK_FILE=PDL+"bookmark.csv"
 STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
 STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
@@ -52,7 +79,6 @@ TRACE = 6000 # taille de la trace 6000=1 minute
 TRACE_DEFAULT = TRACE
 TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
-BOX_HEADING = 50
 VITESSE_MISE_EN_LIGNE = 80 #km/h
 PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
 OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
@@ -61,252 +87,8 @@ R_recalage_repere=3 # données issues BB
 refcam=[0,0,1] # données issues de BB
 #refcam=[0,0,-1] # données issues computed VQF
 
-
-ROT_BOX = np.array([
-    [np.cos(np.radians(BOX_HEADING)), -np.sin(np.radians(BOX_HEADING)), 0.0],
-    [np.sin(np.radians(BOX_HEADING)),  np.cos(np.radians(BOX_HEADING)), 0.0],
-    [0.0,    0.0,   1.0]])
-
-class VideoYUVOpenGLWidget(QOpenGLWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.frame = None
-        self.tex_y = None
-        self.tex_u = None
-        self.tex_v = None
-
-    def setFrame(self, frame):
-        self.frame = frame
-        self.update()
-
-    def initializeGL(self):
-        self.vertices = [-1, -1, 1, -1, -1, 1, 1, 1]
-        self.program = QOpenGLShaderProgram()
-        # --- REQUIRED for macOS OpenGL core ---
-        self.vao = gl.glGenVertexArrays(1)
-        gl.glBindVertexArray(self.vao)
-
-        self.vbo = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-
-        import numpy as np
-        vertices = np.array(self.vertices, dtype=np.float32)
-
-        gl.glBufferData(
-            gl.GL_ARRAY_BUFFER,
-            vertices.nbytes,
-            vertices,
-            gl.GL_STATIC_DRAW
-        )
-
-        # --- PBOs for async texture upload ---
-        self.pbo_y = gl.glGenBuffers(1)
-        self.pbo_u = gl.glGenBuffers(1)
-        self.pbo_v = gl.glGenBuffers(1)
-
-        self.program.addShaderFromSourceCode(QOpenGLShader.Vertex, """
-            #version 330 core
-            layout(location = 0) in vec2 position;
-            out vec2 texCoord;
-            void main() {
-                texCoord = vec2((position.x + 1.0) / 2.0, 1.0 - (position.y + 1.0) / 2.0);
-                gl_Position = vec4(position, 0.0, 1.0);
-            }
-        """)
-
-        self.program.addShaderFromSourceCode(QOpenGLShader.Fragment, """
-            #version 330 core
-            in vec2 texCoord;
-            out vec4 fragColor;
-
-            uniform sampler2D texY;
-            uniform sampler2D texU;
-            uniform sampler2D texV;
-
-            void main() {
-                float y = texture(texY, texCoord).r;
-                float u = texture(texU, texCoord).r - 0.5;
-                float v = texture(texV, texCoord).r - 0.5;
-
-                float r = y + 1.402 * v;
-                float g = y - 0.344 * u - 0.714 * v;
-                float b = y + 1.772 * u;
-
-                fragColor = vec4(r, g, b, 1.0);
-            }
-        """)
-
-        self.program.link()
-
-        # --- Configure vertex attributes ONCE (avoid per-frame overhead) ---
-        pos_attr = 0  # matches layout(location = 0)
-        gl.glBindVertexArray(self.vao)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-        gl.glEnableVertexAttribArray(pos_attr)
-        gl.glVertexAttribPointer(
-            pos_attr,
-            2,
-            gl.GL_FLOAT,
-            False,
-            0,
-            None)
-
-    def paintGL(self):
-        if self.frame is None:
-            return
-        frame = self.frame
-        if "yuv" not in frame.format.name.lower():
-            return
-        y = frame.planes[0]
-        u = frame.planes[1]
-        v = frame.planes[2]
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-        self.program.bind()
-        def upload(tex_id, plane, w, h, unit, pbo):
-            # Activate texture unit BEFORE any glBindTexture
-            gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
-            # Safety: ensure clean state before texture ops
-            gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-            if tex_id is None:
-                tex_id = gl.glGenTextures(1)
-                gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
-                # Set texture parameters ONCE after creation
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-                # IMPORTANT: ensure no PBO is bound when allocating texture
-                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-                gl.glTexImage2D(
-                    gl.GL_TEXTURE_2D,
-                    0,
-                    gl.GL_RED,
-                    w,
-                    h,
-                    0,
-                    gl.GL_RED,
-                    gl.GL_UNSIGNED_BYTE,
-                    None
-                )
-            else:
-                gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
-
-            # Convert plane
-            try:
-                data = plane.to_bytes()
-            except AttributeError:
-                import numpy as np
-                data = np.frombuffer(plane, dtype=np.uint8)
-
-            size = len(data)
-
-            # --- PBO upload (safe path, no mapBuffer) ---
-            try:
-                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, pbo)
-
-                # Upload data directly (more stable on macOS than mapBuffer)
-                gl.glBufferData(gl.GL_PIXEL_UNPACK_BUFFER, size, data, gl.GL_STREAM_DRAW)
-
-            except Exception as e:
-                # Fallback: disable PBO for this frame
-                print("PBO fallback:", e)
-                gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-                data_fallback = data
-            else:
-                data_fallback = None
-
-            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
-
-            gl.glTexSubImage2D(
-                gl.GL_TEXTURE_2D,
-                0,
-                0,
-                0,
-                w,
-                h,
-                gl.GL_RED,
-                gl.GL_UNSIGNED_BYTE,
-                data_fallback
-            )
-
-            gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-
-            # Removed redundant per-frame texture parameter setting
-            # gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-            # gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-
-            return tex_id
-
-        self.tex_y = upload(self.tex_y, y, frame.width, frame.height, 0, self.pbo_y)
-        self.tex_u = upload(self.tex_u, u, frame.width // 2, frame.height // 2, 1, self.pbo_u)
-        self.tex_v = upload(self.tex_v, v, frame.width // 2, frame.height // 2, 2, self.pbo_v)
-
-        self.program.setUniformValue("texY", 0)
-        self.program.setUniformValue("texU", 1)
-        self.program.setUniformValue("texV", 2)
-        self.program.bind()
-        gl.glBindVertexArray(self.vao)
-        gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_y)
-
-        gl.glActiveTexture(gl.GL_TEXTURE1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_u)
-
-        gl.glActiveTexture(gl.GL_TEXTURE2)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tex_v)
-        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # ---- draw only on video1 ----
-        if self.objectName() != "video1":
-            painter.end()
-            self.program.release()
-            return
-
-
-        w = self.width()
-        h = self.height()
-
-        # position gauche milieu
-        cx = 60
-        cy = h // 2
-
-        # rotation
-        painter.save()
-        painter.translate(cx, cy)
-        painter.rotate(-getattr(self, "roll_w", 0))
-
-        pitch = getattr(self, "pitch_w", 0)
-        pitch_offset = int(pitch * 3)
-        # ---- horizon ----
-        painter.setPen(QPen(QColor(20, 20, 139), 2))
-        painter.drawLine(-50, pitch_offset, 50, pitch_offset)
-        painter.restore()
-
-        # ---- triangle FIXE ----
-        size = 40
-        painter.setPen(QPen(QColor(128, 0, 150), 3))
-
-        # position gauche milieu (même que horizon)
-        cx = 60
-        cy = h // 2
-
-        painter.drawLine(cx, cy, cx, cy - size)
-        painter.drawLine(cx, cy - size, cx - size, cy)
-        painter.drawLine(cx, cy - size, cx + size, cy)
-        painter.drawLine(cx - size, cy, cx + size, cy)
-
-        painter.end()
-
-        self.program.release()
-
-    # QLabel compatibility
-    def setScaledContents(self, *args): pass
-    def setPixmap(self, *args): pass
-
 warnings.filterwarnings("ignore", category=ObjCPointerWarning)
+
 class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
 
     def init(self):
@@ -386,6 +168,72 @@ def get_mp4_creation_datetime(path):
     raise RuntimeError(f"Date de création MP4 introuvable : {path}")
 
 # ======================================================
+# DataFrame
+# ======================================================
+import os
+
+# ---- ensure merged CSV exists before loading ----
+if not os.path.exists(MERGED_DATA):
+    print("ERROR: merged data file not found:")
+    print("  ", MERGED_DATA)
+    print("Current working directory:", os.getcwd())
+    print("Hint: verify that the merged CSV was generated or that the 'data' folder path is correct.")
+    sys.exit(1)
+
+df = pd.read_csv(MERGED_DATA, low_memory=False)
+df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", utc=True)
+df = df.sort_values("timestamp").reset_index(drop=True)
+frames_df = len(df)
+
+# ---- numpy caches for fast access inside the realtime loop ----
+gps_lat_vals = df["gps_lat"].to_numpy()
+gps_lon_vals = df["gps_lon"].to_numpy()
+gps_alt_vals = df["gps_alt"].to_numpy()
+timestamp_vals = df["timestamp"].to_numpy()
+
+INPUT_METAR = BDL + "metar.csv"
+metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
+#metar_df["time"] = pd.to_datetime(metar_df["time"])
+metar_df["time"] = pd.to_datetime(metar_df["time"], format="mixed", utc=True)
+
+def find_metar_for_time(df, t):
+
+    idx = df["time"].searchsorted(t)
+
+    if idx == 0:
+        return df.iloc[0]
+
+    if idx >= len(df):
+        return df.iloc[-1]
+
+    before = df.iloc[idx - 1]
+    after = df.iloc[idx]
+
+    if abs(t - before.time) < abs(after.time - t):
+        return before
+    else:
+        return after
+
+# ======================================================
+# VIDEO ANALYSIS
+# ======================================================
+container_probe = av.open(VIDEO1)
+stream_probe = container_probe.streams.video[0]
+
+frames_video = stream_probe.frames
+N = frames_video
+container_probe.close()
+
+# ======================================================
+# TOP remarquables
+# ======================================================
+mask = df['gps_speed'] > VITESSE_MISE_EN_LIGNE
+index_enligne_devol= mask.idxmax()
+mask = df['gps_alt'] > 3000
+index_entree_3000= mask.idxmax()
+gps_max_alt = round(df['gps_alt'].max())
+print("Max Alt : ",gps_max_alt)
+# ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
 def quat_to_rot(q):
@@ -421,6 +269,8 @@ perm = np.array([
 [[ 0, 0,-1],[-1, 0, 0],[ 0, 1, 0]],
 [[ 0, 0,-1],[ 0,-1, 0],[-1, 0, 0]]])
 
+
+
 def angle_between(u, v):
     u = np.array(u);
     v = np.array(v)
@@ -438,45 +288,45 @@ class ArtificialHorizon(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setStyleSheet("background: transparent;")
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.pitch = 0.0
         self.bank = 0.0
         self.heading = 0.0
         # optional aerobatic triangle marker (used for wingtip reference)
         self.show_triangle = False
-        self.transparent_mode = False
 
     def paintEvent(self, event):
         from PyQt5.QtGui import QPainter, QPen, QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+
         w = self.width();h = self.height()
         cx = w // 2;cy = h // 2
-        # ---- gestion transparence ----
-        if self.transparent_mode:
-            painter.setCompositionMode(QPainter.CompositionMode_Source)
-            painter.fillRect(self.rect(), Qt.transparent)
-            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
-        else:
-            painter.fillRect(self.rect(), Qt.transparent)
+
+        painter.fillRect(self.rect(), Qt.transparent)
         painter.translate(cx, cy)
         painter.rotate(-self.bank)
+
         pitch_scale = 3
         pitch_offset = int(self.pitch * pitch_scale)
+
         painter.setBrush(QColor(80, 160, 255))
         painter.setPen(Qt.NoPen)
+
         # Large surfaces so the horizon never leaves the screen even inverted
         size = max(w, h) * 6
+
         # sky
         painter.drawRect(-size, -size + pitch_offset, size * 2, size)
+
         # ground
         painter.setBrush(QColor(160, 100, 40))
         painter.drawRect(-size, pitch_offset, size * 2, size)
+
         pen = QPen(QColor("white"))
         pen.setWidth(3)
         painter.setPen(pen)
         painter.drawLine(-w, pitch_offset, w, pitch_offset)
+
         # ---- Pitch reference lines (±10° ±20° ±30°) with EFIS ticks ----
         pen_ref = QPen(QColor("white"))
         pen_ref.setWidth(1)
@@ -484,29 +334,37 @@ class ArtificialHorizon(QWidget):
 
         for deg in (10, 20, 30,45, 60, 75, 90):
             offset = int(deg * pitch_scale)
+
             # longer line for 10°, shorter for others
             if deg <= 10:
                 half = w // 6
             else:
                 half = w // 12
+
             # +deg line
             y = pitch_offset - offset
             painter.drawLine(-half, y, half, y)
+
             # EFIS side ticks
             painter.drawLine(-half - 10, y, -half, y)
             painter.drawLine(half, y, half + 10, y)
+
             # numeric labels
             painter.drawText(-half - 40, y + 5, f"{deg}")
             painter.drawText(half + 15, y + 5, f"{deg}")
+
             # -deg line
             y = pitch_offset + offset
             painter.drawLine(-half, y, half, y)
+
             # EFIS side ticks
             painter.drawLine(-half - 10, y, -half, y)
             painter.drawLine(half, y, half + 10, y)
+
             # numeric labels
             painter.drawText(-half - 45, y + 5, f"-{deg}")
             painter.drawText(half + 15, y + 5, f"-{deg}")
+
         painter.resetTransform()
 
         if not self.show_triangle:
@@ -533,7 +391,9 @@ class ArtificialHorizon(QWidget):
             pen.setWidth(4)
             painter.setPen(pen)
             painter.drawPolygon(triangle)
+
         painter.end()
+
 
 # ======================================================
 # Analog Badin (Circular Airspeed Indicator)
@@ -719,186 +579,74 @@ class AnalogAltimeter(QWidget):
         painter.drawLine(cx, cy, int(x), int(y))
         painter.end()
 
-class AnalogVario(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.fpm = 0.0
-        self.setMinimumSize(100, 100)
-        self.setStyleSheet("background: transparent;")
-
-    def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QPen
-        import math
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        w = self.width()
-        h = self.height()
-        r = min(w, h) / 2 - 5
-
-        cx = w / 2
-        cy = h / 2
-
-        # outer circle with semi-transparent background (same style as other instruments)
-        from PyQt5.QtGui import QColor
-        pen = QPen(QColor("white"))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.setBrush(QColor(0, 0, 0, 120))
-        painter.drawEllipse(int(cx - r), int(cy - r), int(2 * r), int(2 * r))
-
-        # graduations + labels
-        painter.setPen(QPen(QColor("white"), 1))
-
-        for f in [-2000, -1000, 0, 1000, 2000]:
-            angle = (f / 2000.0) * 120
-            theta = math.radians(180 + angle)
-
-            x1 = cx + r * 0.7 * math.cos(theta)
-            y1 = cy + r * 0.7 * math.sin(theta)
-            x2 = cx + r * 0.9 * math.cos(theta)
-            y2 = cy + r * 0.9 * math.sin(theta)
-
-            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
-
-            # ---- LABEL (÷1000) ----
-            label = str(int(f / 1000))
-
-            xt = cx + r * 0.55 * math.cos(theta)
-            yt = cy + r * 0.55 * math.sin(theta)
-
-            painter.drawText(int(xt - 6), int(yt + 5), label)
-
-        # clamp
-        fpm = max(-2000, min(2000, self.fpm))
-
-        # aiguille
-        angle = (fpm / 2000.0) * 120
-        # 0 at left (180°), positive up, negative down
-        theta = math.radians(180 + angle)
-
-        x2 = cx + r * 0.8 * math.cos(theta)
-        y2 = cy + r * 0.8 * math.sin(theta)
-
-        painter.setPen(QPen(QColor("white"), 3))
-        painter.drawLine(int(cx), int(cy), int(x2), int(y2))
-
 # ======================================================
 # Main Window
 # ======================================================
 class MainWindow(QMainWindow):
+    #def create_cap10_item(self):
+    #    scale = 0.2
+
+    #    pts = np.array([
+    #        [1.0, 0.0, 0.0],  # nez
+    #        [-1.0, 0.0, 0.0],  # queue
+    #        [0.0, 1.2, 0.0],  # aile gauche
+    #        [0.0, -1.2, 0.0],  # aile droite
+
+    #        [-0.9, 0.5, 0.0],  # empennage G
+    #        [-0.9, -0.5, 0.0],  # empennage D
+
+    #        [-0.9, 0.0, 0.5],  # dérive
+    #        ], dtype=float) * scale
+
+    #    segments = np.array([
+    #        pts[0], pts[1],
+    #        pts[2], pts[3],
+    #        pts[4], pts[5],
+    #        pts[1], pts[6],
+    #    ])
+
+    #    return gl.GLLinePlotItem(
+    #        pos=segments,
+    #        #color=(1, 0.8, 0, 1), # jaune
+    #        color=(0, 0, 0, 1), #black
+    #        width=30,
+    #        antialias=True,
+    #        mode='lines')
+
     def trace_plus(self):
         global TRACE
         TRACE += 2000
+
     def trace_minus(self):
         global TRACE
         if TRACE - 2000 >= 1000:
             TRACE -= 2000
+
     def reset_trace(self):
         global TRACE
         TRACE = TRACE_DEFAULT
-
-    def find_metar_for_time(self, t):
-        idx = self.metar_df["time"].searchsorted(t)
-        if idx == 0:
-            return self.metar_df.iloc[0]
-        if idx >= len(self.metar_df):
-            return self.metar_df.iloc[-1]
-        before = self.metar_df.iloc[idx - 1]
-        after = self.metar_df.iloc[idx]
-        if abs(t - before.time) < abs(after.time - t):
-            return before
-        else:
-            return after
-
-    def load_dataframe(self, file):
-        # ---- ensure merged CSV exists before loading ----
-        if not os.path.exists(file):
-            print("ERROR: merged data file not found:")
-            print("  ", file)
-            print("Current working directory:", os.getcwd())
-            print("Hint: verify that the merged CSV was generated or that the 'data' folder path is correct.")
-            sys.exit(1)
-
-        self.df = pd.read_csv(MERGED_DATA, low_memory=False)
-        self.df["timestamp"] = pd.to_datetime(self.df["timestamp"], format="mixed", utc=True)
-        self.df = self.df.sort_values("timestamp").reset_index(drop=True)
-        self.frames_df = len(self.df)
-
-        # ---- numpy caches for fast access inside the realtime loop ----
-        self.gps_lat_vals = self.df["gps_lat"].to_numpy()
-        self.gps_lon_vals = self.df["gps_lon"].to_numpy()
-        self.gps_alt_vals = self.df["gps_alt"].to_numpy()
-        self.gps_heading_vals = self.df["gps_heading"].to_numpy()
-        self.gps_ias_vals = self.df["gps_ias"].to_numpy()
-        self.gps_wind_speed_vals = self.df["era5_wind_speed"].to_numpy()
-        self.gps_wind_direction_vals = self.df["era5_wind_direction"].to_numpy()
-        self.timestamp_vals = self.df["timestamp"].to_numpy()
-
-        # ---- Wind components (vectorized) ----
-        heading = np.radians(self.gps_heading_vals)
-        wind_dir = np.radians(self.gps_wind_direction_vals)
-
-        # angle relatif (normalisé -pi à pi)
-        theta =  heading -wind_dir
-        theta = (theta + np.pi) % (2 * np.pi) - np.pi
-
-        wind_speed_kt = self.gps_wind_speed_vals / 1.852
-
-        self.headwind_vals = - wind_speed_kt * np.cos(theta)
-        self.crosswind_vals = wind_speed_kt * np.sin(theta)
-
-        self.metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
-        self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
-        self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
-
-        # ======================================================
-        # TOP remarquables
-        # ======================================================
-        mask = self.df['gps_speed'] > VITESSE_MISE_EN_LIGNE
-        self.index_enligne_devol = mask.idxmax()
-        mask = self.df['gps_alt'] > 3000
-        selfindex_entree_3000 = mask.idxmax()
-        self.gps_max_alt = round(self.df['gps_alt'].max())
-        print("Max Alt : ", self.gps_max_alt)
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ABView Version "+__version__)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.resize(1600, 1200)
+        self.resize(1600, 1000)
 
         # ---- état ----
-        self.alive = True
-        self.load_dataframe(MERGED_DATA)
         self.i = 0
         self.idf = 0
         self.playing = True
+
+        # screen capture process
         self.speed = 1
         self.current_video_time_utc = None
-        self.stutter_count = 0
-        self.recording = False
+        self.frame_skipped_count = 0
+        self.frame_last_delay = 0
 
         # ---- vidéos ----
-        container_probe = av.open(VIDEO1)
-        stream_probe = container_probe.streams.video[0] #VIDEO ANALYSIS
-        self.frames_video = stream_probe.frames
-        container_probe.close()
-
         self.video1_path=VIDEO1
         self.video2_path=VIDEO2
         self.container1 = av.open(self.video1_path)
         self.container2 = av.open(self.video2_path)
-        self.stream1 = self.container1.streams.video[0]
-        self.stream2 = self.container2.streams.video[0]
-        self.stream1.thread_type = "AUTO"
-        self.stream2.thread_type = "AUTO"
-        self.decoder1 = self.container1.decode(self.stream1)
-        self.decoder2 = self.container2.decode(self.stream2)
-        self.video1_start = get_mp4_creation_datetime(self.video1_path)
-        self.video2_start = get_mp4_creation_datetime(self.video2_path)
-        self.video_df_offset = self.df.timestamp.iloc[0] - self.video1_start  # 🔑 OFFSET TEMPOREL (clé du problème)
 
         # ---- audio (video1) ----
         self.sync_enabled = False
@@ -908,13 +656,17 @@ class MainWindow(QMainWindow):
             self.audio_stream = self.audio_container.streams.audio[0]
             # packet based audio demux (more stable than frame iterator)
             self.audio_packets = self.audio_container.demux(self.audio_stream)
+
             # force audio format compatible with Qt (stereo s16 interleaved)
             self.audio_rate = self.audio_stream.rate
             self.audio_channels = 2
+
             self.audio_resampler = av.audio.resampler.AudioResampler(
                 format="s16",
                 layout="stereo",
-                rate=self.audio_rate,)
+                rate=self.audio_rate,
+            )
+
             fmt = QAudioFormat()
             fmt.setSampleRate(self.audio_rate)
             fmt.setChannelCount(self.audio_channels)
@@ -922,13 +674,28 @@ class MainWindow(QMainWindow):
             fmt.setCodec("audio/pcm")
             fmt.setByteOrder(QAudioFormat.LittleEndian)
             fmt.setSampleType(QAudioFormat.SignedInt)
+
             self.audio_output = QAudioOutput(fmt)
             self.audio_device = self.audio_output.start()
+
             self.audio_buffer = bytearray()
             self.audio_started = True
             self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
         except Exception:
             self.audio_stream = None
+
+        self.stream1 = self.container1.streams.video[0]
+        self.stream2 = self.container2.streams.video[0]
+        self.stream1.thread_type = "AUTO"
+        self.stream2.thread_type = "AUTO"
+
+        self.decoder1 = self.container1.decode(self.stream1)
+        self.decoder2 = self.container2.decode(self.stream2)
+        self.video1_start = get_mp4_creation_datetime(self.video1_path)
+        self.video2_start = get_mp4_creation_datetime(self.video2_path)
+        self.video_df_offset = df.timestamp.iloc[0] - self.video1_start # 🔑 OFFSET TEMPOREL (clé du problème)
+
+        self.recording=False
 
         # ---- Init de base pour INU/GFX
         self.g_min = float("inf")
@@ -939,6 +706,7 @@ class MainWindow(QMainWindow):
         self.smooth_speed = None
         self.smooth_alt = None
         self.instrument_alpha = 0.2  # smoothing factor (0=slow, 1=no smoothing)
+
         # ---- filtered acceleration vector for smoother G trail ----
         self.acc_vec_filtered = None
         self.g_filter_alpha = 0.15
@@ -947,6 +715,7 @@ class MainWindow(QMainWindow):
         self.bookmarks_df = None
         self.last_bookmark_frame = None
         self.bookmark_overlay = None
+
         # ---- init for gpsmatplotlib
         self.firstGPS = True
         self.last_azim = 0
@@ -966,11 +735,6 @@ class MainWindow(QMainWindow):
         self.init_gfx()
         self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
 
-        self.compute_g_signed()
-        self.build_g_timeline()
-
-        self.build_altitude_timeline()
-
         # ---- realtime timer (compensated loop) ----
         self.target_fps = 30
         self.frame_period_ms = 1000 / self.target_fps
@@ -986,60 +750,11 @@ class MainWindow(QMainWindow):
         self.timer.start(1)  # controlled manually
 
         # Metar management
-        t_start = self.df['timestamp'][0]
-        metar_row = self.find_metar_for_time(t_start)
+        t_start = df['timestamp'][0]
+        metar_row = find_metar_for_time(metar_df, t_start)
         self.last_metar=metar_row.metar
         #print(f"Metar at start: {self.last_metar}")
 
-    def closeEvent(self, event):
-        """Sécurise la fermeture (évite crash wgpu / rendercanvas)"""
-        try:
-            self.alive = False
-
-            # ---- stop Qt timer FIRST ----
-            if hasattr(self, "timer"):
-                try:
-                    self.timer.stop()
-                except Exception:
-                    pass
-
-            # ---- stop pygfx / rendercanvas cleanly ----
-            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
-                try:
-                    # ---- CRITICAL: stop rendercanvas loop BEFORE Qt deletes widget ----
-                    try:
-                        if hasattr(self.gfx_canvas, "_rc_canvas"):
-                            loop = getattr(self.gfx_canvas._rc_canvas, "_loop", None)
-                            if loop is not None:
-                                loop.stop(force=True)
-                    except Exception:
-                        pass
-
-                    # ---- detach from Qt ----
-                    self.gfx_canvas.setParent(None)
-                    self.gfx_canvas.hide()
-                except Exception:
-                    pass
-
-            # ---- process remaining Qt events (flush callbacks) ----
-            from PyQt5.QtWidgets import QApplication
-            QApplication.processEvents()
-
-            # ---- now safe deletion ----
-            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
-                try:
-                    try:
-                        self.gfx_canvas.close()
-                    except Exception:
-                        pass
-                    self.gfx_canvas.deleteLater()
-                except Exception:
-                    pass
-
-        except Exception:
-            pass
-
-        event.accept()
 
     def init_UI(self):
         # ---- UI ----
@@ -1168,11 +883,8 @@ class MainWindow(QMainWindow):
         self.grid.setColumnStretch(2, 1)
         self.grid.setColumnStretch(3, 1)
 
-        self.video1 = VideoYUVOpenGLWidget(self)
-        self.video1.setObjectName("video1")
-
-        self.video2 = VideoYUVOpenGLWidget(self)
-        self.video2.setObjectName("video2")
+        self.video1 = QLabel(alignment=Qt.AlignCenter)
+        self.video2 = QLabel(alignment=Qt.AlignCenter)
         # ---- GPS heading overlay on video1 (top center, text sized) ----
         self.video1_heading_label = QLabel("", self.video1)
         self.video1_heading_label.setAlignment(Qt.AlignCenter)
@@ -1218,14 +930,6 @@ class MainWindow(QMainWindow):
         self.video1_speed_label.adjustSize()
         self.video1_speed_label.raise_()
 
-        self.video1_wind_label = QLabel("", self.video1)
-        self.video1_wind_label.setAlignment(Qt.AlignCenter)
-        self.video1_wind_label.setStyleSheet(
-            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
-        )
-        self.video1_wind_label.adjustSize()
-        self.video1_wind_label.raise_()
-
         # ---- Analog badin (circular airspeed indicator) ----
         self.video1_badin = AnalogBadin(self.video1)
         self.video1_badin.setGeometry(10, int(self.video1.height()/2) - 80, 160, 160)
@@ -1235,10 +939,6 @@ class MainWindow(QMainWindow):
         self.video1_altimeter = AnalogAltimeter(self.video1)
         self.video1_altimeter.setGeometry(self.video1.width() - 170, int(self.video1.height()/2) - 80, 160, 160)
         self.video1_altimeter.show()
-
-        self.video1_vario = AnalogVario(self.video1)
-        self.video1_vario.setFixedSize(120, 120)
-        self.video1_vario.show()
 
         # ---- GPS altitude overlay on video1 (bottom-right) ----
         self.video1_alt_label = QLabel("", self.video1)
@@ -1257,8 +957,9 @@ class MainWindow(QMainWindow):
         )
         self.video1_fpm_label.adjustSize()
         self.video1_fpm_label.raise_()
-        # Not needed for VideoYUVWidget (handled in paintEvent)
-        pass
+        # avoid expensive per-frame scaling; let Qt scale automatically
+        self.video1.setScaledContents(True)
+        self.video2.setScaledContents(True)
         # prevent QLabel from expanding to the raw video resolution
         self.video1.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.video2.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
@@ -1284,12 +985,6 @@ class MainWindow(QMainWindow):
         self.act_trace_reset = QAction("Reset Trace", self)
         self.act_trace_reset.triggered.connect(self.reset_trace)
         menu_settings.addAction(self.act_trace_reset)
-
-        self.act_toggle_grid_xz = QAction("Grille verticale XZ", self)
-        self.act_toggle_grid_xz.setCheckable(True)
-        self.act_toggle_grid_xz.setChecked(False)  # caché par défaut
-        self.act_toggle_grid_xz.triggered.connect(self.toggle_grid_vertical_xz)
-        menu_settings.addAction(self.act_toggle_grid_xz)
 
         # ---- Toggle 3D axes visibility ----
         self.act_toggle_axes = QAction("Afficher axes 3D", self)
@@ -1317,40 +1012,10 @@ class MainWindow(QMainWindow):
 
         # ---- slider + controls ----
         self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(0, self.frames_video - 1)
+        self.slider.setRange(0, N - 1)
         self.slider.valueChanged.connect(self.on_slider)
 
-        self.g_timeline = QLabel(self)
-        self.g_timeline.setFixedHeight(12)
-        self.g_timeline.setStyleSheet("background-color: black;")
-        self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
-
-        self.alt_timeline = QLabel(self)
-        self.alt_timeline.setFixedHeight(12)
-        self.alt_timeline.setStyleSheet("background-color: black;")
-        self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
-
-
-        #self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
-        self.video2_date_label = QLabel("", self.video2)
-        self.video2_date_label.setStyleSheet(
-            "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
-        )
-        self.video2_date_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.video2_date_label.show()
-
-        ts0 = self.df.timestamp.iloc[0]
-        mois_fr = [
-            "janvier", "février", "mars", "avril", "mai", "juin",
-            "juillet", "août", "septembre", "octobre", "novembre", "décembre"
-        ]
-
-        ts0 = self.df.timestamp.iloc[0]
-        text = f"{ts0.day} {mois_fr[ts0.month - 1]} {ts0.year}"
-
-        self.video2_date_label.setText(text)
-        self.video2_date_label.adjustSize()
-
+        self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
 
         # ---- Elapsed time overlay (top center main window) ----
         self.elapsed_time_overlay = QLabel("", self.centralWidget())
@@ -1449,7 +1114,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_quitter)
 
         self.layout.addWidget(self.slider)
-        #self.layout.addWidget(self.timestamp_label)
+        self.layout.addWidget(self.timestamp_label)
         self.layout.addLayout(buttons_layout)
 
         # ---- Now load bookmarks and update ticks, after slider is created ----
@@ -1484,217 +1149,10 @@ class MainWindow(QMainWindow):
         self.bookmark_ticks = []
 
         # ---- PyQtGraph GPS 3D ----
-        self.gps_view = glpg.GLViewWidget()
+        self.gps_view = gl.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
         self.gps_view.setCameraPosition(distance=4)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
-
-    def compute_g_signed(self):
-        theta_x = np.deg2rad(self.montage_pitch_angle)
-        R_x_20 = np.array([
-            [1, 0, 0],
-            [0, np.cos(theta_x), -np.sin(theta_x)],
-            [0, np.sin(theta_x),  np.cos(theta_x)]
-        ])
-
-        down_original = np.array([0.0, 0.0, -1.0])
-
-        # ---- Acceleration vector (N x 3) ----
-        acc = np.column_stack((
-            -self.df["x4_acc_x"].to_numpy(),
-            -self.df["x4_acc_y"].to_numpy(),
-            -self.df["x4_acc_z"].to_numpy()
-        ))
-
-        # norme (G)
-        acc_norm = np.linalg.norm(acc, axis=1)
-        self.df["g_force"] = acc_norm / 9.81
-        # éviter division par 0
-        acc_norm_safe = np.where(acc_norm == 0, 1, acc_norm)
-        # vecteurs unitaires
-        acc_unit = acc / acc_norm_safe[:, None]
-        # ---- rotation (attention: vectorisation) ----
-        R_total = R_x_20 @ perm[R_recalage_repere]
-        # appliquer rotation à tous les vecteurs
-        acc_vec = (R_total @ acc_unit.T).T  # (N,3)
-        # ---- angle avec verticale ----
-        dot = np.einsum("ij,j->i", acc_vec, down_original)
-        norm_acc = np.linalg.norm(acc_vec, axis=1)
-        cos_theta = dot / norm_acc
-        cos_theta = np.clip(cos_theta, -1.0, 1.0)
-        angles = np.degrees(np.arccos(cos_theta))
-        # signe du G
-        g_signed = self.df["g_force"].to_numpy().copy()
-        g_signed[angles > 90] *= -1
-        self.df["g_signed"] = g_signed
-
-    def build_g_timeline(self):
-        if "g_signed" not in self.df.columns:
-            return
-
-        import numpy as np
-        from PyQt5.QtGui import QImage, QPixmap
-
-        values = self.df["g_signed"].to_numpy()
-        n = len(values)
-
-        width = max(500, min(2000, n // 3))  # compression intelligente
-        height = 12
-
-        img = QImage(width, height, QImage.Format_RGB888)
-
-        g_min = -2.0
-        g_max = 4.0
-
-        def get_color(g):
-            # points de contrôle (G, couleur RGB)
-            stops = [
-                (-2.0, (0, 120, 255)),   # bleu
-                (0.8,  (0, 200, 255)),   # cyan
-                (1.0,  (0, 255, 0)),     # vert
-                (1.2,  (255, 255, 0)),   # jaune
-                (2.0,  (255, 0, 0)),     # rouge
-            ]
-
-            # clamp
-            if g <= stops[0][0]:
-                return stops[0][1]
-            if g >= stops[-1][0]:
-                return stops[-1][1]
-
-            # interpolation
-            for i in range(len(stops) - 1):
-                g0, c0 = stops[i]
-                g1, c1 = stops[i + 1]
-
-                if g0 <= g <= g1:
-                    t = (g - g0) / (g1 - g0)
-
-                    r = int(c0[0] + (c1[0] - c0[0]) * t)
-                    gcol = int(c0[1] + (c1[1] - c0[1]) * t)
-                    b = int(c0[2] + (c1[2] - c0[2]) * t)
-
-                    return (r, gcol, b)
-
-        for x in range(width):
-            idx = int(x / width * (n - 1))
-            g = values[idx]
-
-            # clamp
-            g = max(g_min, min(g_max, g))
-
-            r, gcol, b = get_color(g)
-
-            color = (r << 16) | (gcol << 8) | b
-
-            for y in range(height):
-                img.setPixel(x, y, color)
-
-        self.g_timeline.setPixmap(QPixmap.fromImage(img))
-
-        # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
-        try:
-            if not hasattr(self, "g_timeline_legend"):
-                from PyQt5.QtWidgets import QLabel
-                from PyQt5.QtCore import Qt
-
-                # IMPORTANT: parent = g_timeline (not main window)
-                self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
-                self.g_timeline_legend.setStyleSheet(
-                    "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
-                )
-                self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
-                self.g_timeline_legend.raise_()
-
-            self.g_timeline_legend.adjustSize()
-
-            # position INSIDE the bar (top-left)
-            self.g_timeline_legend.move(0, 0)
-            self.g_timeline_legend.raise_()
-
-            self.g_timeline_legend.show()
-
-        except Exception:
-            pass
-
-    def build_altitude_timeline(self):
-        if "gps_alt" not in self.df.columns:
-            return
-
-        import numpy as np
-        from PyQt5.QtGui import QImage, QPixmap
-
-        values = self.df["gps_alt"].to_numpy()
-        n = len(values)
-
-        width = max(500, min(2000, n // 3))
-        height = 12
-
-        img = QImage(width, height, QImage.Format_RGB888)
-
-        # No more alt_min/alt_max-based gradient; use fixed stops
-        def get_color(a):
-            # points de contrôle (altitude ft, couleur RGB)
-            stops = [
-                (0,    (120, 120, 120)),   # gris (sol)
-                (3000, (0, 200, 255)),     # cyan
-                (4000, (0, 255, 0)),       # vert
-                (5000, (255, 255, 0)),     # rouge
-                (6000, (255, 0, 0)),  # rouge
-                (7000, (160, 0, 255)),     # violet (haut)
-            ]
-
-            # clamp
-            if a <= stops[0][0]:
-                return stops[0][1]
-            if a >= stops[-1][0]:
-                return stops[-1][1]
-
-            # interpolation linéaire entre stops
-            for i in range(len(stops) - 1):
-                a0, c0 = stops[i]
-                a1, c1 = stops[i + 1]
-
-                if a0 <= a <= a1:
-                    t = (a - a0) / (a1 - a0 + 1e-6)
-
-                    r = int(c0[0] + (c1[0] - c0[0]) * t)
-                    g = int(c0[1] + (c1[1] - c0[1]) * t)
-                    b = int(c0[2] + (c1[2] - c0[2]) * t)
-
-                    return (r, g, b)
-
-        for x in range(width):
-            idx = int(x / width * (n - 1))
-            alt = values[idx]
-
-            r, g, b = get_color(alt)
-            color = (r << 16) | (g << 8) | b
-
-            for y in range(height):
-                img.setPixel(x, y, color)
-
-        self.alt_timeline.setPixmap(QPixmap.fromImage(img))
-
-        # ---- Legend "Altitude" ----
-        try:
-            if not hasattr(self, "alt_timeline_legend"):
-                from PyQt5.QtWidgets import QLabel
-                from PyQt5.QtCore import Qt
-
-                self.alt_timeline_legend = QLabel("Altitude", self.alt_timeline)
-                self.alt_timeline_legend.setStyleSheet(
-                    "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
-                )
-                self.alt_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
-                self.alt_timeline_legend.raise_()
-
-            self.alt_timeline_legend.adjustSize()
-            self.alt_timeline_legend.move(0, 0)
-            self.alt_timeline_legend.show()
-
-        except Exception:
-            pass
 
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
@@ -1723,7 +1181,7 @@ class MainWindow(QMainWindow):
         if slider_w == 0:
             return
 
-        total = max(1, (self.frames_video - 1))
+        total = max(1, (N - 1))
 
         for _, row in self.bookmarks_df.iterrows():
             try:
@@ -1735,7 +1193,7 @@ class MainWindow(QMainWindow):
             x = int(slider_x + t * slider_w)
 
             tick = QFrame(self.centralWidget())
-            tick.setStyleSheet("background-color: rgb(80,80,80);")  # gris foncé
+            tick.setStyleSheet("background-color: red;")
             tick.setGeometry(x, slider_y - 6, 2, 6)
 
             # tooltip (optionnel)
@@ -1781,6 +1239,9 @@ class MainWindow(QMainWindow):
             self.prev_bookmark_overlay.move(bx, by)
             self.prev_bookmark_overlay.raise_()
 
+    # ==================================================
+    # Screen recording using macOS ScreenCaptureKit (PyObjC)
+    # ==================================================
     def toggle_recording(self, checked):
         import os
         try:
@@ -2005,7 +1466,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "row"):
             try:
                 self.update_gfx_orientation()
-                self.update_video_label()
             except Exception:
                 pass
 
@@ -2018,7 +1478,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "row"):
             try:
                 self.update_gfx_orientation()
-                self.update_video_label()
             except Exception:
                 pass
 
@@ -2031,20 +1490,13 @@ class MainWindow(QMainWindow):
             self.gfx_axes_y.visible = visible
             self.gfx_axes_z.visible = visible
 
-    def toggle_grid_vertical_xz(self, checked):
-        try:
-            if hasattr(self, "grid_vertical_xz"):
-                self.grid_vertical_xz.setVisible(checked)
-        except Exception:
-            pass
-
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
         self.map_ready = False
         self.map_view = QWebEngineView()
         # HTML Leaflet avec OpenStreetMap
-        lat0 =self.df.gps_lat.iloc[0]
-        lon0 =self.df.gps_lon.iloc[0]
+        lat0 = df.gps_lat.iloc[0]
+        lon0 = df.gps_lon.iloc[0]
         self.map_view.setHtml(f"""
                 <!DOCTYPE html>
                 <html>
@@ -2206,49 +1658,6 @@ class MainWindow(QMainWindow):
         # initial position of METAR label (bottom center of map)
         self._position_map_metar_label()
 
-        # ---- Wind overlay (top-right of OSM map) ----
-        self.map_wind_label = QLabel("", parent_widget)
-        self.map_wind_label.setAlignment(Qt.AlignCenter)
-        self.map_wind_label.setStyleSheet(
-            "color: black; background-color: white; padding: 6px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
-        )
-        self.map_wind_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.map_wind_label.adjustSize()
-        self.map_wind_label.raise_()
-
-        self._position_map_wind_label()
-
-        # ---- Wind arrow base (pointing UP) ----
-        size = 40
-        pix = QPixmap(size, size)
-        pix.fill(Qt.transparent)
-
-        p = QPainter(pix)
-        p.setRenderHint(QPainter.Antialiasing)
-
-        pen = QPen(QColor("black"))
-        pen.setWidth(2)
-        p.setPen(pen)
-
-        cx = size // 2
-
-        # ---- tige ----
-        p.drawLine(cx, size - 5, cx, 10)
-
-        # ---- tête (2 petits traits) ----
-        p.drawLine(cx, 10, cx - 6, 16)
-        p.drawLine(cx, 10, cx + 6, 16)
-
-        p.end()
-
-        self.wind_arrow_base = pix
-
-        self.map_wind_arrow = QLabel(parent_widget)
-        self.map_wind_arrow.setPixmap(pix)
-        self.map_wind_arrow.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.map_wind_arrow.adjustSize()
-        self.map_wind_arrow.raise_()
-
     def _position_map_metar_label(self):
         """Position the METAR label centered at the bottom of the OSM map."""
         if not hasattr(self, "map_metar_label") or not hasattr(self, "map_view"):
@@ -2268,37 +1677,11 @@ class MainWindow(QMainWindow):
         self.map_metar_label.raise_()
         self.map_metar_label.show()
 
-    def _position_map_wind_label(self):
-        if not hasattr(self, "map_wind_label") or not hasattr(self, "map_view"):
-            return
-
-        geom = self.map_view.geometry()
-
-        self.map_wind_label.adjustSize()
-
-        x = geom.x() + geom.width() - self.map_wind_label.width() - 10
-        y = geom.y() + 10
-
-        self.map_wind_label.move(x, y)
-        self.map_wind_label.raise_()
-
-        if hasattr(self, "map_wind_arrow"):
-            self.map_wind_arrow.adjustSize()
-
-            x_arrow = x + (self.map_wind_label.width() - self.map_wind_arrow.width()) // 2
-            y_arrow = y + self.map_wind_label.height() + 5
-
-            self.map_wind_arrow.move(x_arrow, y_arrow)
-            self.map_wind_arrow.raise_()
-
     def resizeEvent(self, event):
         super().resizeEvent(event)
 
         if hasattr(self, "map_metar_label"):
             self._position_map_metar_label()
-
-        if hasattr(self, "map_wind_label"):
-            self._position_map_wind_label()
 
         if hasattr(self, "elapsed_time_overlay"):
             self._position_elapsed_time_overlay()
@@ -2354,7 +1737,7 @@ class MainWindow(QMainWindow):
             ))
 
         for off in offsets:
-            line = glpg.GLLinePlotItem(
+            line = gl.GLLinePlotItem(
                 pos=np.zeros((2, 3)),
                 color=(1, 1, 1, 1),
                 width=8,
@@ -2365,7 +1748,7 @@ class MainWindow(QMainWindow):
             self.gps_lines.append(line)
 
         # aircraft position marker
-        self.gps_point = glpg.GLScatterPlotItem(
+        self.gps_point = gl.GLScatterPlotItem(
             pos=np.zeros((1, 3)),
             size=15,              # screen pixels
             pxMode=True,          # keep constant size on screen
@@ -2376,17 +1759,16 @@ class MainWindow(QMainWindow):
         self.gps_point.setGLOptions('opaque')
 
         # ground grid (visual reference in meters)
-        grid = glpg.GLGridItem()
-        grid.setSize(4, 2)   # 2 km x 2 km area
+        grid = gl.GLGridItem()
+        grid.setSize(2, 2)   # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
-        grid.rotate(BOX_HEADING, 0, 0, 1)
         grid.setColor((150,150,150))
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
-        self.grid_vertical_yz = glpg.GLGridItem()
-        self.grid_vertical_yz.setSize(4, 2)
+        self.grid_vertical_yz = gl.GLGridItem()
+        self.grid_vertical_yz.setSize(2, 2)
         self.grid_vertical_yz.setSpacing(0.25,0.25)
         self.grid_vertical_yz.rotate(90, 1, 0, 0)
         self.grid_vertical_yz.translate(0, -1, 0)
@@ -2394,14 +1776,13 @@ class MainWindow(QMainWindow):
         self.gps_view.addItem(self.grid_vertical_yz)
 
         # ---- vertical grid (XZ plane) ----
-        self.grid_vertical_xz = glpg.GLGridItem()
+        self.grid_vertical_xz = gl.GLGridItem()
         self.grid_vertical_xz.setSize(2, 2)
         self.grid_vertical_xz.setSpacing(0.25, 0.25)
         self.grid_vertical_xz.rotate(90, 0, 1, 0)
         self.grid_vertical_xz.translate(-1,0, 0)
         self.grid_vertical_xz.setColor((135, 206, 235))
         self.gps_view.addItem(self.grid_vertical_xz)
-        self.grid_vertical_xz.setVisible(False)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
         #self.gps_view.addItem(self.gps_point)
@@ -2429,8 +1810,8 @@ class MainWindow(QMainWindow):
             vertices[:, 1] *= -1
 
             faces = np.arange(len(vertices)).reshape(-1, 3)
-            meshdata = glpg.MeshData(vertexes=vertices, faces=faces)
-            self.gps_aircraft = glpg.GLMeshItem(
+            meshdata = gl.MeshData(vertexes=vertices, faces=faces)
+            self.gps_aircraft = gl.GLMeshItem(
                 meshdata=meshdata,
                 smooth=False,
                 color=(0.8, 0.8, 0.8, 0.2),  # gris clair
@@ -2439,12 +1820,8 @@ class MainWindow(QMainWindow):
                 glOptions='translucent')
 
         except Exception as e:
-            print("STL load failed, fallback disabled:", e)
-            self.gps_aircraft = glpg.GLScatterPlotItem(
-                pos=np.array([[0, 0, 0]]),
-                size=10,
-                color=(1, 0, 0, 1)
-            )
+            print("STL load failed, fallback to CAP10:", e)
+            self.gps_aircraft = self.create_cap10_item()
         self.gps_view.addItem(self.gps_aircraft)
 
         # base geometry for rotation (handle both LinePlotItem and MeshItem)
@@ -2459,35 +1836,28 @@ class MainWindow(QMainWindow):
 
 
         # vertical line from aircraft to ground
-        self.gps_vertical_line = glpg.GLLinePlotItem(
+        self.gps_vertical_line = gl.GLLinePlotItem(
             pos=np.zeros((2, 3)),
-            color=(1, 0, 1, 1),  # violet
+            color=(0, 0, 1, 1),
             width=3,
             antialias=True
         )
         self.gps_view.addItem(self.gps_vertical_line)
 
         # ---- ground projection of trajectory (shadow on ground) ----
-        self.gps_shadow = glpg.GLLinePlotItem(
+        self.gps_shadow = gl.GLLinePlotItem(
             pos=np.zeros((2, 3)),
             #color=(0, 0, 1, 0.6), # gray
-            color=(0.6, 0.3, 0.1, 1),  # marron
+            color=(0, 0, 0, 1), #black
             width=2,
             antialias=True
         )
         self.gps_view.addItem(self.gps_shadow)
 
-        self.gps_box_projection = glpg.GLLinePlotItem(
-            pos=np.zeros((2, 3)),
-            # color=(0, 0, 1, 0.6), # gray
-            color=(0, 0, 1, 1),  # 🔵 bleu (RGBA)
-            width=2,antialias=True
-        )
-        self.gps_view.addItem(self.gps_box_projection)
 
         # ---- altitude scale overlay (Red Bull style vertical scale) ----
         self.altitude_scale_labels = []
-        altitude_scale = list(range(0, max(5500, int(math.ceil(self.gps_max_alt / 500) * 500)) + 500, 500))
+        altitude_scale = list(range(0, max(5500, int(math.ceil(gps_max_alt / 500) * 500)) + 500, 500))
 
         for z in altitude_scale:
             label = QLabel(f"{z}ft", self.gps_view)
@@ -2649,7 +2019,7 @@ class MainWindow(QMainWindow):
         top = 10
         height = self.gps_view.height() - 20
 
-        max_alt = int(self.gps_max_alt / 500 + 1) * 500
+        max_alt = int(gps_max_alt / 500 + 1) * 500
 
         # position altitude bar near the right edge
         bar_x = self.gps_view.width() - 60
@@ -2973,10 +2343,6 @@ class MainWindow(QMainWindow):
         self.df_info_label.move(10, 10)
         self.df_info_label.raise_()
 
-        # ---- Timestamp overlay (ensure multi-line support) ----
-        #if hasattr(self, "timestamp_label"):
-        #    self.timestamp_label.setWordWrap(True)
-
         # ---- Pitch overlay (custom position) ----
         self.pitch_label = QLabel("Pitch:", self.gfx_canvas)
         self.pitch_label.setStyleSheet("color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
@@ -3078,6 +2444,9 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
 
+
+
+
     def update_gfx_orientation(self):
         #R = quat_to_rot(quats[self.i])
         row = self.row
@@ -3089,14 +2458,6 @@ class MainWindow(QMainWindow):
         theta_x = np.deg2rad(self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
         R_x_20 = np.array([[1, 0, 0],[0, np.cos(theta_x), -np.sin(theta_x)],[0, np.sin(theta_x),  np.cos(theta_x)]])
         R_final = R_x_20 @ perm[R_recalage_repere] @ R
-        # ---- sanitize rotation matrix (avoid NaN/inf and non-orthogonal matrices) ----
-        if not np.isfinite(R_final).all():
-            return
-        try:
-            U, _, Vt = np.linalg.svd(R_final)
-            R_final = U @ Vt
-        except Exception:
-            return
 
         # Forward and Up original vectors
         fwd_original = np.array([0.0, 1.0, 0.0])
@@ -3117,14 +2478,7 @@ class MainWindow(QMainWindow):
         # ---- Update acceleration vector ----
         acc = np.array([-row.x4_acc_x,-row.x4_acc_y,-row.x4_acc_z])# rotation
         self.g = np.linalg.norm(acc) / 9.81
-
-        norm_acc = np.linalg.norm(acc)
-
-        if not np.isfinite(norm_acc) or norm_acc < 1e-6:
-            acc = np.array([0.0, 0.0, 0.0])
-        else:
-            acc = acc / norm_acc
-
+        acc = acc / np.linalg.norm(acc) # normer vecteur
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
         self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
         # ---- low-pass filter to smooth G vector trail ----
@@ -3233,10 +2587,8 @@ class MainWindow(QMainWindow):
             "background-color: transparent; padding: 10px; "
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         #rotation de l'objet
-        M = np.eye(4)
-        M[:3, :3] = R_final.T
-        if np.isfinite(M).all():
-            self.gfx_object.local.matrix = M
+        M = np.eye(4);M[:3, :3] = R_final.T
+        self.gfx_object.local.matrix = M
 
         # ---- Compute Pitch (angle between rotated Y and XY plane) ----
         v_original = np.array([0.0, 1.0, 0.0])
@@ -3246,10 +2598,9 @@ class MainWindow(QMainWindow):
         plane_normal = np.array([0.0, 0.0, 1.0])
         dot = np.dot(v_rotated, plane_normal)
         norm_v = np.linalg.norm(v_rotated)
-        if norm_v < 1e-6 or not np.isfinite(norm_v):
-            pitch_rad = 0.0
-        else:
-            pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
+
+        # angle between vector and plane
+        pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
         pitch_deg = np.degrees(pitch_rad)
         self.pitch_deg = pitch_deg
 
@@ -3275,18 +2626,18 @@ class MainWindow(QMainWindow):
             fwd_proj = fwd_proj / norm_proj
             # angle par rapport à l'axe X
             heading_rad = np.arctan2(fwd_proj[1], fwd_proj[0])
-            self.heading_deg = np.degrees(heading_rad)
-            if self.heading_deg < 0:
-                self.heading_deg += 360
-            self.heading_deg=360-self.heading_deg
+            heading_deg = np.degrees(heading_rad)
+            if heading_deg < 0:
+                heading_deg += 360
+            heading_deg=360-heading_deg
         else:
-            self.heading_deg = 0.0
+            heading_deg = 0.0
 
         # ---- Update Artificial Horizon ----
         if hasattr(self, "hud_horizon"):
             self.hud_horizon.pitch = pitch_deg
             self.hud_horizon.bank = bank_deg
-            self.hud_horizon.heading = self.heading_deg
+            self.hud_horizon.heading = heading_deg
             self.hud_horizon.update()
 
         # ---- Update Wingtip Artificial Horizon ----
@@ -3306,47 +2657,31 @@ class MainWindow(QMainWindow):
             up_w  = R_wing.T @ np.array([0.0, 0.0, 1.0])
 
             # pitch in wing reference
-            self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
+            pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
 
             # roll in wing reference
             # compute roll around the wing viewing axis using Y/Z plane
             # this remains stable when aircraft pitch approaches vertical
-            self.right_w = np.cross(fwd_w, up_w)
-            self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
+            right_w = np.cross(fwd_w, up_w)
+            roll_w = np.degrees(np.arctan2(right_w[2], up_w[2]))
 
             # invert pitch sign for wingtip reference (viewed from the side)
-            self.hud_horizon_wing.pitch = -self.pitch_w
-            self.hud_horizon_wing.bank = self.roll_w
-            self.hud_horizon_wing.heading = self.heading_deg
+            self.hud_horizon_wing.pitch = -pitch_w
+            self.hud_horizon_wing.bank = roll_w
+            self.hud_horizon_wing.heading = heading_deg
             self.hud_horizon_wing.update()
 
         # ---- Update dataframe info label ----
         # compute elapsed time since start of dataset
-        t0 =self.df.timestamp.iloc[0]
-        t_now =self.df.timestamp.iloc[self.idf]
+        t0 = df.timestamp.iloc[0]
+        t_now = df.timestamp.iloc[self.idf]
         elapsed = t_now - t0
         elapsed_s = int(elapsed.total_seconds())
         em = elapsed_s // 60
         es = elapsed_s % 60
 
-        # --- CPU sampling (1 Hz) ---
-        import time
-        import psutil
-        if not hasattr(self, "_last_cpu_update"):
-            self._last_cpu_update = 0
-            self._cpu_percent = 0
-        now_cpu = time.time()
-        if now_cpu - self._last_cpu_update >= 1.0:
-            try:
-                self._cpu_percent = psutil.cpu_percent(interval=None)
-            except Exception:
-                self._cpu_percent = 0
-            self._last_cpu_update = now_cpu
-
         self.df_info_label.setText(
             f"Frame: {self.i}"
-            f"\nStutters: {self.stutter_count}"
-            f"\nCPU: {self._cpu_percent:.0f}%"
             #f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
             #f"\nElapsed: {em:02d}:{es:02d}"
             #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
@@ -3374,6 +2709,99 @@ class MainWindow(QMainWindow):
         )
 
         # ---- Update GPS speed / altitude overlay ----
+        # ---- Update heading overlay on video1 ----
+        if hasattr(self, "video1_heading_label"):
+            self.video1_heading_label.setText(f"{row.gps_heading:.0f}°")
+            # compute angular deviation from aerobatic axis (50° / 230°)
+            h = float(row.gps_heading)
+
+            def ang_diff(a, b):
+                d = abs(a - b) % 360.0
+                return min(d, 360.0 - d)
+
+            d1 = ang_diff(h, 50.0)
+            d2 = ang_diff(h, 230.0)
+            deviation = min(d1, d2)
+
+            self.video1_heading_deviation_label.setText(f"Δ {deviation:.0f}°")
+            self.video1_heading_deviation_label.adjustSize()
+            self.video1_heading_label.adjustSize()
+            x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
+            self.video1_heading_label.move(x, 5)
+            self.video1_heading_deviation_label.move(
+                (self.video1.width() - self.video1_heading_deviation_label.width()) // 2,
+                40  # 👈 sous le premier
+            )
+
+
+        # ---- Update pitch overlay on video1 (above bank) ----
+        if hasattr(self, "video1_pitch_label"):
+            self.video1_pitch_label.setText(f"Pitch {pitch_deg:.0f}°")
+            self.video1_pitch_label.adjustSize()
+            x_pitch = int((self.video1.width() - self.video1_pitch_label.width()) / 2)
+            y_pitch = self.video1.height() - self.video1_pitch_label.height() - 45
+            self.video1_pitch_label.move(x_pitch, y_pitch)
+
+        # ---- Update bank overlay below pitch ----
+        if hasattr(self, "video1_bank_label"):
+            self.video1_bank_label.setText(f"Bank {bank_deg:.0f}°")
+            self.video1_bank_label.adjustSize()
+            x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
+            y_bank = y_pitch + self.video1_pitch_label.height() + 5
+            self.video1_bank_label.move(x_bank, y_bank)
+
+        # ---- Update badin (GPS speed) overlay on video1 (bottom-left) ----
+        if hasattr(self, "video1_speed_label"):
+            self.video1_speed_label.setText(f"{row.gps_speed:.0f} km/h")
+            self.video1_speed_label.adjustSize()
+            x_speed = 10
+            y_speed = self.video1.height() - self.video1_speed_label.height() - 10
+            self.video1_speed_label.move(x_speed, y_speed)
+
+        # ---- Update analog badin with smoothing ----
+        if self.smooth_speed is None:
+            self.smooth_speed = row.gps_speed
+        else:
+            a = self.instrument_alpha
+            self.smooth_speed = (1 - a) * self.smooth_speed + a * row.gps_speed
+
+        if hasattr(self, "video1_badin"):
+            self.video1_badin.speed = self.smooth_speed
+            self.video1_badin.update()
+            yb = int(self.video1.height()/2 - self.video1_badin.height()/2) + 80
+            self.video1_badin.move(10, yb)
+
+        # ---- Update analog altimeter with smoothing ----
+        if self.smooth_alt is None:
+            self.smooth_alt = row.gps_alt
+        else:
+            a = self.instrument_alpha
+            self.smooth_alt = (1 - a) * self.smooth_alt + a * row.gps_alt
+
+        if hasattr(self, "video1_altimeter"):
+            self.video1_altimeter.alt = self.smooth_alt
+            self.video1_altimeter.update()
+            ya = int(self.video1.height()/2 - self.video1_altimeter.height()/2) + 80
+            xa = self.video1.width() - self.video1_altimeter.width() - 10
+            self.video1_altimeter.move(xa, ya)
+
+        # ---- Update vario overlay on video1 (bottom-right) ----
+        if hasattr(self, "video1_fpm_label"):
+            self.video1_fpm_label.setText(f"{row.gps_fpm:.0f} ft/min")
+            self.video1_fpm_label.adjustSize()
+            x_fpm = self.video1.width() - self.video1_fpm_label.width() - 10
+            y_fpm = self.video1.height() - self.video1_fpm_label.height() - 10
+            self.video1_fpm_label.move(x_fpm, y_fpm)
+
+        # ---- Update altitude overlay just above vario ----
+        if hasattr(self, "video1_alt_label"):
+            self.video1_alt_label.setText(f"Alt {row.gps_alt:.0f} ft")
+            self.video1_alt_label.adjustSize()
+            x_alt = self.video1.width() - self.video1_alt_label.width() - 10
+            y_alt = y_fpm - self.video1_alt_label.height() - 5
+            self.video1_alt_label.move(x_alt, y_alt)
+
+
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
         # update GS max
         if row.gps_speed > self.gs_max:
@@ -3424,160 +2852,13 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
 
-    def update_video_label(self):
-        row = self.row
-        # ---- Update heading overlay on video1 ----
-        if hasattr(self, "video1_heading_label"):
-            self.video1_heading_label.setText(f"{row.gps_heading:.0f}°")
-            # compute angular deviation from aerobatic axis (50° / 230°)
-            h = float(row.gps_heading)
-
-            def ang_diff(a, b):
-                d = abs(a - b) % 360.0
-                return min(d, 360.0 - d)
-
-            d1 = ang_diff(h, 50.0)
-            d2 = ang_diff(h, 230.0)
-            deviation = min(d1, d2)
-
-            self.video1_heading_deviation_label.setText(f"Δ {deviation:.0f}°")
-            self.video1_heading_deviation_label.adjustSize()
-            self.video1_heading_label.adjustSize()
-            x = int((self.video1.width() - self.video1_heading_label.width()) / 2)
-            self.video1_heading_label.move(x, 5)
-            self.video1_heading_deviation_label.move(
-                (self.video1.width() - self.video1_heading_deviation_label.width()) // 2,
-                40  # 👈 sous le premier
-            )
-
-        # ---- Update pitch overlay on video1 (above bank) ----
-        if hasattr(self, "video1_pitch_label"):
-            self.video1_pitch_label.setText(f"Pitch {self.pitch_deg:.0f}°")
-            self.video1_pitch_label.adjustSize()
-            x_pitch = int((self.video1.width() - self.video1_pitch_label.width()) / 2)
-            y_pitch = self.video1.height() - self.video1_pitch_label.height() - 45
-            self.video1_pitch_label.move(x_pitch, y_pitch)
-
-        # ---- Update bank overlay below pitch ----
-        if hasattr(self, "video1_bank_label"):
-            self.video1_bank_label.setText(f"Bank {self.bank_deg:.0f}°")
-            self.video1_bank_label.adjustSize()
-            x_bank = int((self.video1.width() - self.video1_bank_label.width()) / 2)
-            y_bank = y_pitch + self.video1_pitch_label.height() + 5
-            self.video1_bank_label.move(x_bank, y_bank)
-
-        # ---- Update badin (GPS speed) overlay on video1 (bottom-left) ----
-        if hasattr(self, "video1_speed_label"):
-            self.video1_speed_label.setText(f"IAS {row.gps_ias:.0f} km/h\nGS {row.gps_speed:.0f} km/h")
-            self.video1_speed_label.adjustSize()
-            x_speed = 10
-            y_speed = self.video1.height() - self.video1_speed_label.height() - 10
-            self.video1_speed_label.move(x_speed, y_speed)
-
-        self.video1_wind_label.adjustSize()
-
-        x = self.video1_speed_label.x() + self.video1_speed_label.width() + 10
-        y = self.video1.height() - self.video1_wind_label.height() - 10
-
-        self.video1_wind_label.move(x, y)
-
-        try:
-            hw = self.headwind_vals[self.idf]
-            cw = self.crosswind_vals[self.idf]
-
-            # flèche headwind / tailwind
-            if hw >= 0:
-                hw_arrow = "↓"  # vent de face
-            else:
-                hw_arrow = "↑"  # vent arrière
-
-            hw_txt = f"{hw_arrow} {abs(hw):.0f} kt"
-
-            # flèche crosswind
-            if cw > 0:
-                cw_arrow = "←"  # vent venant de la droite → pousse vers la gauche
-            else:
-                cw_arrow = "→"  # vent venant de la gauche → pousse vers la droite
-
-            cw_txt = f"{cw_arrow} {abs(cw):.0f} kt"
-
-            self.video1_wind_label.setText(f"{hw_txt}\n{cw_txt}")
-
-        except Exception:
-            pass
-
-        # ---- Update analog badin with smoothing ----
-        if self.smooth_speed is None:
-            self.smooth_speed = row.gps_ias
-        else:
-            a = self.instrument_alpha
-            self.smooth_speed = (1 - a) * self.smooth_speed + a * row.gps_ias
-
-        if hasattr(self, "video1_badin"):
-            self.video1_badin.speed = self.smooth_speed
-            self.video1_badin.update()
-            xb = int(self.video1.width()/2 - self.video1_badin.width()) - 60
-            yb = int(self.video1.height() - self.video1_badin.height())
-            self.video1_badin.move(xb, yb)
-
-        # ---- Update analog altimeter with smoothing ----
-        if self.smooth_alt is None:
-            self.smooth_alt = row.gps_alt
-        else:
-            a = self.instrument_alpha
-            self.smooth_alt = (1 - a) * self.smooth_alt + a * row.gps_alt
-
-        if hasattr(self, "video1_altimeter"):
-            self.video1_altimeter.alt = self.smooth_alt
-            self.video1_altimeter.update()
-            xa = int(self.video1.width() / 2 ) + 60
-            ya = int(self.video1.height() - self.video1_altimeter.height())
-            self.video1_altimeter.move(xa, ya)
-
-        # ---- Update analog variometer ----
-        if hasattr(self, "video1_vario"):
-            if not hasattr(self, "smooth_fpm"):
-                self.smooth_fpm = row.gps_fpm
-            else:
-                a = self.instrument_alpha
-                self.smooth_fpm = (1 - a) * self.smooth_fpm + a * row.gps_fpm
-            self.video1_vario.fpm = self.smooth_fpm
-            self.video1_vario.update()
-            xv = int(self.video1.width() / 2 ) + 60 + self.video1_altimeter.width()
-            yv = int(self.video1.height() - self.video1_vario.height())
-            self.video1_vario.move(xv, yv)
-        # ---- Update vario overlay on video1 (bottom-right) ----
-        if hasattr(self, "video1_fpm_label"):
-            self.video1_fpm_label.setText(f"{row.gps_fpm:.0f} ft/min")
-            self.video1_fpm_label.adjustSize()
-            x_fpm = self.video1.width() - self.video1_fpm_label.width() - 10
-            y_fpm = self.video1.height() - self.video1_fpm_label.height() - 10
-            self.video1_fpm_label.move(x_fpm, y_fpm)
-
-        # ---- Update altitude overlay just above vario ----
-        if hasattr(self, "video1_alt_label"):
-            self.video1_alt_label.setText(f"Alt {row.gps_alt:.0f} ft")
-            self.video1_alt_label.adjustSize()
-            x_alt = self.video1.width() - self.video1_alt_label.width() - 10
-            y_alt = y_fpm - self.video1_alt_label.height() - 5
-            self.video1_alt_label.move(x_alt, y_alt)
-
-        if hasattr(self, "video2_date_label"):
-            self.video2_date_label.move(
-                self.video2.width() - self.video2_date_label.width() - 10,
-                self.video2.height() - self.video2_date_label.height() - 10
-            )
-
-        self.video1.pitch_w = -self.pitch_w
-        self.video1.roll_w = self.roll_w
-        self.video1.heading = self.heading_deg
 
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
-        end = min(self.frames_df, where + 50)
+        end = min(len(df), where + 50)
 
-        acc =self.df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
+        acc = df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
         grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
         self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
@@ -3592,12 +2873,12 @@ class MainWindow(QMainWindow):
         # refresh graphics immediately (useful when paused)
         try:
             self.update_gfx_orientation()
-            self.update_video_label()
         except Exception:
             pass
 
     def calibrate_gfx_on_current_frame(self):
         self.calibrate_gfx(self.idf)
+
 
     def on_map_loaded(self, ok):
         if ok:
@@ -3606,29 +2887,36 @@ class MainWindow(QMainWindow):
     def update_metar(self):
         if self.i % 30 != 0:
             return
-        current_time = self.row.timestamp
-        metar_row = self.find_metar_for_time(current_time)
-        new_metar = metar_row.metar
-        if new_metar != self.last_metar:
-            self.last_metar = new_metar
-            if hasattr(self, "map_metar_label"):
-                self.map_metar_label.setText(self.last_metar)
-                self.map_metar_label.adjustSize()
-                self._position_map_metar_label()
+        # ---- Update METAR overlay if needed ----
+        try:
+            current_time = self.row.timestamp
+            metar_row = find_metar_for_time(metar_df, current_time)
+            new_metar = metar_row.metar
+
+            if new_metar != self.last_metar:
+                self.last_metar = new_metar
+
+                if hasattr(self, "map_metar_label"):
+                    self.map_metar_label.setText(self.last_metar)
+                    self.map_metar_label.adjustSize()
+                    self._position_map_metar_label()
+
+        except Exception:
+            pass
 
     # ==================================================
     # Real-time compensated main loop (absolute scheduling)
     # ==================================================
     def main_loop(self):
-
         now = self.clock.elapsed()
+
         # initialize startup time once
         if self.startup_time_ms is None:
             self.startup_time_ms = now
+
         # initialize absolute schedule
         if self.next_frame_time == 0:
             self.next_frame_time = now
-
 
         if self.playing:
             # 🔊 audio ALWAYS runs
@@ -3640,16 +2928,20 @@ class MainWindow(QMainWindow):
             else:
                 # temps cible dicté par l’audio
                 target_time = self.audio_clock_sec
+
                 # temps actuel vidéo
                 if self.current_video_time_utc is not None:
                     video_time = (self.current_video_time_utc - self.video1_start).total_seconds()
                 else:
                     video_time = 0.0
+
                 # New sync logic with margin
-                margin = 0.03  # 50 ms tolerance
+                margin = 0.05  # 50 ms tolerance
+
                 if video_time < target_time - margin:
                     # video late → catch up
                     self.update_all()
+
                 elif video_time > target_time + margin:
                     # video ahead → WAIT only if sync is stable
                     # after seek, allow video to move to avoid freeze
@@ -3657,11 +2949,21 @@ class MainWindow(QMainWindow):
                         pass
                     else:
                         self.update_all()
+
                 else:
                     # in sync → normal playback
                     self.update_all()
+
         # audio-driven → on tick très vite
         self.next_frame_time = now + 5
+
+        #delay = int(self.next_frame_time - now)
+        #self.frame_last_delay = delay
+        #if delay < 0:
+        #    delay = 0
+        #    self.frame_skipped_count += 1
+
+        #self.timer.start(delay)
 
     # ==================================================
     # BOOKMARK SYSTEM
@@ -3710,6 +3012,7 @@ class MainWindow(QMainWindow):
         if not ok or name.strip() == "":
             return
         frame = int(self.i)
+
         # compute time since start of playback
         fps = float(self.stream1.average_rate)
         if fps <= 0:
@@ -3721,11 +3024,14 @@ class MainWindow(QMainWindow):
 
         new_row = pd.DataFrame([[time_str, name, frame]], columns=["time", "name", "frame"])
         self.bookmarks_df = pd.concat([self.bookmarks_df, new_row], ignore_index=True)
+
         # sort bookmarks by frame index
         self.bookmarks_df = self.bookmarks_df.sort_values("frame").reset_index(drop=True)
+
         self.save_bookmarks()
         self.refresh_bookmark_menu()
         self.update_bookmark_ticks()
+
 
     def reload_bookmarks(self):
         """Force reload of bookmark CSV file and refresh menu."""
@@ -3736,7 +3042,9 @@ class MainWindow(QMainWindow):
     # Centralized video seek (avoid repeating CAP_PROP_POS_FRAMES everywhere)
     # ==================================================
     def seek_video(self, frame):
+
         self.i = int(frame)
+
         # reset frame counter to avoid sync gating after seek
         if self.i < 5:
             self.i = int(frame)
@@ -3760,9 +3068,12 @@ class MainWindow(QMainWindow):
                 pass
 
         fps = float(self.stream1.average_rate)
+
         ts = int((frame / fps) / float(self.stream1.time_base))
+
         self.container1.seek(ts, stream=self.stream1)
         self.container2.seek(ts, stream=self.stream2)
+
         self.decoder1 = self.container1.decode(self.stream1)
         self.decoder2 = self.container2.decode(self.stream2)
 
@@ -3771,10 +3082,13 @@ class MainWindow(QMainWindow):
             try:
                 fps = float(self.stream1.average_rate)
                 ts_audio = int((frame / fps) / float(self.audio_stream.time_base))
+
                 # seek audio container
                 self.audio_container.seek(ts_audio, stream=self.audio_stream)
+
                 # recreate packet generator
                 self.audio_packets = self.audio_container.demux(self.audio_stream)
+
                 # clear buffered audio and restart buffering
                 self.audio_buffer = bytearray()
                 self.audio_clock_sec = 0.0
@@ -3783,7 +3097,7 @@ class MainWindow(QMainWindow):
                 self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
                 self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
-                #self.audio_prebuffer_done = False
+                self.audio_prebuffer_done = False
 
             except Exception:
                 pass
@@ -3792,6 +3106,7 @@ class MainWindow(QMainWindow):
     def goto_bookmark(self, frame):
         self.seek_video(frame)
         self.slider.setValue(self.i)
+
         # show bookmark overlay immediately when jumping to it
         if self.bookmarks_df is not None:
             row = self.bookmarks_df[self.bookmarks_df["frame"] == frame]
@@ -3802,25 +3117,32 @@ class MainWindow(QMainWindow):
     def goto_previous_bookmark(self):
         """Jump to the previous bookmark before the current frame.
         If called again within 2 seconds, jump one bookmark further back."""
+
         if self.bookmarks_df is None or self.bookmarks_df.empty:
             return
+
         import time
         now = time.time()
+
         # bookmarks before current frame
         past = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
+
         if past.empty:
             print("No previous bookmark")
             return
+
         # detect rapid consecutive press
         rapid = False
         if hasattr(self, "_last_prev_time"):
             if now - self._last_prev_time < 2.0:
                 rapid = True
+
         # choose which bookmark to jump to
         if rapid and len(past) >= 2:
             frame = int(past.iloc[-2]["frame"])
         else:
             frame = int(past.iloc[-1]["frame"])
+
         self._last_prev_time = now
         self.goto_bookmark(frame)
 
@@ -3892,6 +3214,7 @@ class MainWindow(QMainWindow):
     # time jump helpers
     # ==================================================
 
+
     def jump_back_10s(self):
         fps = float(self.stream1.average_rate) or 30
         frame = max(0, int(self.i - fps * 10))
@@ -3906,42 +3229,65 @@ class MainWindow(QMainWindow):
 
     def jump_fwd_2s(self):
         fps = float(self.stream1.average_rate) or 30
-        frame = min(self.frames_video - 1, int(self.i + fps * 2))
+        frame = min(N - 1, int(self.i + fps * 2))
         self.seek_video(frame)
         self.slider.setValue(self.i)
 
     def jump_fwd_10s(self):
         fps = float(self.stream1.average_rate) or 30
-        frame = min(self.frames_video - 1, int(self.i + fps * 10))
+        frame = min(N - 1, int(self.i + fps * 10))
         self.seek_video(frame)
         self.slider.setValue(self.i)
 
     def goto_mise_en_ligne(self):
-        self.seek_video(self.get_video_frame_from_df_index(self.index_enligne_devol))
+        self.seek_video(self.get_video_frame_from_df_index(index_enligne_devol))
         self.slider.setValue(self.i)
 
     def seek_palier(self):
+        """
+        Cherche un pallier :
+        |gps_fpm| < 100 ft/min
+        gps_speed > 150 km/h
+        pendant 2 secondes
+        """
+
         window = int(DF_FREQ * 2)  # 2 secondes
-        fpm = self.df["gps_fpm"].to_numpy()
-        speed = self.df["gps_speed"].to_numpy()
+
+        fpm = df["gps_fpm"].to_numpy()
+        speed = df["gps_speed"].to_numpy()
+
         # start searching AFTER the current dataframe position (next palier behavior)
         start_idx = getattr(self, "idf", 0) + 1000
-        for i in range(start_idx, self.frames_df - window):
+        for i in range(start_idx, len(df) - window):
+
             seg_fpm = fpm[i:i + window]
             seg_speed = speed[i:i + window]
+
             if np.all(np.abs(seg_fpm) < 150) and np.all(seg_speed > 150):
                 frame = self.get_video_frame_from_df_index(i)
                 self.seek_video(frame)
                 self.slider.setValue(self.i)
+
                 print("Palier trouvé @ frame", frame)
                 return
+
         print("Aucun palier trouvé")
+
 
     # ==================================================
     def read_video_frame(self, decoder):
         try:
             frame = next(decoder)
+
+            if frame.format.name != "rgb24":
+                frame = frame.to_rgb()
+
+            #if frame.format.name != "bgr24":
+            #    frame = frame.reformat(format="bgr24")
+
+            # Return the frame directly (no numpy conversion)
             return True, frame, frame
+
         except StopIteration:
             return False, None, None
 
@@ -3951,84 +3297,98 @@ class MainWindow(QMainWindow):
     def update_audio(self):
         if self.audio_stream is None:
             return
+
         try:
             # 🔑 combien de place dispo dans le buffer audio OS
             if hasattr(self, "audio_output"):
-                bytes_free = self.audio_output.bytesFree()
+                bytes_free = max(self.audio_output.bytesFree(), 16384)
             else:
                 bytes_free = 16384
+
             # 🔑 on remplit un peu plus que nécessaire
-            target_buffer = max(bytes_free * 2, 16384)
+            target_buffer = max(bytes_free * 4, 65536)
+
             # 🔑 décodage adaptatif
             while len(self.audio_buffer) < target_buffer:
                 packet = next(self.audio_packets)
+
                 for frame in packet.decode():
                     frames = self.audio_resampler.resample(frame)
+
                     if not isinstance(frames, (list, tuple)):
                         frames = [frames]
+
                     for f in frames:
                         if f is None:
                             continue
+
                         if f.pts is not None:
                             self.audio_clock_sec = float(f.pts * f.time_base)
+
                         self.audio_buffer += f.to_ndarray().tobytes()
+
         except StopIteration:
             return
         except Exception as e:
             print("audio error:", e)
             return
+
         # 🔊 écriture CONTINUE (critique)
-        chunk_size = 4096
+        chunk_size = 8192
+
         if not hasattr(self, "audio_output"):
             return
-        bytes_free = self.audio_output.bytesFree()
+
+        # ---- PREBUFFER (avoid stutter after start/seek) ----
+        if not hasattr(self, "audio_prebuffer_done"):
+            self.audio_prebuffer_done = False
+
+        if not self.audio_prebuffer_done:
+            if len(self.audio_buffer) < 65536:
+                return
+            else:
+                self.audio_prebuffer_done = True
 
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])
+
             if written <= 0:
                 break
+
             self.audio_buffer = self.audio_buffer[written:]
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
     def get_video_frame_from_df_index(self, df_index):
-        if df_index < 0 or df_index >= self.frames_df:
+        """
+        Calcule l'index frame vidéo à partir d'un index du dataframe.
+        Retourne l'index de frame correspondant dans la vidéo 1.
+        """
+        if df_index < 0 or df_index >= frames_df:
             raise ValueError("df_index hors limites")
+
         # timestamp dataframe
-        ts_df =self.df.timestamp.iloc[df_index]
+        ts_df = df.timestamp.iloc[df_index]
+
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
+
         # delta par rapport au début vidéo 1
         delta = ts_video_utc - self.video1_start
+
         # récupération FPS vidéo
         fps = float(self.stream1.average_rate)
         if fps <= 0:
             fps = 30  # fallback sécurité
+
         # conversion en frame
         frame_index = int(delta.total_seconds() * fps)
+
         # clamp sécurité
-        frame_index = max(0, min(frame_index, self.frames_video - 1))
+        frame_index = max(0, min(frame_index, N - 1))
+
         return frame_index
 
-    def update_wind(self):
-        try:
-            ws = self.gps_wind_speed_vals[self.idf] / 1.852
-            wd = self.gps_wind_direction_vals[self.idf]
-
-            self.map_wind_label.setText(f"{ws:.0f} kt\n{wd:.0f}°")
-            self.map_wind_label.adjustSize()
-
-            # rotation de la flèche (direction du vent)
-            if hasattr(self, "wind_arrow_base"):
-                transform = QTransform().rotate(wd)
-                rotated = self.wind_arrow_base.transformed(transform, Qt.SmoothTransformation)
-                self.map_wind_arrow.setPixmap(rotated)
-                self.map_wind_arrow.adjustSize()
-
-            self._position_map_wind_label()
-
-        except Exception:
-            pass
 
     # ==================================================
     def update_all(self):
@@ -4036,18 +3396,16 @@ class MainWindow(QMainWindow):
         self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
         self.i += 1
         # ---- Auto stop recording at end of playback ----
-        if self.i >= self.frames_video - 1 and self.recording:
+        if self.i >= N - 1 and self.recording:
             self.toggle_recording(False)
             self.recording=False
+
 
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
         self.update_gps_pyqtgraph()
         self.update_metar()
-        self.update_wind()
         self.update_gfx_orientation()
-        self.update_video_label()
-        self.update_g_timeline_cursor()
 
         if self.bookmarks_df is not None and not self.bookmarks_df.empty:
             fps = float(self.stream1.average_rate)
@@ -4058,8 +3416,10 @@ class MainWindow(QMainWindow):
             for _, row_bm in self.bookmarks_df.iterrows():
                 frame = int(row_bm["frame"])
                 trigger_frame = frame - fps  # 1 second before
+
                 if self.i == trigger_frame:
                     name = str(row_bm["name"])
+
                     if frame != self.last_bookmark_frame:
                         self.show_bookmark_overlay(name)
                         self.last_bookmark_frame = frame
@@ -4067,15 +3427,18 @@ class MainWindow(QMainWindow):
         # ---- Elapsed time overlay update ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
+
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
                 s = total_sec % 60
+
                 if h > 0:
                     txt = f"{h:02d}:{m:02d}:{s:02d}"
                 else:
                     txt = f"{m:02d}:{s:02d}"
+
                 self.elapsed_time_overlay.setText(txt)
         except Exception:
             pass
@@ -4083,12 +3446,15 @@ class MainWindow(QMainWindow):
     # ==================================================
     def update_video(self, decoder, label, start_dt, stream):
         ret, frame, avframe = self.read_video_frame(decoder)
+
         if not ret:
             return
+
         ms = avframe.pts * float(stream.time_base) * 1000
         video_time_utc = start_dt + timedelta(milliseconds=ms)
         self.current_video_time_utc = video_time_utc
         warmup_elapsed = 0 if self.startup_time_ms is None else (self.clock.elapsed() - self.startup_time_ms)
+
         if (
                 hasattr(self, "audio_clock_sec")
                 and self.audio_clock_sec > 0
@@ -4100,11 +3466,14 @@ class MainWindow(QMainWindow):
         if self.sync_enabled:
             video_time_sec = (video_time_utc - start_dt).total_seconds()
             sync_error = video_time_sec - self.audio_clock_sec
+
             sync_error = max(min(sync_error, 0.5), -0.5)
+
             # vidéo en avance → ne pas afficher
             if sync_error > 0.02:
                 # do not block display → avoid freeze
                 pass
+
             # vidéo en retard → skip
             if sync_error < -0.05:
                 try:
@@ -4114,14 +3483,7 @@ class MainWindow(QMainWindow):
                 except:
                     pass
 
-        # Use VideoYUVWidget if available
-        if hasattr(label, "setFrame"):
-            label.setFrame(frame)
-            return
-        else:
-            print("⚠️ QLabel fallback utilisé")
 
-        # fallback (old QLabel path)
         plane = frame.planes[0]
         h = frame.height
         w = frame.width
@@ -4133,36 +3495,41 @@ class MainWindow(QMainWindow):
     # ==================================================
     def sync_dataframe_on_video(self):
         ts = self.current_video_time_utc + self.video_df_offset
-        idx = self.df["timestamp"].searchsorted(ts)
+        idx = df["timestamp"].searchsorted(ts)
 
         if idx <= 0:
             self.idf = 0
-        elif idx >= self.frames_df:
-            self.idf = self.frames_df - 1
+        elif idx >= frames_df:
+            self.idf = frames_df - 1
         else:
-            before =self.df.timestamp.iloc[idx - 1]
-            after =self.df.timestamp.iloc[idx]
+            before = df.timestamp.iloc[idx - 1]
+            after = df.timestamp.iloc[idx]
             self.idf = idx - 1 if abs(ts - before) <= abs(after - ts) else idx
 
         # cache dataframe row once per frame
-        self.row =self.df.iloc[self.idf]
+        self.row = df.iloc[self.idf]
+
         self.slider.blockSignals(True)
         self.slider.setValue(self.i)
         self.slider.blockSignals(False)
-        #self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # ---- Elapsed time overlay update (compute txt here) ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
+
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
                 s = total_sec % 60
+
                 if h > 0:
                     txt = f"{h:02d}:{m:02d}:{s:02d}"
                 else:
                     txt = f"{m:02d}:{s:02d}"
+
                 self.elapsed_time_overlay.setText(txt)
                 self.elapsed_time_overlay.adjustSize()
                 self._position_elapsed_time_overlay()
@@ -4173,18 +3540,21 @@ class MainWindow(QMainWindow):
         # ---- Previous bookmark overlay update ----
         try:
             if self.current_video_time_utc is not None and self.bookmarks_df is not None:
-                #t = self.current_video_time_utc
+                t = self.current_video_time_utc
                 df_b = self.bookmarks_df
+
                 # bookmarks passés uniquement
                 past = df_b[df_b["frame"] <= self.i]
                 if len(past) > 0:
                     last = past.iloc[-1]
                     name = str(last.get("name", last.get("label", "")))
+
                     self.prev_bookmark_overlay.setText(name)
                     self.prev_bookmark_overlay.show()
                     self.prev_bookmark_overlay.adjustSize()
                 else:
                     self.prev_bookmark_overlay.hide()
+
         except Exception:
             pass
 
@@ -4199,86 +3569,60 @@ class MainWindow(QMainWindow):
         """
         if df_index < 0 or df_index >= frames_df:
             raise ValueError("df_index hors limites")
+
         # timestamp dataframe
-        ts_df =self.df.timestamp.iloc[df_index]
+        ts_df = df.timestamp.iloc[df_index]
+
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
+
         # delta par rapport au début vidéo 1
         delta = ts_video_utc - self.video1_start
+
         # récupération FPS vidéo
         fps = float(self.stream1.average_rate)
         if fps <= 0:
             fps = 30  # fallback sécurité
+
         # conversion en frame
         frame_index = int(delta.total_seconds() * fps)
+
         # clamp sécurité
         frame_index = max(0, min(frame_index, N - 1))
+
         return frame_index
-
-    def update_g_timeline_cursor(self):
-        # compute x inside timeline
-        x_local = int(self.idf / self.frames_df * self.g_timeline.width())
-
-        # compute global position
-        x_global = self.g_timeline.x() + x_local
-
-        # compute vertical span (G + Alt timelines)
-        if hasattr(self, "alt_timeline"):
-            y_top = min(self.g_timeline.y(), self.alt_timeline.y())
-            y_bottom = max(
-                self.g_timeline.y() + self.g_timeline.height(),
-                self.alt_timeline.y() + self.alt_timeline.height()
-            )
-            total_height = y_bottom - y_top
-        else:
-            y_top = self.g_timeline.y()
-            total_height = self.g_timeline.height()
-
-        # create cursor once (IMPORTANT: parent = self, not g_timeline)
-        if not hasattr(self, "g_timeline_cursor"):
-            self.g_timeline_cursor = QFrame(self)
-            self.g_timeline_cursor.setStyleSheet("background-color: black;")
-            self.g_timeline_cursor.setGeometry(0, 0, 2, total_height)
-            self.g_timeline_cursor.show()
-
-        # ---- triangle indicator (top of cursor) ----
-        if not hasattr(self, "g_timeline_cursor_triangle"):
-            self.g_timeline_cursor_triangle = QLabel("▼", self)
-            self.g_timeline_cursor_triangle.setStyleSheet(
-                "color: black; background: transparent; font-size: 12px;"
-            )
-            self.g_timeline_cursor_triangle.adjustSize()
-            self.g_timeline_cursor_triangle.show()
-
-        # update geometry
-        self.g_timeline_cursor.setGeometry(x_global, y_top, 2, total_height)
-        self.g_timeline_cursor.raise_()
-
-        # position triangle at top of cursor
-        if hasattr(self, "g_timeline_cursor_triangle"):
-            self.g_timeline_cursor_triangle.move(
-                x_global - self.g_timeline_cursor_triangle.width() // 2 + 1,
-                y_top - self.g_timeline_cursor_triangle.height()
-            )
-            self.g_timeline_cursor_triangle.raise_()
 
     # ==================================================
     def on_slider(self, value):
         # move both videos to the requested frame
         self.seek_video(value)
+
         # force an immediate refresh when paused
         if not self.playing:
             self.update_all()
+
         try:
             if self.map_ready:
                 self.map_view.page().runJavaScript("resetTrajectory();")
         except Exception:
             pass
 
+    # ==================================================
+    def toggle_matplotlib_gps(self):
+        """Toggle matplotlib GPS update on/off."""
+        self.enable_matplotlib_gps = not self.enable_matplotlib_gps
+
+        # keep menu checkbox synchronized
+        if hasattr(self, "act_pause_gps_update"):
+            self.act_pause_gps_update.setChecked(not self.enable_matplotlib_gps)
+
     def update_gps_pyqtgraph(self):
         # skip updates only during playback
         if self.playing and self.i % 8 != 0:
             return
+
+        #t0 = time.perf_counter()
+
         row = self.row
         if self.map_ready:
             lat = row.gps_lat
@@ -4302,13 +3646,13 @@ class MainWindow(QMainWindow):
             start = 0
 
         # center trajectory on current aircraft position
-        lon = self.gps_lon_vals[start:end]
-        lat = self.gps_lat_vals[start:end]
-        alt = self.gps_alt_vals[start:end]
+        lon = gps_lon_vals[start:end]
+        lat = gps_lat_vals[start:end]
+        alt = gps_alt_vals[start:end]
 
-        lon0 = self.gps_lon_vals[end]
-        lat0 = self.gps_lat_vals[end]
-        #alt0 = self.gps_alt_vals[end]
+        lon0 = gps_lon_vals[end]
+        lat0 = gps_lat_vals[end]
+        alt0 = gps_alt_vals[end]
 
         # convert degrees to approximate meters
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
@@ -4330,52 +3674,22 @@ class MainWindow(QMainWindow):
 
         pts = np.column_stack([x, y, z])
 
-        az = -int(row.gps_heading / 45) * 45 - 22.5
-        yz = -1
-        xz = -1
-        if az != self.last_azim:
-            self.last_azim = az
-            self.gps_view.setCameraPosition(azimuth=az)
-            if az == -67.5 or az == -22.5 or az == -112.5 or az == -337.5:
-                yz = 1
-            self.grid_vertical_yz.resetTransform()
-            self.grid_vertical_yz.rotate(90, 1, 0, 0)
-            self.grid_vertical_yz.translate(0, yz, 0)
-            self.grid_vertical_yz.rotate(BOX_HEADING, 0, 0, 1)
-
-            if az == -202.5 or az == -112.5 or az == -157.5 or az == -67.5:
-                xz = 1
-            self.grid_vertical_xz.resetTransform()
-            self.grid_vertical_xz.rotate(90, 0, 1, 0)
-            self.grid_vertical_xz.translate(xz, 0, 0)
-            self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
-            #self.grid_vertical_xz.setVisible(False)
-
         # ---- update ground projection (shadow) ----
         if len(pts) > 1:
-            # ---- projection au sol (plan XY, Z constant) ----
             pts_ground = pts.copy()
             pts_ground[:, 2] = -1.0
-            self.gps_shadow.setData(pos=pts_ground)
-
-            # ---- projection sur un plan vertical incliné de 50° par rapport à XZ ----
-            pts_box = pts.copy()
-            # 1) rotation inverse pour aligner le plan avec XZ
-            pts_box = pts_box @ ROT_BOX # 1) rotation inverse pour aligner le plan avec XZ
-            px=-1
-            if az == -112.5 or az == -337.5 or az== -22.5 or az==-67.5:
-               px=1
-            # 2) projection sur XZ
-            pts_box[:, 1] = px
-            # 3) retour dans le repère initial
-            pts_box = pts_box @ ROT_BOX.T
-            self.gps_box_projection.setData(pos=pts_box)
+            try:
+                self.gps_shadow.setData(pos=pts_ground)
+            except Exception:
+                pass
 
         if len(pts) > 1:
             # ---- color segments based on altitude (3000 → 5000 ft) ----
             z_abs = alt  # original altitude values in ft
+
             zmin = 3000.0
             zmax = 5000.0
+
             # normalize altitude in 0..1 within [3000,5000]
             zn = (z_abs - zmin) / (zmax - zmin)
             zn = np.clip(zn, 0.0, 1.0)
@@ -4395,7 +3709,7 @@ class MainWindow(QMainWindow):
                 line.setData(pos=pts_off, color=colors)
 
 
-        if end < len(self.gps_lat_vals):
+        if end < len(gps_lat_vals):
             # aircraft stays at center
 
             # ---- rotation using Euler angles (heading, pitch, roll) ----
@@ -4532,6 +3846,27 @@ class MainWindow(QMainWindow):
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
+
+        az = -int(row.gps_heading / 45) * 45 - 22.5
+        if az!= self.last_azim:
+            self.last_azim = az
+            self.gps_view.setCameraPosition(azimuth=az)
+            yz=-1
+            if az==-67.5 or az==-22.5 or az==-112.5 or az==-157.5:
+                yz=1
+
+            self.grid_vertical_yz.resetTransform()
+            self.grid_vertical_yz.rotate(90, 1, 0, 0)
+            self.grid_vertical_yz.translate(0, yz, 0)
+
+            xz = -1
+            if az==-202.5 or az == -247.5 or az == -112.5 or az==-157.5:
+                xz = 1
+
+            self.grid_vertical_xz.resetTransform()
+            self.grid_vertical_xz.rotate(90, 0, 1, 0)
+            self.grid_vertical_xz.translate(xz,0, 0)
+
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
         if getattr(self, "gfx_detached", False):
@@ -4561,20 +3896,23 @@ class MainWindow(QMainWindow):
 
         self.gfx_window.show()
 
+
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
         try:
-            self.alive = False
             self.gfx_canvas.setParent(None)
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
             self.gfx_detached = False
+            #self.btn_detach_gfx.setText("↗Detach")
             # restore overlay button when returning to main window
             if hasattr(self, "btn_detach_gfx"):
                 self.btn_detach_gfx.show()
                 self.btn_detach_gfx.raise_()
         except Exception:
             pass
+
         event.accept()
+
 
     def detach_video1_window(self):
         """Toggle detach/close for video1."""
@@ -4584,14 +3922,20 @@ class MainWindow(QMainWindow):
             return
 
         self.video1_detached = True
+
         self.grid.removeWidget(self.video1)
+
         self.video1_window = QMainWindow(self)
         self.video1_window.setWindowTitle("Video 1")
         self.video1_window.setCentralWidget(self.video1)
         self.video1_window.resize(900, 600)
+
         self.btn_detach_video1.hide()
+
         self.video1_window.closeEvent = self._on_video1_window_closed
+
         self.video1_window.show()
+
 
     def _on_video1_window_closed(self, event):
         try:
@@ -4600,8 +3944,10 @@ class MainWindow(QMainWindow):
             self.video1_detached = False
             self.btn_detach_video1.show()
             self.btn_detach_video1.raise_()
+
         except Exception:
             pass
+
         event.accept()
 
     def detach_video2_window(self):
@@ -4610,15 +3956,22 @@ class MainWindow(QMainWindow):
             if hasattr(self, "video2_window"):
                 self.video2_window.close()
             return
+
         self.video2_detached = True
+
         self.grid.removeWidget(self.video2)
+
         self.video2_window = QMainWindow(self)
         self.video2_window.setWindowTitle("Video 2")
         self.video2_window.setCentralWidget(self.video2)
         self.video2_window.resize(900, 600)
+
         self.btn_detach_video2.hide()
+
         self.video2_window.closeEvent = self._on_video2_window_closed
+
         self.video2_window.show()
+
 
     def _on_video2_window_closed(self, event):
         try:
@@ -4629,7 +3982,9 @@ class MainWindow(QMainWindow):
             self.btn_detach_video2.raise_()
         except Exception:
             pass
+
         event.accept()
+
 
     def detach_pyqtgraph_window(self):
         """Toggle detach/close for matplotlib GPS canvas."""
@@ -4637,18 +3992,25 @@ class MainWindow(QMainWindow):
             if hasattr(self, "pyqtgraph_window"):
                 self.pyqtgraph_window.close()
             return
+
         self.pyqtgraph_detached = True
+
         # remove from layout
         self.grid.removeWidget(self.gps_view)
+
         # create detached window
         self.pyqtgraph_window = QMainWindow(self)
         self.pyqtgraph_window.setWindowTitle("GPS Graph")
         self.pyqtgraph_window.setCentralWidget(self.gps_view)
         self.pyqtgraph_window.resize(900, 700)
+
         self.btn_detach_pyqtgraph.hide()
+
         # detect close
         self.pyqtgraph_window.closeEvent = self._on_pyqtgraph_window_closed
+
         self.pyqtgraph_window.show()
+
 
     def _on_pyqtgraph_window_closed(self, event):
         """Restore matplotlib canvas back into the grid when the detached window closes."""
@@ -4660,9 +4022,22 @@ class MainWindow(QMainWindow):
             self.btn_detach_pyqtgraph.raise_()
         except Exception:
             pass
+
         event.accept()
 
-STYLE_SHEET = """
+
+# ======================================================
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    palette = app.palette()
+    palette.setColor(palette.Window, Qt.white)
+    palette.setColor(palette.Base, Qt.white)
+    palette.setColor(palette.AlternateBase, Qt.white)
+    palette.setColor(palette.Text, Qt.black)
+    palette.setColor(palette.WindowText, Qt.black)
+
+    app.setPalette(palette)
+    app.setStyleSheet("""
     QPushButton {
         background-color: #f0f0f0;
         color: black;
@@ -4722,108 +4097,11 @@ STYLE_SHEET = """
         border-radius: 3px;
     }
 
-    """
-
-
-def select_abv_folder():
-    base_path = MAINDIR + "data/"
-
-    dialog = QDialog()
-    dialog.setWindowTitle("Sélectionner un vol (.abv)")
-    layout = QVBoxLayout(dialog)
-
-    list_widget = QListWidget()
-
-    # scan des dossiers .abv
-    abv_list = [
-        f for f in os.listdir(base_path)
-        if f.endswith(".abv") and os.path.isdir(os.path.join(base_path, f))
-    ]
-
-    list_widget.addItems(sorted(abv_list))
-    layout.addWidget(list_widget)
-
-    countdown_label = QLabel("Fermeture dans 3s")
-    layout.addWidget(countdown_label)
-
-    btn = QPushButton("OK")
-    layout.addWidget(btn)
-
-    selected_folder = {"value": None}
-
-    # ---- TIMER (IMPORTANT : AVANT callbacks) ----
-    timer = QTimer(dialog)
-    timer.setInterval(1000)
-
-    remaining = {"t": 3}
-
-    def update_countdown():
-        remaining["t"] -= 1
-        countdown_label.setText(f"Fermeture dans {remaining['t']}s")
-
-        if remaining["t"] <= 0:
-            timer.stop()
-            dialog.done(0)
-            dialog.close()
-
-    timer.timeout.connect(update_countdown)
-    timer.start()
-
-    # ---- CALLBACKS ----
-    def on_select():
-        timer.stop()
-        item = list_widget.currentItem()
-        if item:
-            selected_folder["value"] = os.path.join(base_path, item.text()) + "/"
-            dialog.done(1)   # 🔥 ferme proprement exec_()
-
-    def reset_timer():
-        remaining["t"] = 3
-        countdown_label.setText("Fermeture dans 3s")
-        timer.start()
-
-    # ---- SIGNALS ----
-    btn.clicked.connect(on_select)
-    list_widget.itemDoubleClicked.connect(lambda _: on_select())
-    list_widget.itemClicked.connect(lambda _: reset_timer())
-    list_widget.currentItemChanged.connect(lambda *_: reset_timer())
-
-    dialog.exec_()
-
-    return selected_folder["value"]
-
-# ======================================================
-if __name__ == "__main__":
-    #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
-    app = QApplication(sys.argv)
-
-    if not SKIP_BDL_SELECTION:
-        selected = select_abv_folder()
-        if selected:
-            PDL = selected
-            print("PDL sélectionné :", PDL)
-        else:
-            print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
-
-    MERGED_DATA = PDL + "merged_data.csv"
-    INPUT_METAR = PDL + "metar.csv"
-    VIDEO1 = PDL + "front.mp4"
-    VIDEO2 = PDL + "back.mp4"
-    BOOKMARK_FILE = PDL + "bookmark.csv"
-
-    palette = app.palette()
-    palette.setColor(palette.Window, Qt.white)
-    palette.setColor(palette.Base, Qt.white)
-    palette.setColor(palette.AlternateBase, Qt.white)
-    palette.setColor(palette.Text, Qt.black)
-    palette.setColor(palette.WindowText, Qt.black)
-    app.setPalette(palette)
-    app.setStyleSheet(STYLE_SHEET)
-
+    """)
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
     win = MainWindow()
     win.show()
-    #QTimer.singleShot(0, start_app)
     caffeinate.terminate()
     sys.exit(app.exec_())
+
