@@ -805,8 +805,9 @@ def main():
             gloaded = True
         if os.path.exists(SUBDIR + X4_INSV_2):
             gdf2=get_gps_from_insv(X4_INSV_2)
+            print("GPS TO STICH " + str(gdf["timestamp"].iloc[-1]) + " vs " + str(gdf2["timestamp"].iloc[0]))
+            gdf = pd.concat([gdf, gdf2], axis=0, ignore_index=True)
         print("INSV>GPX>CSV done")
-        #STICHING TODO
 
 
     if os.path.exists(SUBDIR+IPHONE_SENSORLOG):
