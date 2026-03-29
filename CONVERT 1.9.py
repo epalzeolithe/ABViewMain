@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+SKIP_CONVERSION = False
+SHORT_CONVERT = False  # True = limit duration for debug
+
+
 from pymediainfo import MediaInfo
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -148,9 +152,6 @@ PITCH_FRONT = -25 #inclinaison pour voir le manche
 #Zoom 840:472
 #Zoom fort 720:405
 #Très zoom 640:360
-
-SKIP_CONVERSION = False
-SHORT_CONVERT = False  # True = limit duration for debug
 
 def build_ffmpeg_cmd(input1, input2, front_out, back_out, video_bitrate):
     return [
