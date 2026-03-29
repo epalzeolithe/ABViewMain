@@ -127,15 +127,15 @@ def read_EXIFTOOL_GPX(gpx_file):
     df = pd.DataFrame(data)
 
     # nettoyage optionnel
-    df = df.dropna(subset=["time", "lat", "lon"])
-
+    df = df.dropna(subset=["time", "lat", "lon", "alt"])
     return df
 
 def get_datas_from_insv(insv):
     # insv > BB tool > export gpx
     export_EXIFTOOL_GPX_from_insv(insv)
-    print("Export BB done")
-    gbb_df = read_EXIFTOOL_GPX(TMP+insv+".csv")
+    print("Export GPX done")
+    gbb_df = read_EXIFTOOL_GPX(TMP+insv+".gpx")
+    gbb_df.to_csv(TMP+insv+".gpx.csv", index=True, encoding="utf-8")
     return gbb_df
 
 def main():
