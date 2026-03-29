@@ -27,6 +27,7 @@ class ConsoleWindow(QTextEdit):
         super().__init__()
         self.allow_close = False
         self.start_requested = False
+        self.last_key = None
         self.setWindowTitle("MERGE "+__version__+" - Console")
         self.setReadOnly(True)
         self.resize(900, 500)
@@ -48,6 +49,7 @@ class ConsoleWindow(QTextEdit):
         self.ensureCursorVisible()
 
     def keyPressEvent(self, event):
+        self.last_key = event.text().lower()
         if not self.start_requested:
             self.start_requested = True
         elif self.allow_close:
@@ -269,9 +271,22 @@ def main():
         app = QApplication.instance()
         console = app.topLevelWidgets()[0] if app.topLevelWidgets() else None
 
-        while console is not None and not console.start_requested:
+        key = None
+        console.start_requested = False
+
+        print("Appuyez sur 'y' pour confirmer, autre touche pour annuler...")
+
+        while True:
             app.processEvents()
+            if console.start_requested:
+                # last key pressed stored in console.last_key
+                key = getattr(console, "last_key", None)
+                break
             time.sleep(0.05)
+
+        if key != 'y':
+            print("Annulé par l'utilisateur.")
+            sys.exit(0)
 
     print("SKIP_CONVERSION", SKIP_CONVERSION)
     print("SHORT_CONVERT", SHORT_CONVERT)
