@@ -21,7 +21,6 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
 from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
-from PyQt5.QtCore import QPoint
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -30,6 +29,10 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
+from PyQt5.QtWidgets import QFileDialog
+import os
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
+import os
 from ver import __version__
 
 #***********************************************
@@ -4706,12 +4709,6 @@ STYLE_SHEET = """
 
     """
 
-from PyQt5.QtWidgets import QFileDialog
-import os
-
-
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
-import os
 
 def select_abv_folder():
     base_path = MAINDIR + "data/"
@@ -4731,19 +4728,50 @@ def select_abv_folder():
     list_widget.addItems(sorted(abv_list))
     layout.addWidget(list_widget)
 
+    countdown_label = QLabel("Fermeture dans 3s")
+    layout.addWidget(countdown_label)
+
     btn = QPushButton("OK")
     layout.addWidget(btn)
 
     selected_folder = {"value": None}
 
+    # ---- TIMER (IMPORTANT : AVANT callbacks) ----
+    timer = QTimer(dialog)
+    timer.setInterval(1000)
+
+    remaining = {"t": 3}
+
+    def update_countdown():
+        remaining["t"] -= 1
+        countdown_label.setText(f"Fermeture dans {remaining['t']}s")
+
+        if remaining["t"] <= 0:
+            timer.stop()
+            dialog.done(0)
+            dialog.close()
+
+    timer.timeout.connect(update_countdown)
+    timer.start()
+
+    # ---- CALLBACKS ----
     def on_select():
+        timer.stop()
         item = list_widget.currentItem()
         if item:
             selected_folder["value"] = os.path.join(base_path, item.text()) + "/"
-            dialog.accept()
+            dialog.done(1)   # 🔥 ferme proprement exec_()
 
+    def reset_timer():
+        remaining["t"] = 3
+        countdown_label.setText("Fermeture dans 3s")
+        timer.start()
+
+    # ---- SIGNALS ----
     btn.clicked.connect(on_select)
     list_widget.itemDoubleClicked.connect(lambda _: on_select())
+    list_widget.itemClicked.connect(lambda _: reset_timer())
+    list_widget.currentItemChanged.connect(lambda *_: reset_timer())
 
     dialog.exec_()
 
@@ -4753,32 +4781,40 @@ def select_abv_folder():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    # ---- Sélection utilisateur ----
-    selected = select_abv_folder()
 
-    if selected:
-        PDL = selected
-        print("PDL sélectionné :", PDL)
-    else:
-        print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
+    def start_app():
+        global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
 
-    MERGED_DATA = PDL + "merged_data.csv"
-    INPUT_METAR = PDL + "metar.csv"
-    VIDEO1 = PDL + "front.mp4"
-    VIDEO2 = PDL + "back.mp4"
-    BOOKMARK_FILE = PDL + "bookmark.csv"
+        selected = select_abv_folder()
 
-    palette = app.palette()
-    palette.setColor(palette.Window, Qt.white)
-    palette.setColor(palette.Base, Qt.white)
-    palette.setColor(palette.AlternateBase, Qt.white)
-    palette.setColor(palette.Text, Qt.black)
-    palette.setColor(palette.WindowText, Qt.black)
-    app.setPalette(palette)
-    app.setStyleSheet(STYLE_SHEET)
-    import subprocess
-    caffeinate = subprocess.Popen(["caffeinate"])
-    win = MainWindow()
-    win.show()
-    caffeinate.terminate()
+        if selected:
+            PDL = selected
+            print("PDL sélectionné :", PDL)
+        else:
+            print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
+
+        MERGED_DATA = PDL + "merged_data.csv"
+        INPUT_METAR = PDL + "metar.csv"
+        VIDEO1 = PDL + "front.mp4"
+        VIDEO2 = PDL + "back.mp4"
+        BOOKMARK_FILE = PDL + "bookmark.csv"
+
+        palette = app.palette()
+        palette.setColor(palette.Window, Qt.white)
+        palette.setColor(palette.Base, Qt.white)
+        palette.setColor(palette.AlternateBase, Qt.white)
+        palette.setColor(palette.Text, Qt.black)
+        palette.setColor(palette.WindowText, Qt.black)
+        app.setPalette(palette)
+        app.setStyleSheet(STYLE_SHEET)
+
+        import subprocess
+        caffeinate = subprocess.Popen(["caffeinate"])
+        win = MainWindow()
+        win.show()
+        # 👉 IMPORTANT : arrêt propre à la fermeture de l'app
+        app.aboutToQuit.connect(lambda: caffeinate.terminate())
+
+    QTimer.singleShot(0, start_app)
+    #caffeinate.terminate()
     sys.exit(app.exec_())
