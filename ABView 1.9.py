@@ -37,6 +37,7 @@ from ver import __version__
 
 #***********************************************
 #CONFIG
+SKIP_BDL_SELECTION = True
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
@@ -994,21 +995,49 @@ class MainWindow(QMainWindow):
         #print(f"Metar at start: {self.last_metar}")
 
     def closeEvent(self, event):
-        """Sécurise la fermeture (évite crash wgpu async)"""
+        """Sécurise la fermeture (évite crash wgpu / rendercanvas)"""
         try:
             self.alive = False
 
-            # fermer proprement le canvas pygfx
-            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
+            # ---- stop Qt timer FIRST ----
+            if hasattr(self, "timer"):
                 try:
-                    self.gfx_canvas.close()
-                    self.gfx_canvas.deleteLater()
+                    self.timer.stop()
                 except Exception:
                     pass
 
-            # vider les callbacks Qt en attente
+            # ---- stop pygfx / rendercanvas cleanly ----
+            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
+                try:
+                    # ---- CRITICAL: stop rendercanvas loop BEFORE Qt deletes widget ----
+                    try:
+                        if hasattr(self.gfx_canvas, "_rc_canvas"):
+                            loop = getattr(self.gfx_canvas._rc_canvas, "_loop", None)
+                            if loop is not None:
+                                loop.stop(force=True)
+                    except Exception:
+                        pass
+
+                    # ---- detach from Qt ----
+                    self.gfx_canvas.setParent(None)
+                    self.gfx_canvas.hide()
+                except Exception:
+                    pass
+
+            # ---- process remaining Qt events (flush callbacks) ----
             from PyQt5.QtWidgets import QApplication
             QApplication.processEvents()
+
+            # ---- now safe deletion ----
+            if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
+                try:
+                    try:
+                        self.gfx_canvas.close()
+                    except Exception:
+                        pass
+                    self.gfx_canvas.deleteLater()
+                except Exception:
+                    pass
 
         except Exception:
             pass
@@ -4780,42 +4809,36 @@ def select_abv_folder():
 
 # ======================================================
 if __name__ == "__main__":
+    #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
 
+    selected = select_abv_folder()
 
-    def start_app():
-        global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
+    if selected:
+        PDL = selected
+        print("PDL sélectionné :", PDL)
+    else:
+        print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
 
-        selected = select_abv_folder()
+    MERGED_DATA = PDL + "merged_data.csv"
+    INPUT_METAR = PDL + "metar.csv"
+    VIDEO1 = PDL + "front.mp4"
+    VIDEO2 = PDL + "back.mp4"
+    BOOKMARK_FILE = PDL + "bookmark.csv"
 
-        if selected:
-            PDL = selected
-            print("PDL sélectionné :", PDL)
-        else:
-            print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
+    palette = app.palette()
+    palette.setColor(palette.Window, Qt.white)
+    palette.setColor(palette.Base, Qt.white)
+    palette.setColor(palette.AlternateBase, Qt.white)
+    palette.setColor(palette.Text, Qt.black)
+    palette.setColor(palette.WindowText, Qt.black)
+    app.setPalette(palette)
+    app.setStyleSheet(STYLE_SHEET)
 
-        MERGED_DATA = PDL + "merged_data.csv"
-        INPUT_METAR = PDL + "metar.csv"
-        VIDEO1 = PDL + "front.mp4"
-        VIDEO2 = PDL + "back.mp4"
-        BOOKMARK_FILE = PDL + "bookmark.csv"
-
-        palette = app.palette()
-        palette.setColor(palette.Window, Qt.white)
-        palette.setColor(palette.Base, Qt.white)
-        palette.setColor(palette.AlternateBase, Qt.white)
-        palette.setColor(palette.Text, Qt.black)
-        palette.setColor(palette.WindowText, Qt.black)
-        app.setPalette(palette)
-        app.setStyleSheet(STYLE_SHEET)
-
-        import subprocess
-        caffeinate = subprocess.Popen(["caffeinate"])
-        win = MainWindow()
-        win.show()
-        # 👉 IMPORTANT : arrêt propre à la fermeture de l'app
-        app.aboutToQuit.connect(lambda: caffeinate.terminate())
-
-    QTimer.singleShot(0, start_app)
-    #caffeinate.terminate()
+    import subprocess
+    caffeinate = subprocess.Popen(["caffeinate"])
+    win = MainWindow()
+    win.show()
+    #QTimer.singleShot(0, start_app)
+    caffeinate.terminate()
     sys.exit(app.exec_())
