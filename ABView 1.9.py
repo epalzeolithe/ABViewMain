@@ -37,7 +37,7 @@ from ver import __version__
 
 #***********************************************
 #CONFIG
-SKIP_BDL_SELECTION = True
+SKIP_BDL_SELECTION = False
 MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
@@ -4812,13 +4812,13 @@ if __name__ == "__main__":
     #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
 
-    selected = select_abv_folder()
-
-    if selected:
-        PDL = selected
-        print("PDL sélectionné :", PDL)
-    else:
-        print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
+    if not SKIP_BDL_SELECTION:
+        selected = select_abv_folder()
+        if selected:
+            PDL = selected
+            print("PDL sélectionné :", PDL)
+        else:
+            print("Aucun dossier sélectionné, utilisation valeur par défaut :", PDL)
 
     MERGED_DATA = PDL + "merged_data.csv"
     INPUT_METAR = PDL + "metar.csv"
