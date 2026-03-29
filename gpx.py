@@ -118,7 +118,7 @@ def read_EXIFTOOL_GPX(gpx_file):
         for segment in track.segments:
             for p in segment.points:
                 data.append({
-                    "time": p.time.timestamp() if p.time else None,
+                    "timestamp": p.time.strftime("%Y-%m-%d %H:%M:%S") if p.time else None,
                     "lat": p.latitude,
                     "lon": p.longitude,
                     "alt": round(p.elevation * 3.28084,0)
@@ -127,7 +127,7 @@ def read_EXIFTOOL_GPX(gpx_file):
     df = pd.DataFrame(data)
 
     # nettoyage optionnel
-    df = df.dropna(subset=["time", "lat", "lon", "alt"])
+    df = df.dropna(subset=["timestamp", "lat", "lon", "alt"])
     return df
 
 def get_datas_from_insv(insv):
