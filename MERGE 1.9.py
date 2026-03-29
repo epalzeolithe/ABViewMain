@@ -690,6 +690,10 @@ def read_EXIFTOOL_GPX(gpx_file):
 
     df = pd.DataFrame(data)
 
+    # Convert UTC string to datetime, then to local time (Europe/Paris)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    df["timestamp"] = df["timestamp"].dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+
     import numpy as np
 
     # Convert timestamp to datetime
@@ -911,7 +915,6 @@ def main():
         idf["timestamp"] = pd.to_datetime(idf["timestamp"]).astype("datetime64[us]")
 
     gdf["timestamp"] = pd.to_datetime(gdf["timestamp"]).astype("datetime64[us]")
-
     print("GPS start time", gdf['timestamp'][0])
     if iloaded:
         print("IPHONE start time", idf['timestamp'][0])

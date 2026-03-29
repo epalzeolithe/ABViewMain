@@ -41,6 +41,7 @@ MAINDIR="/Users/drax/Down/ABViewMain/"
 BDL="data/Vol_2026_02_21.abv/"
 BDL="data/Vol_2026_03_20.abv/"
 BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol_2026_02_15.abv/"
 PDL=MAINDIR+BDL
 STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
 STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
