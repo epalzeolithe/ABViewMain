@@ -867,7 +867,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ABView Version "+__version__)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.resize(1600, 1200)
+        self.resize(2024, 1200)
 
         # ---- état ----
         self.load_dataframe(MERGED_DATA)
@@ -1849,8 +1849,10 @@ class MainWindow(QMainWindow):
                     target_window = content.windows()[0]
 
                 config = ScreenCaptureKit.SCStreamConfiguration.alloc().init()
-                config.setWidth_(target_window.frame().size.width)
-                config.setHeight_(target_window.frame().size.height)
+                # WARNING: higher scale_factor = more CPU/GPU usage
+                scale_factor = 2  # increase resolution (e.g. 2 = 2x, 3 = 3x)
+                config.setWidth_(int(target_window.frame().size.width * scale_factor))
+                config.setHeight_(int(target_window.frame().size.height * scale_factor))
                 config.setCapturesAudio_(True)
 
                 # capture only this window (not the full display)
@@ -3573,6 +3575,8 @@ class MainWindow(QMainWindow):
         self.video1.pitch_w = -self.pitch_w
         self.video1.roll_w = self.roll_w
         self.video1.heading = self.heading_deg
+
+        print(self.size(), self.minimumSizeHint())
 
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
