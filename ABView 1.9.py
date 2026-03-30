@@ -1,3 +1,15 @@
+import sys
+import traceback
+
+
+def excepthook(type_, value, tb):
+    print("\n=== FULL TRACEBACK ===")
+    traceback.print_exception(type_, value, tb)
+
+
+sys.excepthook = excepthook
+
+
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
 import OpenGL.GL as gl
@@ -962,7 +974,6 @@ class MainWindow(QMainWindow):
         self.enable_matplotlib_gps = True
         self.init_gps_pyqtgraph()
 
-        self.gfx_alive = True
         self.init_gfx()
         self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
 
@@ -2947,6 +2958,10 @@ class MainWindow(QMainWindow):
             print(f"Error loading CAP10.STL: {e}")
 
         self.gfx_canvas = self.gfx_display.canvas
+        self.gfx_canvas.setAttribute(Qt.WA_DeleteOnClose, False)
+        self.gfx_alive = True
+        self.gfx_render_enabled = True
+        self.gfx_canvas.destroyed.connect(self.on_gfx_destroyed)
         #self.gfx_canvas.setStyleSheet("background-color: white;")
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
         # ---- Attach detach button to gfx canvas (bottom-center overlay) ----
@@ -3080,10 +3095,15 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show()
 
     def update_gfx_orientation(self):
-        if not getattr(self, "gfx_alive", True):
+        if not getattr(self, "gfx_alive", False):
             return
+
+        if not getattr(self, "gfx_render_enabled", False):
+            return
+
         if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
             return
+
         row = self.row
         R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
 
@@ -4049,7 +4069,8 @@ class MainWindow(QMainWindow):
         self.update_gps_pyqtgraph()
         self.update_metar()
         self.update_wind()
-        self.update_gfx_orientation()
+        if getattr(self, "gfx_render_enabled", False):
+            self.update_gfx_orientation()
         self.update_video_label()
         self.update_g_timeline_cursor()
 
@@ -4547,6 +4568,7 @@ class MainWindow(QMainWindow):
         self.gfx_detached = True
 
         # remove from layout
+        self.gfx_render_enabled = False
         self.grid.removeWidget(self.gfx_canvas)
 
         # create new window
@@ -4564,14 +4586,17 @@ class MainWindow(QMainWindow):
         self.gfx_window.closeEvent = self._on_gfx_window_closed
 
         self.gfx_window.show()
+        self.gfx_render_enabled = True
 
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
+        self.gfx_render_enabled = False
         try:
-            self.gfx_alive = False
-            self.gfx_canvas.setParent(None)
+            self.gfx_canvas.setParent(self)
+            self.gfx_canvas.hide()
             self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
-            self.gfx_alive = True
+            self.gfx_canvas.show()
+            self.gfx_render_enabled = True
             self.gfx_detached = False
             # restore overlay button when returning to main window
             if hasattr(self, "btn_detach_gfx"):
@@ -4666,6 +4691,18 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         event.accept()
+
+    def on_gfx_destroyed(self):
+        print("💀 gfx_canvas destroyed")
+
+        self.gfx_alive = False
+        self.gfx_render_enabled = False
+
+        try:
+            if hasattr(self, "gfx_display"):
+                self.gfx_display.close()  # 🔥 STOP HARD renderer
+        except Exception:
+            pass
 
 STYLE_SHEET = """
     QPushButton {
