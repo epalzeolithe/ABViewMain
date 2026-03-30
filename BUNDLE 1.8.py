@@ -10,7 +10,7 @@ class Clock(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle(".abview bundle "+__version__)
+        self.setWindowTitle(".abvbundle "+__version__)
 
         self.label = QLabel()
         self.label.setAlignment(Qt.AlignCenter)
