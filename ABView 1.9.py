@@ -4846,6 +4846,7 @@ from PyQt5.QtWidgets import QFileDialog
 
 def select_abv_bundle(parent=None):
     dialog = QFileDialog(parent)
+    dialog.setWindowTitle("ABView - Select Flight")
     # set initial directory to data folder
     base_path = os.path.join(MAINDIR, "data")
     if os.path.isdir(base_path):
