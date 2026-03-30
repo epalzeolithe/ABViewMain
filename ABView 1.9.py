@@ -3576,8 +3576,6 @@ class MainWindow(QMainWindow):
         self.video1.roll_w = self.roll_w
         self.video1.heading = self.heading_deg
 
-        print(self.size(), self.minimumSizeHint())
-
     def calibrate_gfx(self, where):
         # average accelerometer over 100 samples to reduce IMU noise
         start = max(0, where - 50)
