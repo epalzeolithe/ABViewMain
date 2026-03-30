@@ -4766,76 +4766,6 @@ STYLE_SHEET = """
 
     """
 
-
-def select_abv_folder():
-    base_path = MAINDIR + "data/"
-
-    dialog = QDialog()
-    dialog.setWindowTitle("Sélectionner un vol (.abv)")
-    layout = QVBoxLayout(dialog)
-
-    list_widget = QListWidget()
-
-    # scan des dossiers .abv
-    abv_list = [
-        f for f in os.listdir(base_path)
-        if f.endswith(".abv") and os.path.isdir(os.path.join(base_path, f))
-    ]
-
-    list_widget.addItems(sorted(abv_list))
-    layout.addWidget(list_widget)
-
-    countdown_label = QLabel("Fermeture dans 3s")
-    layout.addWidget(countdown_label)
-
-    btn = QPushButton("OK")
-    layout.addWidget(btn)
-
-    selected_folder = {"value": None}
-
-    # ---- TIMER (IMPORTANT : AVANT callbacks) ----
-    timer = QTimer(dialog)
-    timer.setInterval(1000)
-
-    remaining = {"t": 3}
-
-    def update_countdown():
-        remaining["t"] -= 1
-        countdown_label.setText(f"Fermeture dans {remaining['t']}s")
-
-        if remaining["t"] <= 0:
-            timer.stop()
-            dialog.done(0)
-            dialog.close()
-
-    timer.timeout.connect(update_countdown)
-    timer.start()
-
-    # ---- CALLBACKS ----
-    def on_select():
-        timer.stop()
-        item = list_widget.currentItem()
-        if item:
-            selected_folder["value"] = os.path.join(base_path, item.text()) + "/"
-            dialog.done(1)   # 🔥 ferme proprement exec_()
-
-    def reset_timer():
-        remaining["t"] = 3
-        countdown_label.setText("Fermeture dans 3s")
-        timer.start()
-
-    # ---- SIGNALS ----
-    btn.clicked.connect(on_select)
-    list_widget.itemDoubleClicked.connect(lambda _: on_select())
-    list_widget.itemClicked.connect(lambda _: reset_timer())
-    list_widget.currentItemChanged.connect(lambda *_: reset_timer())
-
-    dialog.exec_()
-
-    return selected_folder["value"]
-
-
-
 from PyQt5.QtWidgets import QFileDialog
 
 def select_abv_bundle(parent=None):
@@ -4859,10 +4789,16 @@ def select_abv_bundle(parent=None):
     from PyQt5.QtWidgets import QTreeView, QListView
 
     def accept_on_double_click(index):
-        # force selection of the clicked item before closing
         path = dialog.directory().absoluteFilePath(index.data())
-        dialog.selectFile(path)
-        dialog.accept()
+
+        # if it's an .abv bundle → select and close
+        if path.endswith(".abv"):
+            dialog.selectFile(path)
+            dialog.accept()
+        else:
+            # otherwise behave like normal navigation
+            if os.path.isdir(path):
+                dialog.setDirectory(path)
 
     tree = dialog.findChild(QTreeView)
     if tree:
@@ -4872,7 +4808,9 @@ def select_abv_bundle(parent=None):
     if listview:
         listview.doubleClicked.connect(accept_on_double_click)
 
-    if dialog.exec_():
+    dialog.show()
+    result = dialog.exec_()
+    if result:
         files = dialog.selectedFiles()
         if files:
             return files[0]+"/"
