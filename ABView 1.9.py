@@ -4785,6 +4785,61 @@ STYLE_SHEET = """
         border-radius: 3px;
     }
 
+    /* ---- Force dialogs to light theme even in dark mode ---- */
+    QDialog {
+        background-color: white;
+        color: black;
+    }
+
+    /* ---- Fix QFileDialog headers / title bars in dark mode ---- */
+    QFileDialog {
+        background-color: white;
+        color: black;
+    }
+
+    QFileDialog QLabel {
+        color: black;
+    }
+
+    QFileDialog QHeaderView {
+        background-color: white;
+        color: black;
+    }
+
+    QHeaderView::section {
+        background-color: #f0f0f0;
+        color: black;
+        border: 1px solid #ccc;
+        padding: 4px;
+    }
+
+    QFileDialog QTreeView::item:selected,
+    QFileDialog QListView::item:selected {
+        background-color: #cce5ff;
+        color: black;
+    }
+
+    QLabel {
+        color: black;
+    }
+
+    QLineEdit, QTextEdit, QPlainTextEdit {
+        background-color: white;
+        color: black;
+        border: 1px solid #888;
+    }
+
+    QComboBox {
+        background-color: white;
+        color: black;
+        border: 1px solid #888;
+    }
+
+    QListView, QTreeView {
+        background-color: white;
+        color: black;
+    }
+
     """
 
 from PyQt5.QtWidgets import QFileDialog
@@ -4841,6 +4896,14 @@ def select_abv_bundle(parent=None):
 if __name__ == "__main__":
     #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
+    palette = app.palette()
+    palette.setColor(palette.Window, Qt.white)
+    palette.setColor(palette.Base, Qt.white)
+    palette.setColor(palette.AlternateBase, Qt.white)
+    palette.setColor(palette.Text, Qt.black)
+    palette.setColor(palette.WindowText, Qt.black)
+    app.setPalette(palette)
+    app.setStyleSheet(STYLE_SHEET)
 
     if not SKIP_BDL_SELECTION:
         selected = select_abv_bundle()
@@ -4856,14 +4919,6 @@ if __name__ == "__main__":
     VIDEO2 = PDL + "back.mp4"
     BOOKMARK_FILE = PDL + "bookmark.csv"
 
-    palette = app.palette()
-    palette.setColor(palette.Window, Qt.white)
-    palette.setColor(palette.Base, Qt.white)
-    palette.setColor(palette.AlternateBase, Qt.white)
-    palette.setColor(palette.Text, Qt.black)
-    palette.setColor(palette.WindowText, Qt.black)
-    app.setPalette(palette)
-    app.setStyleSheet(STYLE_SHEET)
 
     import subprocess
     caffeinate = subprocess.Popen(["caffeinate"])
