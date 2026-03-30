@@ -1512,7 +1512,8 @@ class MainWindow(QMainWindow):
         # ---- PyQtGraph GPS 3D ----
         self.gps_view = glpg.GLViewWidget()
         self.gps_view.setBackgroundColor('w')
-        self.gps_view.setCameraPosition(distance=4)
+        self.gps_lastzoom = 4
+        self.gps_view.setCameraPosition(distance=self.gps_lastzoom)
         self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
 
     def compute_g_signed(self):
@@ -4572,6 +4573,18 @@ class MainWindow(QMainWindow):
                 color = "rgb(255,0,0)"
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
+
+        if alt[-1] > 6000:
+            zoom = 8
+            if zoom != self.gps_lastzoom:
+                self.gps_lastzoom =8
+                self.gps_view.setCameraPosition(distance=self.gps_lastzoom )
+        else:
+            zoom = 4
+            if zoom != self.gps_lastzoom:
+                self.gps_lastzoom =4
+                self.gps_view.setCameraPosition(distance=self.gps_lastzoom )
+
 
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
