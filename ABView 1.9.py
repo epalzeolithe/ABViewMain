@@ -4834,13 +4834,57 @@ def select_abv_folder():
 
     return selected_folder["value"]
 
+
+
+from PyQt5.QtWidgets import QFileDialog
+
+def select_abv_bundle(parent=None):
+    dialog = QFileDialog(parent)
+    # set initial directory to data folder
+    base_path = os.path.join(MAINDIR, "data")
+    if os.path.isdir(base_path):
+        dialog.setDirectory(base_path)
+
+    # Force Qt dialog (important on macOS)
+    dialog.setOption(QFileDialog.DontUseNativeDialog, True)
+
+    # Treat .abv as directories to select, not open
+    dialog.setFileMode(QFileDialog.Directory)
+    dialog.setOption(QFileDialog.ShowDirsOnly, True)
+
+    # Filter display to .abv only
+    dialog.setNameFilter("ABV bundle (*.abv)")
+
+    # Prevent navigation into folder on double-click
+    from PyQt5.QtWidgets import QTreeView, QListView
+
+    def accept_on_double_click(index):
+        # force selection of the clicked item before closing
+        path = dialog.directory().absoluteFilePath(index.data())
+        dialog.selectFile(path)
+        dialog.accept()
+
+    tree = dialog.findChild(QTreeView)
+    if tree:
+        tree.doubleClicked.connect(accept_on_double_click)
+
+    listview = dialog.findChild(QListView)
+    if listview:
+        listview.doubleClicked.connect(accept_on_double_click)
+
+    if dialog.exec_():
+        files = dialog.selectedFiles()
+        if files:
+            return files[0]+"/"
+
+    return None
 # ======================================================
 if __name__ == "__main__":
     #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
 
     if not SKIP_BDL_SELECTION:
-        selected = select_abv_folder()
+        selected = select_abv_bundle()
         if selected:
             PDL = selected
             print("PDL sélectionné :", PDL)
