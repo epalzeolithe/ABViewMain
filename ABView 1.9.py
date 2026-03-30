@@ -47,6 +47,22 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
 import os
 from ver import __version__
 
+from PyQt5 import QtWidgets
+import sip
+
+# ---- GLOBAL SAFE UPDATE PATCH ----
+_orig_update = QtWidgets.QWidget.update
+
+def safe_update(self, *args, **kwargs):
+    try:
+        if sip.isdeleted(self):
+            return
+    except Exception:
+        return
+    return _orig_update(self, *args, **kwargs)
+
+QtWidgets.QWidget.update = safe_update
+
 #***********************************************
 #CONFIG
 SKIP_BDL_SELECTION = False
@@ -4695,14 +4711,19 @@ class MainWindow(QMainWindow):
     def on_gfx_destroyed(self):
         print("💀 gfx_canvas destroyed")
 
-        self.gfx_alive = False
+        # HARD guard: prevent any further rendering calls immediately
         self.gfx_render_enabled = False
+        self.gfx_alive = False
 
+        # disconnect canvas from display ASAP to stop rendercanvas callbacks
         try:
-            if hasattr(self, "gfx_display"):
-                self.gfx_display.close()  # 🔥 STOP HARD renderer
+            if hasattr(self, "gfx_display") and hasattr(self.gfx_display, "canvas"):
+                self.gfx_display.canvas = None
         except Exception:
             pass
+
+        #print("Stack at destruction:")
+        #traceback.print_stack()
 
 STYLE_SHEET = """
     QPushButton {
@@ -4849,5 +4870,35 @@ if __name__ == "__main__":
     win = MainWindow()
     win.show()
     #QTimer.singleShot(0, start_app)
-    caffeinate.terminate()
-    sys.exit(app.exec_())
+
+    def cleanup():
+        print("🧹 CLEANUP START")
+
+        try:
+            # stop any ongoing update loops before detaching canvas
+            try:
+                win.gfx_render_enabled = False
+                win.gfx_alive = False
+            except Exception:
+                pass
+            if hasattr(win, "gfx_display"):
+                try:
+                    win.gfx_display.canvas = None
+                except Exception:
+                    pass
+        except Exception as e:
+            print("cleanup gfx error:", e)
+
+        try:
+            win.playing = False
+        except:
+            pass
+
+        print("🧹 CLEANUP DONE")
+        caffeinate.terminate()
+
+
+    app.aboutToQuit.connect(cleanup)
+
+
+    app.exec_()
