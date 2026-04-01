@@ -300,9 +300,9 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         # rotation
         painter.save()
         painter.translate(cx, cy)
-        painter.rotate(-self.roll_w)
+        painter.rotate(-getattr(self, "roll_w", 0))
 
-        pitch = self.pitch_w
+        pitch = getattr(self, "pitch_w", 0)
         pitch_offset = int(pitch * 3)
         # ---- horizon ----
         painter.setPen(QPen(QColor(20, 20, 139), 2))
@@ -4087,7 +4087,8 @@ class MainWindow(QMainWindow):
         self.update_gps_pyqtgraph()
         self.update_metar()
         self.update_wind()
-        self.update_gfx_orientation()
+        if getattr(self, "gfx_render_enabled", False):
+            self.update_gfx_orientation()
         self.update_video_label()
         self.update_g_timeline_cursor()
 
@@ -4123,42 +4124,8 @@ class MainWindow(QMainWindow):
             pass
 
     # ==================================================
-    def sync_video_to_audio(self, decoder, frame, stream):
-        # no audio → no sync
-        if not hasattr(self, "audio_clock_sec") or self.audio_clock_sec <= 0:
-            return frame
-
-        try:
-            fps = float(stream.average_rate)
-        except Exception:
-            fps = 30.0
-
-        # current video time
-        frame_time = frame.pts * float(stream.time_base)
-
-        # audio is master
-        delay = self.audio_clock_sec - frame_time
-
-        # only act if more than 1 frame late
-        if delay > (1.0 / fps):
-            frames_to_skip = int(delay * fps)
-
-            # clamp to avoid brutal jumps
-            frames_to_skip = min(frames_to_skip, 15)
-
-            for _ in range(frames_to_skip):
-                try:
-                    frame = next(decoder)
-                except StopIteration:
-                    break
-
-        return frame
-
     def update_video(self, decoder, label, start_dt, stream):
         ret, frame, avframe = self.read_video_frame(decoder)
-        # ---- PRO sync: align video to audio ----
-        frame = self.sync_video_to_audio(decoder, frame, stream)
-        avframe = frame
         if not ret:
             return
         ms = avframe.pts * float(stream.time_base) * 1000
@@ -4172,7 +4139,23 @@ class MainWindow(QMainWindow):
                 and warmup_elapsed > 300
         ):
             self.sync_enabled = True
-        # legacy sync removed (replaced by direct frame skip logic)
+
+        if self.sync_enabled:
+            video_time_sec = (video_time_utc - start_dt).total_seconds()
+            sync_error = video_time_sec - self.audio_clock_sec
+            sync_error = max(min(sync_error, 0.5), -0.5)
+            # vidéo en avance → ne pas afficher
+            if sync_error > 0.02:
+                # do not block display → avoid freeze
+                pass
+            # vidéo en retard → skip
+            if sync_error < -0.05:
+                try:
+                    next(self.decoder1, None)
+                    next(self.decoder2, None)
+                    self.i += 1
+                except:
+                    pass
 
         # Use VideoYUVWidget if available
         if hasattr(label, "setFrame"):

@@ -6,6 +6,7 @@ def excepthook(type_, value, tb):
     print("\n=== FULL TRACEBACK ===")
     traceback.print_exception(type_, value, tb)
 
+
 sys.excepthook = excepthook
 
 
@@ -26,12 +27,12 @@ import sip
 import numpy as np
 import pandas as pd
 import pygfx as gfx
-from PyQt5.QtCore import QTimer, Qt, QElapsedTimer
-from PyQt5.QtGui import QImage,QKeySequence
+from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
+from PyQt5.QtGui import QImage, QPixmap,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QTransform,QPen
+from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
+from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -40,7 +41,10 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
+from PyQt5.QtWidgets import QFileDialog
+import os
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
+import os
 from ver import __version__
 
 from PyQt5 import QtWidgets
@@ -63,10 +67,10 @@ QtWidgets.QWidget.update = safe_update
 #CONFIG
 SKIP_BDL_SELECTION = False
 MAINDIR="/Users/drax/Down/ABViewMain/"
-#BDL="data/Vol_2026_02_21.abv/"
-#BDL="data/Vol_2026_03_20.abv/"
-#BDL="data/Vol_2026_02_15.abv/"
+BDL="data/Vol_2026_02_21.abv/"
+BDL="data/Vol_2026_03_20.abv/"
 BDL="data/Vol_2026_03_21.abv/"
+BDL="data/Vol_2026_02_15.abv/"
 PDL=MAINDIR+BDL
 STL_FILE=MAINDIR+"ressources/CAP10.STL"
 STL_SIMPLE_PLANE_FILE=MAINDIR+"ressources/plane.STL"
@@ -300,9 +304,9 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         # rotation
         painter.save()
         painter.translate(cx, cy)
-        painter.rotate(-self.roll_w)
+        painter.rotate(-getattr(self, "roll_w", 0))
 
-        pitch = self.pitch_w
+        pitch = getattr(self, "pitch_w", 0)
         pitch_offset = int(pitch * 3)
         # ---- horizon ----
         painter.setPen(QPen(QColor(20, 20, 139), 2))
@@ -958,11 +962,6 @@ class MainWindow(QMainWindow):
         self.g_max = float("-inf")
         self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT #camera vericale au repos par défaut, ecran face à soi
         self.gs_max = float("-inf")
-        self.pitch_deg = 0
-        self.pitch_w = 0
-        self.roll_w = 0
-        self.bank_deg = 0.0
-        self.heading_deg = 0.0
         # ---- smoothed values for instruments (visual interpolation) ----
         self.smooth_speed = None
         self.smooth_alt = None
@@ -979,7 +978,7 @@ class MainWindow(QMainWindow):
         self.firstGPS = True
         self.last_azim = 0
         self.fixed_elev = 20  # angle d'inclinaison verrouillé
-        #self.elev_locked = True
+        self.elev_locked = True
 
         self.init_UI()
         # jump to "mise en ligne" at startup
@@ -2977,8 +2976,8 @@ class MainWindow(QMainWindow):
 
         self.gfx_canvas = self.gfx_display.canvas
         self.gfx_canvas.setAttribute(Qt.WA_DeleteOnClose, False)
-        #self.gfx_alive = True
-        #self.gfx_render_enabled = True
+        self.gfx_alive = True
+        self.gfx_render_enabled = True
         self.gfx_canvas.destroyed.connect(self.on_gfx_destroyed)
         #self.gfx_canvas.setStyleSheet("background-color: white;")
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
@@ -3113,14 +3112,14 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show()
 
     def update_gfx_orientation(self):
-        #if not getattr(self, "gfx_alive", False):
-        #    return
+        if not getattr(self, "gfx_alive", False):
+            return
 
-        #if not getattr(self, "gfx_render_enabled", False):
-        #    return
+        if not getattr(self, "gfx_render_enabled", False):
+            return
 
-        #if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
-        #    return
+        if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
+            return
 
         row = self.row
         R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
@@ -4087,7 +4086,8 @@ class MainWindow(QMainWindow):
         self.update_gps_pyqtgraph()
         self.update_metar()
         self.update_wind()
-        self.update_gfx_orientation()
+        if getattr(self, "gfx_render_enabled", False):
+            self.update_gfx_orientation()
         self.update_video_label()
         self.update_g_timeline_cursor()
 
@@ -4123,42 +4123,8 @@ class MainWindow(QMainWindow):
             pass
 
     # ==================================================
-    def sync_video_to_audio(self, decoder, frame, stream):
-        # no audio → no sync
-        if not hasattr(self, "audio_clock_sec") or self.audio_clock_sec <= 0:
-            return frame
-
-        try:
-            fps = float(stream.average_rate)
-        except Exception:
-            fps = 30.0
-
-        # current video time
-        frame_time = frame.pts * float(stream.time_base)
-
-        # audio is master
-        delay = self.audio_clock_sec - frame_time
-
-        # only act if more than 1 frame late
-        if delay > (1.0 / fps):
-            frames_to_skip = int(delay * fps)
-
-            # clamp to avoid brutal jumps
-            frames_to_skip = min(frames_to_skip, 15)
-
-            for _ in range(frames_to_skip):
-                try:
-                    frame = next(decoder)
-                except StopIteration:
-                    break
-
-        return frame
-
     def update_video(self, decoder, label, start_dt, stream):
         ret, frame, avframe = self.read_video_frame(decoder)
-        # ---- PRO sync: align video to audio ----
-        frame = self.sync_video_to_audio(decoder, frame, stream)
-        avframe = frame
         if not ret:
             return
         ms = avframe.pts * float(stream.time_base) * 1000
@@ -4172,7 +4138,23 @@ class MainWindow(QMainWindow):
                 and warmup_elapsed > 300
         ):
             self.sync_enabled = True
-        # legacy sync removed (replaced by direct frame skip logic)
+
+        if self.sync_enabled:
+            video_time_sec = (video_time_utc - start_dt).total_seconds()
+            sync_error = video_time_sec - self.audio_clock_sec
+            sync_error = max(min(sync_error, 0.5), -0.5)
+            # vidéo en avance → ne pas afficher
+            if sync_error > 0.02:
+                # do not block display → avoid freeze
+                pass
+            # vidéo en retard → skip
+            if sync_error < -0.05:
+                try:
+                    next(self.decoder1, None)
+                    next(self.decoder2, None)
+                    self.i += 1
+                except:
+                    pass
 
         # Use VideoYUVWidget if available
         if hasattr(label, "setFrame"):
@@ -4743,8 +4725,8 @@ class MainWindow(QMainWindow):
         print("💀 gfx_canvas destroyed")
 
         # HARD guard: prevent any further rendering calls immediately
-        #self.gfx_render_enabled = False
-        #self.gfx_alive = False
+        self.gfx_render_enabled = False
+        self.gfx_alive = False
 
         # disconnect canvas from display ASAP to stop rendercanvas callbacks
         try:
@@ -4963,11 +4945,11 @@ if __name__ == "__main__":
 
         try:
             # stop any ongoing update loops before detaching canvas
-            #try:
-                #win.gfx_render_enabled = False
-                #win.gfx_alive = False
-            #except Exception:
-            #    pass
+            try:
+                win.gfx_render_enabled = False
+                win.gfx_alive = False
+            except Exception:
+                pass
             if hasattr(win, "gfx_display"):
                 try:
                     win.gfx_display.canvas = None
