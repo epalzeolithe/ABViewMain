@@ -1291,8 +1291,8 @@ class MainWindow(QMainWindow):
         self.video2.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
         # give a reasonable default display size
-        self.video1.setMinimumSize(320, 180)
-        self.video2.setMinimumSize(320, 180)
+        self.video1.setMinimumSize(0, 0)
+        self.video2.setMinimumSize(0, 0)
         self.grid.addWidget(self.video1, 0, 0, 1, 2)  # colonnes 0-1
         self.grid.addWidget(self.video2, 0, 2, 1, 2)  # colonnes 2-3
 
@@ -1350,11 +1350,13 @@ class MainWindow(QMainWindow):
         self.g_timeline = QLabel(self)
         self.g_timeline.setFixedHeight(12)
         self.g_timeline.setStyleSheet("background-color: black;")
+        self.g_timeline.setScaledContents(True)
         self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
         self.alt_timeline = QLabel(self)
         self.alt_timeline.setFixedHeight(12)
         self.alt_timeline.setStyleSheet("background-color: black;")
+        self.alt_timeline.setScaledContents(True)
         self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
 
@@ -1562,6 +1564,7 @@ class MainWindow(QMainWindow):
 
         import numpy as np
         from PyQt5.QtGui import QImage, QPixmap
+        from PyQt5.QtCore import Qt
 
         values = self.df["g_signed"].to_numpy()
         n = len(values)
@@ -1618,7 +1621,10 @@ class MainWindow(QMainWindow):
             for y in range(height):
                 img.setPixel(x, y, color)
 
-        self.g_timeline.setPixmap(QPixmap.fromImage(img))
+        pix = QPixmap.fromImage(img)
+        if self.g_timeline.width() > 0:
+            pix = pix.scaled(self.g_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        self.g_timeline.setPixmap(pix)
 
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
         try:
@@ -1651,6 +1657,7 @@ class MainWindow(QMainWindow):
 
         import numpy as np
         from PyQt5.QtGui import QImage, QPixmap
+        from PyQt5.QtCore import Qt
 
         values = self.df["gps_alt"].to_numpy()
         n = len(values)
@@ -1702,7 +1709,10 @@ class MainWindow(QMainWindow):
             for y in range(height):
                 img.setPixel(x, y, color)
 
-        self.alt_timeline.setPixmap(QPixmap.fromImage(img))
+        pix = QPixmap.fromImage(img)
+        if self.alt_timeline.width() > 0:
+            pix = pix.scaled(self.alt_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        self.alt_timeline.setPixmap(pix)
 
         # ---- Legend "Altitude" ----
         try:
