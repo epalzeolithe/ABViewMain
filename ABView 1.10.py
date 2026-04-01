@@ -4592,16 +4592,16 @@ class MainWindow(QMainWindow):
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
-        if alt[-1] > 6000:
+        if alt[-1] > 5500 :
             zoom = 8
-            if zoom != self.gps_lastzoom:
-                self.gps_lastzoom =8
-                self.gps_view.setCameraPosition(distance=self.gps_lastzoom )
+        elif alt[-1] <3000:
+            zoom = 6
         else:
             zoom = 4
-            if zoom != self.gps_lastzoom:
-                self.gps_lastzoom =4
-                self.gps_view.setCameraPosition(distance=self.gps_lastzoom )
+
+        if zoom != self.gps_lastzoom:
+                self.gps_lastzoom = zoom
+                self.gps_view.setCameraPosition(distance=zoom )
 
 
     def detach_gfx_window(self):
