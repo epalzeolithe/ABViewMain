@@ -151,9 +151,9 @@ GNS3000_PERIOD = 0.25 # 4 Hz
 X4_DEC = 10 # 1000 Hz > 100 Hz
 IPHONE_DEC = 5 # division données par 100 Hz > 20 Hz
 GYROFLOW_BIN = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
-GYRO2BB = "data/ressources/gyro2bb-mac-arm64"
-EXIFTOOL = "data/ressources/exiftool"
-EXIFFMT = "data/ressources/gpx.fmt"
+GYRO2BB = "ressources/gyro2bb-mac-arm64"
+EXIFTOOL = "ressources/exiftool"
+EXIFFMT = "ressources/gpx.fmt"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
 
@@ -693,6 +693,38 @@ def read_EXIFTOOL_GPX(gpx_file):
     # Convert UTC string to datetime, then to local time (Europe/Paris)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     df["timestamp"] = df["timestamp"].dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+
+    # ---- Detect gaps (>= 2 seconds) ----
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    # Remove duplicate timestamps (can happen with EXIFTOOL GPX)
+    before = len(df)
+    df = df.drop_duplicates(subset="timestamp", keep="first")
+    after = len(df)
+    if before != after:
+        print(f"Points dupliqués supprimés: {before - after}")
+    dt_sec = df["timestamp"].diff().dt.total_seconds()
+    gaps = (dt_sec >= 2).sum()
+    print(f"Nombre de trous GPS (>=2s): {gaps}")
+
+    # ---- Reindex to 1 Hz timeline and interpolate ----
+    df = df.set_index("timestamp")
+
+    full_index = pd.date_range(
+        start=df.index.min(),
+        end=df.index.max(),
+        freq="1s"
+    )
+
+    df = df.reindex(full_index)
+
+    # Interpolate core GPS values
+    df["gps_lat"] = df["gps_lat"].interpolate(method="linear")
+    df["gps_lon"] = df["gps_lon"].interpolate(method="linear")
+    df["gps_alt"] = df["gps_alt"].interpolate(method="linear")
+
+    # Restore timestamp column
+    df = df.reset_index().rename(columns={"index": "timestamp"})
 
     import numpy as np
 

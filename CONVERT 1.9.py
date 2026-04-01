@@ -217,7 +217,6 @@ def get_mp4_creation_datetime(path):
             return dt.replace(tzinfo=timezone.utc)
     raise RuntimeError(f"Date de création MP4 introuvable : {path}")
 
-
 def set_mp4_creation_datetime(path, dt):
     # si pas de fuseau → on suppose Europe/Paris
     if dt.tzinfo is None:
