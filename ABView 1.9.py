@@ -6,7 +6,6 @@ def excepthook(type_, value, tb):
     print("\n=== FULL TRACEBACK ===")
     traceback.print_exception(type_, value, tb)
 
-
 sys.excepthook = excepthook
 
 
@@ -27,12 +26,12 @@ import sip
 import numpy as np
 import pandas as pd
 import pygfx as gfx
-from PyQt5.QtCore import QTimer, Qt, QElapsedTimer, QIODevice, QByteArray
-from PyQt5.QtGui import QImage, QPixmap,QKeySequence
+from PyQt5.QtCore import QTimer, Qt, QElapsedTimer
+from PyQt5.QtGui import QImage,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
-from PyQt5.QtGui import QPixmap, QPainter, QPolygon, QColor, QTransform,QPen
+from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QTransform,QPen
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -41,10 +40,7 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
-from PyQt5.QtWidgets import QFileDialog
-import os
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
-import os
 from ver import __version__
 
 from PyQt5 import QtWidgets
@@ -67,13 +63,13 @@ QtWidgets.QWidget.update = safe_update
 #CONFIG
 SKIP_BDL_SELECTION = False
 MAINDIR="/Users/drax/Down/ABViewMain/"
-BDL="data/Vol_2026_02_21.abv/"
-BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_02_21.abv/"
+#BDL="data/Vol_2026_03_20.abv/"
+#BDL="data/Vol_2026_02_15.abv/"
 BDL="data/Vol_2026_03_21.abv/"
-BDL="data/Vol_2026_02_15.abv/"
 PDL=MAINDIR+BDL
-STL_FILE=MAINDIR+"data/ressources/CAP10.STL"
-STL_SIMPLE_PLANE_FILE=MAINDIR+"data/ressources/plane.STL"
+STL_FILE=MAINDIR+"ressources/CAP10.STL"
+STL_SIMPLE_PLANE_FILE=MAINDIR+"ressources/plane.STL"
 BOX = 0.007*1.5 # taille box vision en °latitude
 DF_FREQ = 100
 TRACE = 6000 # taille de la trace 6000=1 minute
@@ -962,6 +958,11 @@ class MainWindow(QMainWindow):
         self.g_max = float("-inf")
         self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT #camera vericale au repos par défaut, ecran face à soi
         self.gs_max = float("-inf")
+        self.pitch_deg = 0
+        self.pitch_w = 0
+        self.roll_w = 0
+        self.bank_deg = 0.0
+        self.heading_deg = 0.0
         # ---- smoothed values for instruments (visual interpolation) ----
         self.smooth_speed = None
         self.smooth_alt = None
@@ -978,7 +979,7 @@ class MainWindow(QMainWindow):
         self.firstGPS = True
         self.last_azim = 0
         self.fixed_elev = 20  # angle d'inclinaison verrouillé
-        self.elev_locked = True
+        #self.elev_locked = True
 
         self.init_UI()
         # jump to "mise en ligne" at startup
@@ -2976,8 +2977,8 @@ class MainWindow(QMainWindow):
 
         self.gfx_canvas = self.gfx_display.canvas
         self.gfx_canvas.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.gfx_alive = True
-        self.gfx_render_enabled = True
+        #self.gfx_alive = True
+        #self.gfx_render_enabled = True
         self.gfx_canvas.destroyed.connect(self.on_gfx_destroyed)
         #self.gfx_canvas.setStyleSheet("background-color: white;")
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
@@ -3112,14 +3113,14 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show()
 
     def update_gfx_orientation(self):
-        if not getattr(self, "gfx_alive", False):
-            return
+        #if not getattr(self, "gfx_alive", False):
+        #    return
 
-        if not getattr(self, "gfx_render_enabled", False):
-            return
+        #if not getattr(self, "gfx_render_enabled", False):
+        #    return
 
-        if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
-            return
+        #if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
+        #    return
 
         row = self.row
         R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
@@ -4725,8 +4726,8 @@ class MainWindow(QMainWindow):
         print("💀 gfx_canvas destroyed")
 
         # HARD guard: prevent any further rendering calls immediately
-        self.gfx_render_enabled = False
-        self.gfx_alive = False
+        #self.gfx_render_enabled = False
+        #self.gfx_alive = False
 
         # disconnect canvas from display ASAP to stop rendercanvas callbacks
         try:
@@ -4945,11 +4946,11 @@ if __name__ == "__main__":
 
         try:
             # stop any ongoing update loops before detaching canvas
-            try:
-                win.gfx_render_enabled = False
-                win.gfx_alive = False
-            except Exception:
-                pass
+            #try:
+                #win.gfx_render_enabled = False
+                #win.gfx_alive = False
+            #except Exception:
+            #    pass
             if hasattr(win, "gfx_display"):
                 try:
                     win.gfx_display.canvas = None
