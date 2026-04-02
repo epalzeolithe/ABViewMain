@@ -2995,8 +2995,13 @@ class MainWindow(QMainWindow):
         self.pitch_label.setStyleSheet("color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
         self.pitch_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.pitch_label.adjustSize()
-        # position under wing artificial horizon (left side)
-        self.pitch_label.move(0, 260)
+        # position top-right of main artificial horizon
+        try:
+            hx = self.hud_horizon.x() + self.hud_horizon.width() + 10
+            hy = self.hud_horizon.y()
+        except Exception:
+            hx, hy = 180, 10
+        self.pitch_label.move(hx, hy)
         self.pitch_label.raise_()
 
         # ---- Inclination overlay (custom position) ----
@@ -3119,7 +3124,12 @@ class MainWindow(QMainWindow):
         self.energy_curve = self.energy_plot.plot(pen=pg.mkPen(color=(0, 120, 255), width=2))
 
         # position (bottom-left overlay)
-        self.energy_plot.setGeometry(10, self.gfx_canvas.height() - 160, 300, 120)
+        self.energy_plot.setGeometry(
+            self.gfx_canvas.width() - 310,
+            self.gfx_canvas.height() - 160,
+            300,
+            120
+        )
         self.energy_plot.raise_()
         self.energy_plot.show()
 
@@ -3364,13 +3374,23 @@ class MainWindow(QMainWindow):
 
         self.pitch_label.setText(f"Pitch {self.pitch_deg:.0f}°")
         self.pitch_label.adjustSize()
-        # position bottom-left
-        self.pitch_label.move(10,self.gfx_canvas.height() - self.pitch_label.height() - 60)
+        # position top-right of artificial horizon (responsive)
+        try:
+            hx = self.hud_horizon.x() + self.hud_horizon.width() + 10
+            hy = self.hud_horizon.y()
+        except Exception:
+            hx, hy = 180, 10
+        self.pitch_label.move(hx, hy)
 
         self.roll_label.setText(f"Bank {self.bank_deg:.0f}°")
         self.roll_label.adjustSize()
-        # place just below pitch label (bottom-left)
-        self.roll_label.move(10,self.gfx_canvas.height() - self.roll_label.height() - 20)
+        # place just below pitch label (aligned with pitch)
+        try:
+            hx = self.pitch_label.x()
+            hy = self.pitch_label.y() + self.pitch_label.height() + 5
+        except Exception:
+            hx, hy = 180, 50
+        self.roll_label.move(hx, hy)
 
         # ---- Update GPS speed / altitude overlay ----
         self.gps_label_speed.setText(f"GS {self.row.gps_speed:.0f} km/h")
@@ -3416,6 +3436,17 @@ class MainWindow(QMainWindow):
                 t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
 
                 self.energy_curve.setData(t_rel, self.energy_values)
+
+                # keep plot anchored bottom-right (responsive)
+                try:
+                    self.energy_plot.setGeometry(
+                        0,
+                        self.gfx_canvas.height() - 160,
+                        300,
+                        120
+                    )
+                except Exception:
+                    pass
 
             except Exception:
                 pass
