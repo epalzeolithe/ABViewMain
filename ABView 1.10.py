@@ -3051,6 +3051,20 @@ class MainWindow(QMainWindow):
         self.gsmax_label.raise_()
         self.gsmax_label.show()
 
+        # ---- Energy label (just under GSmax) ----
+        self.energy_label = QLabel("E:", self.gfx_canvas)
+        self.energy_label.setStyleSheet(
+            "color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
+        )
+        self.energy_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.energy_label.adjustSize()
+        self.energy_label.move(
+            self.gfx_canvas.width() - self.energy_label.width() - 10,
+            80
+        )
+        self.energy_label.raise_()
+        self.energy_label.show()
+
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_alt = QLabel("GPS:", self.gfx_canvas)
         self.gps_label_alt.setStyleSheet("color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
@@ -3184,6 +3198,9 @@ class MainWindow(QMainWindow):
         self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
         self.right_w = np.cross(fwd_w, up_w)
         self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
+
+        # compute energy
+        self.energy=0.5*self.row.gps_speed**2 + 9.81 * self.gps_alt * 0.3048
 
     def update_gfx_orientation(self):
 
@@ -3345,6 +3362,18 @@ class MainWindow(QMainWindow):
         self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
         self.gsmax_label.adjustSize()
         self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10,45)
+
+        # update Energy label
+        if hasattr(self, "energy_label"):
+            try:
+                self.energy_label.setText(f"E {self.energy:.0f}")
+            except Exception:
+                self.energy_label.setText("E --")
+            self.energy_label.adjustSize()
+            self.energy_label.move(
+                self.gfx_canvas.width() - self.energy_label.width() - 10,
+                80
+            )
 
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
