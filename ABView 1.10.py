@@ -3123,10 +3123,9 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show()
 
     def compute_orientation(self):
-        row = self.row
-        
-        # self.R_final, R_x_20
-        R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
+
+        #computed transform matrix
+        R = quat_to_rot([self.row.x4_quat_w,self.row.x4_quat_x,self.row.x4_quat_y,self.row.x4_quat_z])
         theta_x = np.deg2rad(self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
         R_x_20 = np.array([[1, 0, 0],[0, np.cos(theta_x), -np.sin(theta_x)],[0, np.sin(theta_x),  np.cos(theta_x)]])
         self.R_final = R_x_20 @ perm[R_recalage_repere] @ R
@@ -3143,9 +3142,10 @@ class MainWindow(QMainWindow):
         up_original = np.array([0.0, 0.0, 1.0])
         self.down_original = np.array([0.0, 0.0, -1.0])
 
+        # computed vectors
         self.fwd = self.R_final.T @ fwd_original; self.up = self.R_final.T @ up_original; #down = self.R_final.T @ self.down_original
         self.nose_vec = self.fwd * 400
-        acc = np.array([-row.x4_acc_x,-row.x4_acc_y,-row.x4_acc_z])# rotation
+        acc = np.array([-self.row.x4_acc_x,-self.row.x4_acc_y,-self.row.x4_acc_z])# rotation
         norm_acc = np.linalg.norm(acc)
         if not np.isfinite(norm_acc) or norm_acc < 1e-6:
             acc = np.array([0.0, 0.0, 0.0])
@@ -3161,19 +3161,16 @@ class MainWindow(QMainWindow):
             a = self.g_filter_alpha
             self.acc_vec_filtered = (1 - a) * self.acc_vec_filtered + a * self.acc_vec
 
-        # calcul g positif/négatif
+        # compute sign of g
         g_sens = angle_between(self.acc_vec, self.down_original)
         if g_sens > 90:
             self.g = -self.g
-        # update min/max encountered G
         self.g_min = min(self.g_min, self.g)
         self.g_max = max(self.g_max, self.g)
 
         # ---- Compute Pitch (angle between rotated Y and XY plane) ----
         v_original = np.array([0.0, 1.0, 0.0])
         v_rotated = self.R_final.T @ v_original
-
-        # XY plane normal = Z axis
         plane_normal = np.array([0.0, 0.0, 1.0])
         dot = np.dot(v_rotated, plane_normal)
         norm_v = np.linalg.norm(v_rotated)
@@ -3184,22 +3181,17 @@ class MainWindow(QMainWindow):
         self.pitch_deg = np.degrees(pitch_rad)
 
         # ---- Compute Inclinaison (roll) ----
-        # Vector v orthogonal to self.fwd and lying in plane (fwd, world Z)
         world_z = np.array([0.0, 0.0, 1.0])
         v = np.cross(self.fwd, np.cross(world_z, self.fwd))
         v = v / np.linalg.norm(v)
-
-        # Inclination computation
         dot = np.dot(self.up, v)
         cross = np.cross(self.up, v)
         inclinaison = np.arctan2(np.dot(cross, self.fwd), dot)
         self.bank_deg = -np.degrees(inclinaison)  # convention aéronautique (droite positive / gauche positive)
 
         # ---- Compute Inertial Heading ----
-        # Projection du vecteur self.fwd sur le plan XY (Z=0)
         fwd_proj = np.array([self.fwd[0], self.fwd[1], 0.0])
         norm_proj = np.linalg.norm(fwd_proj)
-
         if norm_proj > 1e-8:
             fwd_proj = fwd_proj / norm_proj
             # angle par rapport à l'axe X
@@ -3211,7 +3203,7 @@ class MainWindow(QMainWindow):
         else:
             self.heading_deg = 0.0
 
-        # rotate the viewing reference 90° around left wing
+        # compute pitch/roll for triaangle
         R_view_wing = np.array([
             [0, -1, 0],
             [1, 0, 0],
@@ -3220,7 +3212,6 @@ class MainWindow(QMainWindow):
         # forward and up vectors in the wing reference
         fwd_w = R_wing.T @ np.array([0.0, 1.0, 0.0])
         up_w = R_wing.T @ np.array([0.0, 0.0, 1.0])
-        # pitch/roll in wing reference
         self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
         self.right_w = np.cross(fwd_w, up_w)
         self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
@@ -3230,12 +3221,10 @@ class MainWindow(QMainWindow):
         self.compute_orientation()
 
         # display smoothed G vector
-        vec_display = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
-        self.acc_geom.positions.data[1] = vec_display
+        self.acc_geom.positions.data[1] = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
         self.acc_geom.positions.update_range(0, 2)
 
         # ---- Update G vector trail ----
-        # If trail is empty (after seek/reset), initialize it with the current filtered vector
         if not np.any(self.g_trail):
             self.g_trail[:] = self.acc_vec_filtered
         else:
