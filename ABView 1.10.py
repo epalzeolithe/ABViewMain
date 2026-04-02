@@ -3228,7 +3228,6 @@ class MainWindow(QMainWindow):
     def update_gfx_orientation(self):
 
         self.compute_orientation()
-        row = self.row
 
         # display smoothed G vector
         vec_display = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
@@ -3377,10 +3376,10 @@ class MainWindow(QMainWindow):
         self.roll_label.move(10,self.gfx_canvas.height() - self.roll_label.height() - 20)
 
         # ---- Update GPS speed / altitude overlay ----
-        self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
+        self.gps_label_speed.setText(f"GS {self.row.gps_speed:.0f} km/h")
         # update GS max
-        if row.gps_speed > self.gs_max:
-            self.gs_max = row.gps_speed
+        if self.row.gps_speed > self.gs_max:
+            self.gs_max = self.row.gps_speed
         self.gps_label_speed.adjustSize()
         self.gps_label_speed.move(self.gfx_canvas.width() - self.gps_label_speed.width() - 10,0)
 
@@ -3391,14 +3390,14 @@ class MainWindow(QMainWindow):
 
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
-        if row.gps_speed < 113:
+        if self.row.gps_speed < 113:
             r=g=0; b=255
         else:
-            if row.gps_speed > 112 and row.gps_speed < 236:
+            if self.row.gps_speed > 112 and self.row.gps_speed < 236:
                 r=0; g=255; b=0
             else:
-                if row.gps_speed > 235 and row.gps_speed < 300:
-                    r=int((row.gps_speed-235)/(300-235)*255); g=255-int((row.gps_speed-235)/(300-235)*255); b=0
+                if self.row.gps_speed > 235 and self.row.gps_speed < 300:
+                    r=int((self.row.gps_speed-235)/(300-235)*255); g=255-int((self.row.gps_speed-235)/(300-235)*255); b=0
                 else:
                     r=255;g=0;b=0
 
@@ -3413,12 +3412,12 @@ class MainWindow(QMainWindow):
             "background-color: transparent; padding: 10px; "
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
 
-        self.gps_label_alt.setText(f"Alt {row.gps_alt:.0f} ft")
+        self.gps_label_alt.setText(f"Alt {self.row.gps_alt:.0f} ft")
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
             self.gfx_canvas.width() - self.gps_label_alt.width(),60)
 
-        self.gps_label_vario.setText(f"{row.gps_fpm:.0f} ft/min")
+        self.gps_label_vario.setText(f"{self.row.gps_fpm:.0f} ft/min")
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
