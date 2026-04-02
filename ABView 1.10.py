@@ -3161,13 +3161,60 @@ class MainWindow(QMainWindow):
             a = self.g_filter_alpha
             self.acc_vec_filtered = (1 - a) * self.acc_vec_filtered + a * self.acc_vec
 
+        # calcul g positif/négatif
+        g_sens = angle_between(self.acc_vec, self.down_original)
+        if g_sens > 90:
+            self.g = -self.g
+        # update min/max encountered G
+        self.g_min = min(self.g_min, self.g)
+        self.g_max = max(self.g_max, self.g)
+
+        # ---- Compute Pitch (angle between rotated Y and XY plane) ----
+        v_original = np.array([0.0, 1.0, 0.0])
+        v_rotated = self.R_final.T @ v_original
+
+        # XY plane normal = Z axis
+        plane_normal = np.array([0.0, 0.0, 1.0])
+        dot = np.dot(v_rotated, plane_normal)
+        norm_v = np.linalg.norm(v_rotated)
+        if norm_v < 1e-6 or not np.isfinite(norm_v):
+            pitch_rad = 0.0
+        else:
+            pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
+        self.pitch_deg = np.degrees(pitch_rad)
+
+        # ---- Compute Inclinaison (roll) ----
+        # Vector v orthogonal to self.fwd and lying in plane (fwd, world Z)
+        world_z = np.array([0.0, 0.0, 1.0])
+        v = np.cross(self.fwd, np.cross(world_z, self.fwd))
+        v = v / np.linalg.norm(v)
+
+        # Inclination computation
+        dot = np.dot(self.up, v)
+        cross = np.cross(self.up, v)
+        inclinaison = np.arctan2(np.dot(cross, self.fwd), dot)
+        self.bank_deg = -np.degrees(inclinaison)  # convention aéronautique (droite positive / gauche positive)
+
+        # ---- Compute Inertial Heading ----
+        # Projection du vecteur self.fwd sur le plan XY (Z=0)
+        fwd_proj = np.array([self.fwd[0], self.fwd[1], 0.0])
+        norm_proj = np.linalg.norm(fwd_proj)
+
+        if norm_proj > 1e-8:
+            fwd_proj = fwd_proj / norm_proj
+            # angle par rapport à l'axe X
+            heading_rad = np.arctan2(fwd_proj[1], fwd_proj[0])
+            self.heading_deg = np.degrees(heading_rad)
+            if self.heading_deg < 0:
+                self.heading_deg += 360
+            self.heading_deg = 360 - self.heading_deg
+        else:
+            self.heading_deg = 0.0
 
     def update_gfx_orientation(self):
 
         self.compute_orientation()
         row = self.row
-
-
 
         # display smoothed G vector
         vec_display = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
@@ -3185,15 +3232,12 @@ class MainWindow(QMainWindow):
         self.gfx_g_trail.geometry.positions.data[:] = self.g_trail
         self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
 
-        # ---- Nose trajectory update ----
-        nose_vec = self.fwd * 400
-
         # If trail is empty (after seek/reset), initialize it with the current nose position
         if not np.any(self.nose_trail):
-            self.nose_trail[:] = nose_vec
+            self.nose_trail[:] = self.fwd * 400
         else:
             self.nose_trail[:-1] = self.nose_trail[1:]
-            self.nose_trail[-1] = nose_vec
+            self.nose_trail[-1] = self.fwd * 400
 
         self.gfx_nose_trail.geometry.positions.data[:] = self.nose_trail
         self.gfx_nose_trail.geometry.positions.update_range(0, len(self.nose_trail))
@@ -3201,13 +3245,10 @@ class MainWindow(QMainWindow):
         # ---- Update arrow head position and orientation (use smoothed vector) ----
         vec_arrow = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
         direction = vec_arrow / (np.linalg.norm(vec_arrow) + 1e-9)
-        pos = vec_arrow
-
         # compute quaternion rotating +Z to direction
         z_axis = np.array([0.0, 0.0, 1.0])
         axis = np.cross(z_axis, direction)
         axis_norm = np.linalg.norm(axis)
-
         if axis_norm < 1e-6:
             quat = (0, 0, 0, 1)
         else:
@@ -3218,18 +3259,9 @@ class MainWindow(QMainWindow):
                 axis[0] * s,
                 axis[1] * s,
                 axis[2] * s,
-                np.cos(angle / 2.0),
-            )
-
-        self.gfx_acc_arrow.local.position = tuple(pos)
+                np.cos(angle / 2.0),)
+        self.gfx_acc_arrow.local.position = tuple(vec_arrow)
         self.gfx_acc_arrow.local.rotation = quat
-        # calcul g positif/négatif
-        g_sens = angle_between(self.acc_vec, self.down_original)
-        if g_sens > 90:
-            self.g=-self.g
-        # update min/max encountered G
-        self.g_min = min(self.g_min, self.g)
-        self.g_max = max(self.g_max, self.g)
 
         try:
             if self.g_label is not None:
@@ -3243,16 +3275,9 @@ class MainWindow(QMainWindow):
             return
         self.g_label.adjustSize()
         # place G value below Alt and Vario overlays
-        self.g_label.move(
-            self.gfx_canvas.width() - self.g_label.width(),
-            140
-        )
-
+        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),140)
         self.g_label_minmax.adjustSize()
-        self.g_label_minmax.move(
-            self.gfx_canvas.width() - self.g_label_minmax.width(),
-            190
-        )
+        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(),190)
 
         # update acceleration vector geometry & color
         if self.g > 0.8:
@@ -3268,60 +3293,17 @@ class MainWindow(QMainWindow):
             f"color: rgb({r * 255},{g*255},{b*255}); "
             "background-color: transparent; padding: 10px; "
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+
         #rotation de l'objet
         M = np.eye(4)
         M[:3, :3] = self.R_final.T
         if np.isfinite(M).all():
             self.gfx_object.local.matrix = M
 
-        # ---- Compute Pitch (angle between rotated Y and XY plane) ----
-        v_original = np.array([0.0, 1.0, 0.0])
-        v_rotated = self.R_final.T @ v_original
-
-        # XY plane normal = Z axis
-        plane_normal = np.array([0.0, 0.0, 1.0])
-        dot = np.dot(v_rotated, plane_normal)
-        norm_v = np.linalg.norm(v_rotated)
-        if norm_v < 1e-6 or not np.isfinite(norm_v):
-            pitch_rad = 0.0
-        else:
-            pitch_rad = np.arcsin(np.clip(dot / norm_v, -1.0, 1.0))
-        pitch_deg = np.degrees(pitch_rad)
-        self.pitch_deg = pitch_deg
-
-        # ---- Compute Inclinaison (roll) ----
-        # Vector v orthogonal to self.fwd and lying in plane (fwd, world Z)
-        world_z = np.array([0.0, 0.0, 1.0])
-        v = np.cross(self.fwd, np.cross(world_z, self.fwd))
-        v = v / np.linalg.norm(v)
-
-        # Inclination computation
-        dot = np.dot(self.up, v)
-        cross = np.cross(self.up, v)
-        inclinaison = np.arctan2(np.dot(cross, self.fwd), dot)
-        bank_deg = -np.degrees(inclinaison) # convention aéronautique (droite positive / gauche positive)
-        self.bank_deg = bank_deg
-
-        # ---- Compute Inertial Heading ----
-        # Projection du vecteur self.fwd sur le plan XY (Z=0)
-        fwd_proj = np.array([self.fwd[0], self.fwd[1], 0.0])
-        norm_proj = np.linalg.norm(fwd_proj)
-
-        if norm_proj > 1e-8:
-            fwd_proj = fwd_proj / norm_proj
-            # angle par rapport à l'axe X
-            heading_rad = np.arctan2(fwd_proj[1], fwd_proj[0])
-            self.heading_deg = np.degrees(heading_rad)
-            if self.heading_deg < 0:
-                self.heading_deg += 360
-            self.heading_deg=360-self.heading_deg
-        else:
-            self.heading_deg = 0.0
-
         # ---- Update Artificial Horizon ----
         if hasattr(self, "hud_horizon"):
-            self.hud_horizon.pitch = pitch_deg
-            self.hud_horizon.bank = bank_deg
+            self.hud_horizon.pitch = self.pitch_deg
+            self.hud_horizon.bank = self.bank_deg
             self.hud_horizon.heading = self.heading_deg
             self.hud_horizon.update()
 
@@ -3393,7 +3375,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.height() - self.df_info_label.height() - 10
         )
 
-        self.pitch_label.setText(f"Pitch {pitch_deg:.0f}°")
+        self.pitch_label.setText(f"Pitch {self.pitch_deg:.0f}°")
         self.pitch_label.adjustSize()
         # position bottom-left
         self.pitch_label.move(
@@ -3401,7 +3383,7 @@ class MainWindow(QMainWindow):
             self.gfx_canvas.height() - self.pitch_label.height() - 60
         )
 
-        self.roll_label.setText(f"Bank {bank_deg:.0f}°")
+        self.roll_label.setText(f"Bank {self.bank_deg:.0f}°")
         self.roll_label.adjustSize()
         # place just below pitch label (bottom-left)
         self.roll_label.move(
