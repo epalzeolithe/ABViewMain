@@ -3122,61 +3122,36 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
 
-    def update_gfx_orientation(self):
-        #if not getattr(self, "gfx_alive", False):
-        #    return
-
-        #if not getattr(self, "gfx_render_enabled", False):
-        #    return
-
-        #if self.gfx_canvas is None or sip.isdeleted(self.gfx_canvas):
-        #    return
-
+    def compute_orientation(self):
         row = self.row
+        
+        # self.R_final, R_x_20
         R = quat_to_rot([row.x4_quat_w,row.x4_quat_x,row.x4_quat_y,row.x4_quat_z])
-
-        #rotation repère monde > local camera
-        #X →  Z    Y → -Y    Z →  X
-        #R_recalage_repere=[[0, 0, 1], [0, -1, 0], [1, 0, 0]]
         theta_x = np.deg2rad(self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
         R_x_20 = np.array([[1, 0, 0],[0, np.cos(theta_x), -np.sin(theta_x)],[0, np.sin(theta_x),  np.cos(theta_x)]])
-        R_final = R_x_20 @ perm[R_recalage_repere] @ R
-        # ---- sanitize rotation matrix (avoid NaN/inf and non-orthogonal matrices) ----
-        if not np.isfinite(R_final).all():
+        self.R_final = R_x_20 @ perm[R_recalage_repere] @ R
+        if not np.isfinite(self.R_final).all():
             return
         try:
-            U, _, Vt = np.linalg.svd(R_final)
-            R_final = U @ Vt
+            U, _, Vt = np.linalg.svd(self.R_final)
+            self.R_final = U @ Vt
         except Exception:
             return
 
-        # Forward and Up original vectors
+        # original vectors
         fwd_original = np.array([0.0, 1.0, 0.0])
         up_original = np.array([0.0, 0.0, 1.0])
-        down_original = np.array([0.0, 0.0, -1.0])
+        self.down_original = np.array([0.0, 0.0, -1.0])
 
-        # Rotated vectors repère local
-        fwd = R_final.T @ fwd_original; up = R_final.T @ up_original; down = R_final.T @ down_original
-        # ---- Scale Y vector with GPS speed ----
-        speed_scale = row.gps_speed * 2.0  # visual scale factor
-        self.y_geom.positions.data[1] = (0.0, speed_scale, 0.0)
-        self.y_geom.positions.update_range(0, 2)
-
-        # move arrow head to the end of the vector
-        if hasattr(self, "gfx_y_arrow"):
-            self.gfx_y_arrow.local.position = (0.0, speed_scale, 0.0)
-
-        # ---- Update acceleration vector ----
+        self.fwd = self.R_final.T @ fwd_original; self.up = self.R_final.T @ up_original; #down = self.R_final.T @ self.down_original
+        self.nose_vec = self.fwd * 400
         acc = np.array([-row.x4_acc_x,-row.x4_acc_y,-row.x4_acc_z])# rotation
-        self.g = np.linalg.norm(acc) / 9.81
-
         norm_acc = np.linalg.norm(acc)
-
         if not np.isfinite(norm_acc) or norm_acc < 1e-6:
             acc = np.array([0.0, 0.0, 0.0])
         else:
             acc = acc / norm_acc
-
+        self.g = norm_acc / 9.81
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
         self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
         # ---- low-pass filter to smooth G vector trail ----
@@ -3185,6 +3160,15 @@ class MainWindow(QMainWindow):
         else:
             a = self.g_filter_alpha
             self.acc_vec_filtered = (1 - a) * self.acc_vec_filtered + a * self.acc_vec
+
+
+    def update_gfx_orientation(self):
+
+        self.compute_orientation()
+        row = self.row
+
+
+
         # display smoothed G vector
         vec_display = self.acc_vec_filtered if self.acc_vec_filtered is not None else self.acc_vec
         self.acc_geom.positions.data[1] = vec_display
@@ -3202,7 +3186,7 @@ class MainWindow(QMainWindow):
         self.gfx_g_trail.geometry.positions.update_range(0, len(self.g_trail))
 
         # ---- Nose trajectory update ----
-        nose_vec = fwd * 400
+        nose_vec = self.fwd * 400
 
         # If trail is empty (after seek/reset), initialize it with the current nose position
         if not np.any(self.nose_trail):
@@ -3240,7 +3224,7 @@ class MainWindow(QMainWindow):
         self.gfx_acc_arrow.local.position = tuple(pos)
         self.gfx_acc_arrow.local.rotation = quat
         # calcul g positif/négatif
-        g_sens = angle_between(self.acc_vec, down_original)
+        g_sens = angle_between(self.acc_vec, self.down_original)
         if g_sens > 90:
             self.g=-self.g
         # update min/max encountered G
@@ -3286,13 +3270,13 @@ class MainWindow(QMainWindow):
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         #rotation de l'objet
         M = np.eye(4)
-        M[:3, :3] = R_final.T
+        M[:3, :3] = self.R_final.T
         if np.isfinite(M).all():
             self.gfx_object.local.matrix = M
 
         # ---- Compute Pitch (angle between rotated Y and XY plane) ----
         v_original = np.array([0.0, 1.0, 0.0])
-        v_rotated = R_final.T @ v_original
+        v_rotated = self.R_final.T @ v_original
 
         # XY plane normal = Z axis
         plane_normal = np.array([0.0, 0.0, 1.0])
@@ -3306,21 +3290,21 @@ class MainWindow(QMainWindow):
         self.pitch_deg = pitch_deg
 
         # ---- Compute Inclinaison (roll) ----
-        # Vector v orthogonal to fwd and lying in plane (fwd, world Z)
+        # Vector v orthogonal to self.fwd and lying in plane (fwd, world Z)
         world_z = np.array([0.0, 0.0, 1.0])
-        v = np.cross(fwd, np.cross(world_z, fwd))
+        v = np.cross(self.fwd, np.cross(world_z, self.fwd))
         v = v / np.linalg.norm(v)
 
         # Inclination computation
-        dot = np.dot(up, v)
-        cross = np.cross(up, v)
-        inclinaison = np.arctan2(np.dot(cross, fwd), dot)
+        dot = np.dot(self.up, v)
+        cross = np.cross(self.up, v)
+        inclinaison = np.arctan2(np.dot(cross, self.fwd), dot)
         bank_deg = -np.degrees(inclinaison) # convention aéronautique (droite positive / gauche positive)
         self.bank_deg = bank_deg
 
         # ---- Compute Inertial Heading ----
-        # Projection du vecteur fwd sur le plan XY (Z=0)
-        fwd_proj = np.array([fwd[0], fwd[1], 0.0])
+        # Projection du vecteur self.fwd sur le plan XY (Z=0)
+        fwd_proj = np.array([self.fwd[0], self.fwd[1], 0.0])
         norm_proj = np.linalg.norm(fwd_proj)
 
         if norm_proj > 1e-8:
@@ -3351,7 +3335,7 @@ class MainWindow(QMainWindow):
                 [0, 0, 1]
             ])
 
-            R_wing = R_view_wing @ R_final
+            R_wing = R_view_wing @ self.R_final
 
             # forward and up vectors in the wing reference
             fwd_w = R_wing.T @ np.array([0.0, 1.0, 0.0])
