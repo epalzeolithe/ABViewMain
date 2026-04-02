@@ -3137,7 +3137,7 @@ class MainWindow(QMainWindow):
 
         # position (bottom-left overlay)
         self.energy_plot.setGeometry(
-            self.gfx_canvas.width() - 310,
+            0,
             self.gfx_canvas.height() - 200,
             300,
             180
@@ -3432,6 +3432,9 @@ class MainWindow(QMainWindow):
         # ---- Update rolling energy graph ----
         if hasattr(self, "energy_plot"):
             try:
+                # update graph only every 30 frames (performance optimization)
+                if hasattr(self, "i") and self.i % 30 != 0:
+                    return
                 # rebuild buffer directly from dataframe (handles seek)
                 if hasattr(self, "energy_full") and self.energy_full is not None:
                     t_current = self.df.timestamp.iloc[self.idf].timestamp()
