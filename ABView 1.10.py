@@ -3125,8 +3125,15 @@ class MainWindow(QMainWindow):
         # ---- Energy graph (rolling 30s) ----
         import pyqtgraph as pg
         self.energy_plot = pg.PlotWidget(self.gfx_canvas)
-        self.energy_plot.setBackground(None)
+        self.energy_plot.setBackground('transparent')
+        self.energy_plot.setAttribute(Qt.WA_TranslucentBackground)
+        self.energy_plot.setStyleSheet("background: transparent;")
         self.energy_plot.showGrid(x=True, y=True, alpha=0.3)
+        # ensure viewbox is also transparent
+        try:
+            self.energy_plot.getPlotItem().getViewBox().setBackgroundColor(None)
+        except Exception:
+            pass
         self.energy_plot.enableAutoRange(axis='y')
 
         # style clean
@@ -3138,9 +3145,9 @@ class MainWindow(QMainWindow):
         # position (bottom-left overlay)
         self.energy_plot.setGeometry(
             0,
-            self.gfx_canvas.height() - 200,
+            self.gfx_canvas.height() - 160,
             300,
-            180
+            140
         )
         self.energy_plot.raise_()
         self.energy_plot.show()
@@ -3485,9 +3492,9 @@ class MainWindow(QMainWindow):
                 try:
                     self.energy_plot.setGeometry(
                         0,
-                        self.gfx_canvas.height() - 200,
+                        self.gfx_canvas.height() - 160,
                         300,
-                        180
+                        140
                     )
                 except Exception:
                     pass
