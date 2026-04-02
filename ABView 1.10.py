@@ -3211,6 +3211,20 @@ class MainWindow(QMainWindow):
         else:
             self.heading_deg = 0.0
 
+        # rotate the viewing reference 90° around left wing
+        R_view_wing = np.array([
+            [0, -1, 0],
+            [1, 0, 0],
+            [0, 0, 1]])
+        R_wing = R_view_wing @ self.R_final
+        # forward and up vectors in the wing reference
+        fwd_w = R_wing.T @ np.array([0.0, 1.0, 0.0])
+        up_w = R_wing.T @ np.array([0.0, 0.0, 1.0])
+        # pitch/roll in wing reference
+        self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
+        self.right_w = np.cross(fwd_w, up_w)
+        self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
+
     def update_gfx_orientation(self):
 
         self.compute_orientation()
@@ -3310,28 +3324,6 @@ class MainWindow(QMainWindow):
         # ---- Update Wingtip Artificial Horizon ----
         if hasattr(self, "hud_horizon_wing"):
 
-            # rotate the viewing reference 90° around left wing
-            R_view_wing = np.array([
-                [0, -1, 0],
-                [1, 0, 0],
-                [0, 0, 1]
-            ])
-
-            R_wing = R_view_wing @ self.R_final
-
-            # forward and up vectors in the wing reference
-            fwd_w = R_wing.T @ np.array([0.0, 1.0, 0.0])
-            up_w  = R_wing.T @ np.array([0.0, 0.0, 1.0])
-
-            # pitch in wing reference
-            self.pitch_w = np.degrees(np.arcsin(np.clip(fwd_w[2], -1.0, 1.0)))
-
-            # roll in wing reference
-            # compute roll around the wing viewing axis using Y/Z plane
-            # this remains stable when aircraft pitch approaches vertical
-            self.right_w = np.cross(fwd_w, up_w)
-            self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
-
             # invert pitch sign for wingtip reference (viewed from the side)
             self.hud_horizon_wing.pitch = -self.pitch_w
             self.hud_horizon_wing.bank = self.roll_w
@@ -3372,24 +3364,17 @@ class MainWindow(QMainWindow):
         self.df_info_label.adjustSize()
         self.df_info_label.move(
             self.gfx_canvas.width() - self.df_info_label.width() - 10,
-            self.gfx_canvas.height() - self.df_info_label.height() - 10
-        )
+            self.gfx_canvas.height() - self.df_info_label.height() - 10)
 
         self.pitch_label.setText(f"Pitch {self.pitch_deg:.0f}°")
         self.pitch_label.adjustSize()
         # position bottom-left
-        self.pitch_label.move(
-            10,
-            self.gfx_canvas.height() - self.pitch_label.height() - 60
-        )
+        self.pitch_label.move(10,self.gfx_canvas.height() - self.pitch_label.height() - 60)
 
         self.roll_label.setText(f"Bank {self.bank_deg:.0f}°")
         self.roll_label.adjustSize()
         # place just below pitch label (bottom-left)
-        self.roll_label.move(
-            10,
-            self.gfx_canvas.height() - self.roll_label.height() - 20
-        )
+        self.roll_label.move(10,self.gfx_canvas.height() - self.roll_label.height() - 20)
 
         # ---- Update GPS speed / altitude overlay ----
         self.gps_label_speed.setText(f"GS {row.gps_speed:.0f} km/h")
@@ -3397,16 +3382,12 @@ class MainWindow(QMainWindow):
         if row.gps_speed > self.gs_max:
             self.gs_max = row.gps_speed
         self.gps_label_speed.adjustSize()
-        self.gps_label_speed.move(
-            self.gfx_canvas.width() - self.gps_label_speed.width() - 10,
-            0)
+        self.gps_label_speed.move(self.gfx_canvas.width() - self.gps_label_speed.width() - 10,0)
 
         # update GSmax label
         self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
         self.gsmax_label.adjustSize()
-        self.gsmax_label.move(
-            self.gfx_canvas.width() - self.gsmax_label.width() - 10,
-            45)
+        self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10,45)
 
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
