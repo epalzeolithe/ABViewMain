@@ -3116,7 +3116,7 @@ class MainWindow(QMainWindow):
         self.energy_plot.getAxis('left').setTextPen('gray')
         self.energy_plot.getAxis('bottom').setTextPen('gray')
 
-        self.energy_curve = self.energy_plot.plot(pen=pg.mkPen(color=(255, 255, 0), width=2))
+        self.energy_curve = self.energy_plot.plot(pen=pg.mkPen(color=(0, 120, 255), width=2))
 
         # position (bottom-left overlay)
         self.energy_plot.setGeometry(10, self.gfx_canvas.height() - 160, 300, 120)
@@ -3222,7 +3222,7 @@ class MainWindow(QMainWindow):
         self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
 
         # compute energy
-        self.energy=0.5*self.row.gps_speed**2 + 9.81 * self.gps_alt * 0.3048
+        self.energy=0.5*self.row.gps_speed**2 + 9.81 * self.row.gps_alt * 0.3048
 
     def update_gfx_orientation(self):
 
@@ -3406,8 +3406,8 @@ class MainWindow(QMainWindow):
                 self.energy_time.append(t)
                 self.energy_values.append(e)
 
-                # keep last 30 seconds
-                t0 = t - 30
+                # keep last 10 seconds
+                t0 = t - 10
                 while self.energy_time and self.energy_time[0] < t0:
                     self.energy_time.pop(0)
                     self.energy_values.pop(0)
