@@ -982,6 +982,7 @@ class MainWindow(QMainWindow):
 
         self.compute_g_signed()
         self.build_g_timeline()
+        self.build_energy_graph()
 
         self.build_altitude_timeline()
 
@@ -1704,6 +1705,17 @@ class MainWindow(QMainWindow):
 
         except Exception:
             pass
+
+    def build_energy_graph(self):
+        # ---- Precompute full energy vector once ----
+        if not hasattr(self, "energy_full"):
+            try:
+                speed = self.df["gps_speed"].to_numpy()
+                alt = self.df["gps_alt"].to_numpy()
+                self.energy_full = 0.5 * speed**2 + 9.81 * alt * 0.3048
+            except Exception:
+                self.energy_full = None
+
 
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
@@ -3126,9 +3138,9 @@ class MainWindow(QMainWindow):
         # position (bottom-left overlay)
         self.energy_plot.setGeometry(
             self.gfx_canvas.width() - 310,
-            self.gfx_canvas.height() - 160,
+            self.gfx_canvas.height() - 200,
             300,
-            120
+            180
         )
         self.energy_plot.raise_()
         self.energy_plot.show()
@@ -3420,30 +3432,59 @@ class MainWindow(QMainWindow):
         # ---- Update rolling energy graph ----
         if hasattr(self, "energy_plot"):
             try:
-                t = self.df.timestamp.iloc[self.idf].timestamp()
-                e = float(self.energy)
+                # rebuild buffer directly from dataframe (handles seek)
+                if hasattr(self, "energy_full") and self.energy_full is not None:
+                    t_current = self.df.timestamp.iloc[self.idf].timestamp()
+                    t0 = t_current - 30
 
-                self.energy_time.append(t)
-                self.energy_values.append(e)
+                    # find indices in last 30 seconds
+                    times = self.df.timestamp
+                    import pandas as pd
+                    mask = (times >= times.iloc[self.idf] - pd.Timedelta(seconds=30)) & (times <= times.iloc[self.idf])
+                    idxs = times[mask].index
 
-                # keep last 10 seconds
-                t0 = t - 10
-                while self.energy_time and self.energy_time[0] < t0:
-                    self.energy_time.pop(0)
-                    self.energy_values.pop(0)
+                    self.energy_time = [times.iloc[i].timestamp() for i in idxs]
+                    self.energy_values = [float(self.energy_full[i]) for i in idxs]
+                else:
+                    # fallback incremental
+                    t = self.df.timestamp.iloc[self.idf].timestamp()
+                    e = float(self.energy)
+                    self.energy_time.append(t)
+                    self.energy_values.append(e)
+
+                    t0 = t - 30
+                    while self.energy_time and self.energy_time[0] < t0:
+                        self.energy_time.pop(0)
+                        self.energy_values.pop(0)
 
                 # normalize time to start at 0
-                t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
+                if self.energy_time:
+                    t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
+                else:
+                    t_rel = []
 
                 self.energy_curve.setData(t_rel, self.energy_values)
+
+                # enforce minimum Y span of 10000
+                try:
+                    if len(self.energy_values) > 0:
+                        ymin = min(self.energy_values)
+                        ymax = max(self.energy_values)
+                        if (ymax - ymin) < 15000:
+                            center = (ymax + ymin) / 2
+                            ymin = center - 7500
+                            ymax = center + 7500
+                        self.energy_plot.setYRange(ymin, ymax, padding=0)
+                except Exception:
+                    pass
 
                 # keep plot anchored bottom-right (responsive)
                 try:
                     self.energy_plot.setGeometry(
                         0,
-                        self.gfx_canvas.height() - 160,
+                        self.gfx_canvas.height() - 200,
                         300,
-                        120
+                        180
                     )
                 except Exception:
                     pass
