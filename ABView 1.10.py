@@ -1,23 +1,17 @@
 import sys
 import traceback
-
-
 def excepthook(type_, value, tb):
     print("\n=== FULL TRACEBACK ===")
     traceback.print_exception(type_, value, tb)
-
 sys.excepthook = excepthook
-
 
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
 import OpenGL.GL as gl
 import pyqtgraph.opengl as glpg
 from stl import mesh
-import math
-import sys
+import math,time, sys,os
 from datetime import datetime, timedelta, timezone
-import os
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 os.environ["QT_LOGGING_RULES"] = "*.warning=false"
@@ -31,7 +25,10 @@ from PyQt5.QtGui import QImage,QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
 from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QTransform,QPen
+from PyQt5.QtGui import QPixmap, QTransform
+from PyQt5.QtCore import QRect
+from PyQt5.QtGui import QPainter, QPen, QColor
+from PyQt5.QtWidgets import QFileDialog
 from pymediainfo import MediaInfo
 import CoreMedia
 import AVFoundation
@@ -40,7 +37,10 @@ from Cocoa import NSObject
 import objc
 import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton
+from PyQt5.QtWidgets import QVBoxLayout, QPushButton
+from PyQt5.QtGui import QPolygon
+from PyQt5.QtCore import QPoint
+
 from ver import __version__
 
 from PyQt5 import QtWidgets
@@ -113,7 +113,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         self.vbo = gl.glGenBuffers(1)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
 
-        import numpy as np
         vertices = np.array(self.vertices, dtype=np.float32)
 
         gl.glBufferData(
@@ -219,7 +218,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
             try:
                 data = plane.to_bytes()
             except AttributeError:
-                import numpy as np
                 data = np.frombuffer(plane, dtype=np.uint8)
 
             size = len(data)
@@ -472,7 +470,6 @@ class ArtificialHorizon(QWidget):
         self.transparent_mode = False
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QPen, QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         w = self.width();h = self.height()
@@ -542,8 +539,6 @@ class ArtificialHorizon(QWidget):
 
         # ---- Aerobatic reference triangle (used for wingtip horizon) ---
         if self.show_triangle:
-            from PyQt5.QtGui import QPolygon
-            from PyQt5.QtCore import QPoint
             size = 27
             triangle = QPolygon([
                 QPoint(cx, cy),
@@ -570,7 +565,6 @@ class AnalogBadin(QWidget):
         self.speed = 0.0
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QPen, QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -589,8 +583,6 @@ class AnalogBadin(QWidget):
 
         # scale and colored arcs
         max_speed = 360
-
-        from PyQt5.QtCore import QRect
 
         def angle_from_speed(v):
             return (v / max_speed) * 340 - 135
@@ -677,8 +669,6 @@ class AnalogAltimeter(QWidget):
         self.alt = 0.0
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QPen, QColor
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -751,9 +741,6 @@ class AnalogVario(QWidget):
         self.setStyleSheet("background: transparent;")
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QPen
-        import math
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -765,7 +752,6 @@ class AnalogVario(QWidget):
         cy = h / 2
 
         # outer circle with semi-transparent background (same style as other instruments)
-        from PyQt5.QtGui import QColor
         pen = QPen(QColor("white"))
         pen.setWidth(2)
         painter.setPen(pen)
@@ -1049,7 +1035,6 @@ class MainWindow(QMainWindow):
                     pass
 
             # ---- process remaining Qt events (flush callbacks) ----
-            from PyQt5.QtWidgets import QApplication
             QApplication.processEvents()
 
             # ---- now safe deletion ----
@@ -1561,11 +1546,6 @@ class MainWindow(QMainWindow):
     def build_g_timeline(self):
         if "g_signed" not in self.df.columns:
             return
-
-        import numpy as np
-        from PyQt5.QtGui import QImage, QPixmap
-        from PyQt5.QtCore import Qt
-
         values = self.df["g_signed"].to_numpy()
         n = len(values)
 
@@ -1629,8 +1609,6 @@ class MainWindow(QMainWindow):
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
         try:
             if not hasattr(self, "g_timeline_legend"):
-                from PyQt5.QtWidgets import QLabel
-                from PyQt5.QtCore import Qt
 
                 # IMPORTANT: parent = g_timeline (not main window)
                 self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
@@ -1654,10 +1632,6 @@ class MainWindow(QMainWindow):
     def build_altitude_timeline(self):
         if "gps_alt" not in self.df.columns:
             return
-
-        import numpy as np
-        from PyQt5.QtGui import QImage, QPixmap
-        from PyQt5.QtCore import Qt
 
         values = self.df["gps_alt"].to_numpy()
         n = len(values)
@@ -1717,9 +1691,6 @@ class MainWindow(QMainWindow):
         # ---- Legend "Altitude" ----
         try:
             if not hasattr(self, "alt_timeline_legend"):
-                from PyQt5.QtWidgets import QLabel
-                from PyQt5.QtCore import Qt
-
                 self.alt_timeline_legend = QLabel("Altitude", self.alt_timeline)
                 self.alt_timeline_legend.setStyleSheet(
                     "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
@@ -1820,7 +1791,6 @@ class MainWindow(QMainWindow):
             self.prev_bookmark_overlay.raise_()
 
     def toggle_recording(self, checked):
-        import os
         try:
             import AVFoundation
             import ScreenCaptureKit
@@ -1861,7 +1831,6 @@ class MainWindow(QMainWindow):
                 ScreenCaptureKit.SCShareableContent.getShareableContentWithCompletionHandler_(_handler)
 
                 # wait briefly until callback fills the result
-                import time
                 for _ in range(50):
                     if result_container["content"] is not None or result_container["error"] is not None:
                         break
@@ -4817,8 +4786,6 @@ STYLE_SHEET = """
     }
 
     """
-
-from PyQt5.QtWidgets import QFileDialog
 
 def select_abv_bundle(parent=None):
     dialog = QFileDialog(parent)
