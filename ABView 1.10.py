@@ -3105,6 +3105,28 @@ class MainWindow(QMainWindow):
         self.hud_horizon_wing.show_triangle = True
         self.hud_horizon_wing.show()
 
+        # ---- Energy graph (rolling 30s) ----
+        import pyqtgraph as pg
+        self.energy_plot = pg.PlotWidget(self.gfx_canvas)
+        self.energy_plot.setBackground(None)
+        self.energy_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.energy_plot.enableAutoRange(axis='y')
+
+        # style clean
+        self.energy_plot.getAxis('left').setTextPen('gray')
+        self.energy_plot.getAxis('bottom').setTextPen('gray')
+
+        self.energy_curve = self.energy_plot.plot(pen=pg.mkPen(color=(255, 255, 0), width=2))
+
+        # position (bottom-left overlay)
+        self.energy_plot.setGeometry(10, self.gfx_canvas.height() - 160, 300, 120)
+        self.energy_plot.raise_()
+        self.energy_plot.show()
+
+        # buffers
+        self.energy_time = []
+        self.energy_values = []
+
     def compute_orientation(self):
 
         #computed transform matrix
@@ -3374,6 +3396,29 @@ class MainWindow(QMainWindow):
                 self.gfx_canvas.width() - self.energy_label.width() - 10,
                 80
             )
+
+        # ---- Update rolling energy graph ----
+        if hasattr(self, "energy_plot"):
+            try:
+                t = self.df.timestamp.iloc[self.idf].timestamp()
+                e = float(self.energy)
+
+                self.energy_time.append(t)
+                self.energy_values.append(e)
+
+                # keep last 30 seconds
+                t0 = t - 30
+                while self.energy_time and self.energy_time[0] < t0:
+                    self.energy_time.pop(0)
+                    self.energy_values.pop(0)
+
+                # normalize time to start at 0
+                t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
+
+                self.energy_curve.setData(t_rel, self.energy_values)
+
+            except Exception:
+                pass
 
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
