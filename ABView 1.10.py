@@ -44,7 +44,6 @@ from PyQt5.QtCore import QPoint
 from ver import __version__
 
 from PyQt5 import QtWidgets
-import sip
 
 # ---- GLOBAL SAFE UPDATE PATCH ----
 _orig_update = QtWidgets.QWidget.update
@@ -868,8 +867,8 @@ class MainWindow(QMainWindow):
         # ======================================================
         mask = self.df['gps_speed'] > VITESSE_MISE_EN_LIGNE
         self.index_enligne_devol = mask.idxmax()
-        mask = self.df['gps_alt'] > 3000
-        selfindex_entree_3000 = mask.idxmax()
+        #mask = self.df['gps_alt'] > 3000
+        #self.index_entree_3000 = mask.idxmax()
         self.gps_max_alt = round(self.df['gps_alt'].max())
         print("Max Alt : ", self.gps_max_alt)
 
