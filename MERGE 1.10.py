@@ -156,6 +156,7 @@ EXIFTOOL = "ressources/exiftool"
 EXIFFMT = "ressources/gpx.fmt"
 MAINDIR="/Users/drax/Down/ABViewMain/"
 ACC_SCALE = 9.81 / 20234
+VITESSE_MISE_EN_LIGNE = 80 #km/h
 
 def get_bundle_name_from_insv(path):
     name = os.path.basename(path)
@@ -317,6 +318,18 @@ def get_datas_from_gns3000(log):
 
         gdf = gdf.rename(columns={'lat': 'gps_lat', 'lon': 'gps_lon', 'alt': 'gps_alt', 'speed': 'gps_speed','heading': 'gps_heading'})
         # calcul vitesse Z
+
+        #recalage altitude
+        mask = gdf['gps_speed'] > VITESSE_MISE_EN_LIGNE
+        if mask.any():
+            idx0 = mask.idxmax()
+            alt_offset = gdf.loc[idx0, 'gps_alt']
+        else:
+            alt_offset = 0
+
+        # normalize altitude so ground ≈ 0 ft at start of roll
+        gdf['gps_alt'] = gdf['gps_alt'] - alt_offset + 7 #7 ft altitude début 30G, 8 ft 12D
+
 
 
         # ajout date à gdf et décaler en GMT
