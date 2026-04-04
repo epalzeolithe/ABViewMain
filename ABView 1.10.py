@@ -1,8 +1,12 @@
 import sys
 import traceback
+
+
 def excepthook(type_, value, tb):
     print("\n=== FULL TRACEBACK ===")
     traceback.print_exception(type_, value, tb)
+
+
 sys.excepthook = excepthook
 
 from PyQt5.QtWidgets import QOpenGLWidget
@@ -10,8 +14,9 @@ from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
 import OpenGL.GL as gl
 import pyqtgraph.opengl as glpg
 from stl import mesh
-import math,time, sys,os
+import math, time, sys, os
 from datetime import datetime, timedelta, timezone
+
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 os.environ["QT_LOGGING_RULES"] = "*.warning=false"
@@ -21,10 +26,11 @@ import numpy as np
 import pandas as pd
 import pygfx as gfx
 from PyQt5.QtCore import QTimer, Qt, QElapsedTimer
-from PyQt5.QtGui import QImage,QKeySequence
+from PyQt5.QtGui import QImage, QKeySequence
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtMultimedia import QAudioFormat, QAudioOutput
-from PyQt5.QtWidgets import (QShortcut,QApplication,QMainWindow,QWidget,QLabel,QFrame,QHBoxLayout,QGridLayout,QAction,QSlider,QSizePolicy,QInputDialog)
+from PyQt5.QtWidgets import (QShortcut, QApplication, QMainWindow, QWidget, QLabel, QFrame, QHBoxLayout, QGridLayout,
+                             QAction, QSlider, QSizePolicy, QInputDialog)
 from PyQt5.QtGui import QPixmap, QTransform
 from PyQt5.QtCore import QRect
 from PyQt5.QtGui import QPainter, QPen, QColor
@@ -35,7 +41,7 @@ import AVFoundation
 import ScreenCaptureKit
 from Cocoa import NSObject
 import objc
-import warnings # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
+import warnings  # silence noisy PyObjC warnings produced when accessing CVPixelBuffer pointers
 from objc import ObjCPointerWarning
 from PyQt5.QtWidgets import QVBoxLayout, QPushButton
 from PyQt5.QtGui import QPolygon
@@ -48,6 +54,7 @@ from PyQt5 import QtWidgets
 # ---- GLOBAL SAFE UPDATE PATCH ----
 _orig_update = QtWidgets.QWidget.update
 
+
 def safe_update(self, *args, **kwargs):
     try:
         if sip.isdeleted(self):
@@ -56,39 +63,41 @@ def safe_update(self, *args, **kwargs):
         return
     return _orig_update(self, *args, **kwargs)
 
+
 QtWidgets.QWidget.update = safe_update
 
-#***********************************************
-#CONFIG
+# ***********************************************
+# CONFIG
 SKIP_BDL_SELECTION = False
-MAINDIR="/Users/drax/Down/ABViewMain/"
-#BDL="data/Vol_2026_02_21.abv/"
-#BDL="data/Vol_2026_03_20.abv/"
-#BDL="data/Vol_2026_02_15.abv/"
-BDL="data/Vol_2026_03_21.abv/"
-PDL=MAINDIR+BDL
-STL_FILE=MAINDIR+"ressources/CAP10.STL"
-STL_SIMPLE_PLANE_FILE=MAINDIR+"ressources/plane.STL"
-BOX = 0.007*1.5 # taille box vision en °latitude
+MAINDIR = "/Users/drax/Down/ABViewMain/"
+# BDL="data/Vol_2026_02_21.abv/"
+# BDL="data/Vol_2026_03_20.abv/"
+# BDL="data/Vol_2026_02_15.abv/"
+BDL = "data/Vol_2026_03_21.abv/"
+PDL = MAINDIR + BDL
+STL_FILE = MAINDIR + "ressources/CAP10.STL"
+STL_SIMPLE_PLANE_FILE = MAINDIR + "ressources/plane.STL"
+BOX = 0.007 * 1.5  # taille box vision en °latitude
 DF_FREQ = 100
-TRACE = 6000 # taille de la trace 6000=1 minute
+TRACE = 6000  # taille de la trace 6000=1 minute
 TRACE_DEFAULT = TRACE
-TRACE_BEFORE = 500 # position précédente, 500 avant soit 5s
+TRACE_BEFORE = 500  # position précédente, 500 avant soit 5s
 TRACE_SLICING_FACTOR = 50
 BOX_HEADING = 50
-VITESSE_MISE_EN_LIGNE = 80 #km/h
-PITCH_MONTAGE_PAR_DEFAUT = 15 #camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
-OFFSET_PITCH_SOL_PALLIER = 2 # différence de pitch entre sol et pallier vers 200kmh
-R_recalage_repere=3 # données issues BB
-#R_recalage_repere=1 # données issues computed VQF
-refcam=[0,0,1] # données issues de BB
-#refcam=[0,0,-1] # données issues computed VQF
+VITESSE_MISE_EN_LIGNE = 80  # km/h
+PITCH_MONTAGE_PAR_DEFAUT = 15  # camera verticale au repos par défaut, écran face à soi, légèrement inclinée vers soi
+OFFSET_PITCH_SOL_PALLIER = 2  # différence de pitch entre sol et pallier vers 200kmh
+R_recalage_repere = 3  # données issues BB
+# R_recalage_repere=1 # données issues computed VQF
+refcam = [0, 0, 1]  # données issues de BB
+# refcam=[0,0,-1] # données issues computed VQF
 
 
 ROT_BOX = np.array([
     [np.cos(np.radians(BOX_HEADING)), -np.sin(np.radians(BOX_HEADING)), 0.0],
-    [np.sin(np.radians(BOX_HEADING)),  np.cos(np.radians(BOX_HEADING)), 0.0],
-    [0.0,    0.0,   1.0]])
+    [np.sin(np.radians(BOX_HEADING)), np.cos(np.radians(BOX_HEADING)), 0.0],
+    [0.0, 0.0, 1.0]])
+
 
 class VideoYUVOpenGLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
@@ -184,6 +193,7 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         v = frame.planes[2]
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
         self.program.bind()
+
         def upload(tex_id, plane, w, h, unit, pbo):
             # Activate texture unit BEFORE any glBindTexture
             gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
@@ -286,7 +296,6 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
             self.program.release()
             return
 
-
         w = self.width()
         h = self.height()
 
@@ -324,10 +333,16 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
         self.program.release()
 
     # QLabel compatibility
-    def setScaledContents(self, *args): pass
-    def setPixmap(self, *args): pass
+    def setScaledContents(self, *args):
+        pass
+
+    def setPixmap(self, *args):
+        pass
+
 
 warnings.filterwarnings("ignore", category=ObjCPointerWarning)
+
+
 class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]):
 
     def init(self):
@@ -394,6 +409,7 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
         except Exception as e:
             print("SCStream handler error:", e)
 
+
 # ======================================================
 # MP4 creation date (UTC)
 # ======================================================
@@ -406,41 +422,47 @@ def get_mp4_creation_datetime(path):
             return dt.replace(tzinfo=timezone.utc)
     raise RuntimeError(f"Date de création MP4 introuvable : {path}")
 
+
 # ======================================================
 # USEFUL FUNCTIONS
 # ======================================================
 def quat_to_rot(q):
-    w, x, y, z = q;x = -x;y = -y;z = -z
+    w, x, y, z = q;
+    x = -x;
+    y = -y;
+    z = -z
     return np.array([
         [1 - 2 * y * y - 2 * z * z, 2 * x * y - 2 * z * w, 2 * x * z + 2 * y * w],
         [2 * x * y + 2 * z * w, 1 - 2 * x * x - 2 * z * z, 2 * y * z - 2 * x * w],
         [2 * x * z - 2 * y * w, 2 * y * z + 2 * x * w, 1 - 2 * x * x - 2 * y * y]])
 
+
 perm = np.array([
-[[ 1, 0, 0],[ 0, 1, 0],[ 0, 0, 1]],
-[[ 1, 0, 0],[ 0, 0, 1],[ 0,-1, 0]],
-[[ 1, 0, 0],[ 0,-1, 0],[ 0, 0,-1]],
-[[ 1, 0, 0],[ 0, 0,-1],[ 0, 1, 0]],
-[[-1, 0, 0],[ 0, 1, 0],[ 0, 0,-1]],
-[[-1, 0, 0],[ 0, 0, 1],[ 0, 1, 0]],
-[[-1, 0, 0],[ 0,-1, 0],[ 0, 0, 1]],
-[[-1, 0, 0],[ 0, 0,-1],[ 0,-1, 0]],
-[[ 0, 1, 0],[ 1, 0, 0],[ 0, 0,-1]],
-[[ 0, 1, 0],[ 0, 0, 1],[ 1, 0, 0]],
-[[ 0, 1, 0],[-1, 0, 0],[ 0, 0, 1]],
-[[ 0, 1, 0],[ 0, 0,-1],[-1, 0, 0]],
-[[ 0,-1, 0],[ 1, 0, 0],[ 0, 0, 1]],
-[[ 0,-1, 0],[ 0, 0, 1],[-1, 0, 0]],
-[[ 0,-1, 0],[-1, 0, 0],[ 0, 0,-1]],
-[[ 0,-1, 0],[ 0, 0,-1],[ 1, 0, 0]],
-[[ 0, 0, 1],[ 1, 0, 0],[ 0, 1, 0]],
-[[ 0, 0, 1],[ 0, 1, 0],[-1, 0, 0]],
-[[ 0, 0, 1],[-1, 0, 0],[ 0,-1, 0]],
-[[ 0, 0, 1],[ 0,-1, 0],[ 1, 0, 0]],
-[[ 0, 0,-1],[ 1, 0, 0],[ 0,-1, 0]],
-[[ 0, 0,-1],[ 0, 1, 0],[ 1, 0, 0]],
-[[ 0, 0,-1],[-1, 0, 0],[ 0, 1, 0]],
-[[ 0, 0,-1],[ 0,-1, 0],[-1, 0, 0]]])
+    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
+    [[1, 0, 0], [0, -1, 0], [0, 0, -1]],
+    [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
+    [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
+    [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
+    [[-1, 0, 0], [0, -1, 0], [0, 0, 1]],
+    [[-1, 0, 0], [0, 0, -1], [0, -1, 0]],
+    [[0, 1, 0], [1, 0, 0], [0, 0, -1]],
+    [[0, 1, 0], [0, 0, 1], [1, 0, 0]],
+    [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+    [[0, 1, 0], [0, 0, -1], [-1, 0, 0]],
+    [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+    [[0, -1, 0], [0, 0, 1], [-1, 0, 0]],
+    [[0, -1, 0], [-1, 0, 0], [0, 0, -1]],
+    [[0, -1, 0], [0, 0, -1], [1, 0, 0]],
+    [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+    [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+    [[0, 0, 1], [-1, 0, 0], [0, -1, 0]],
+    [[0, 0, 1], [0, -1, 0], [1, 0, 0]],
+    [[0, 0, -1], [1, 0, 0], [0, -1, 0]],
+    [[0, 0, -1], [0, 1, 0], [1, 0, 0]],
+    [[0, 0, -1], [-1, 0, 0], [0, 1, 0]],
+    [[0, 0, -1], [0, -1, 0], [-1, 0, 0]]])
+
 
 def angle_between(u, v):
     u = np.array(u);
@@ -451,6 +473,7 @@ def angle_between(u, v):
     cos_theta = dot / (norm_u * norm_v);
     cos_theta = np.clip(cos_theta, -1.0, 1.0)  # sécurité numérique
     return np.degrees(np.arccos(cos_theta))
+
 
 # ======================================================
 # Main Window
@@ -471,8 +494,10 @@ class ArtificialHorizon(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        w = self.width();h = self.height()
-        cx = w // 2;cy = h // 2
+        w = self.width();
+        h = self.height()
+        cx = w // 2;
+        cy = h // 2
         # ---- gestion transparence ----
         if self.transparent_mode:
             painter.setCompositionMode(QPainter.CompositionMode_Source)
@@ -502,7 +527,7 @@ class ArtificialHorizon(QWidget):
         pen_ref.setWidth(1)
         painter.setPen(pen_ref)
 
-        for deg in (10, 20, 30,45, 60, 75, 90):
+        for deg in (10, 20, 30, 45, 60, 75, 90):
             offset = int(deg * pitch_scale)
             # longer line for 10°, shorter for others
             if deg <= 10:
@@ -542,8 +567,8 @@ class ArtificialHorizon(QWidget):
             triangle = QPolygon([
                 QPoint(cx, cy),
                 QPoint(cx, cy - size),
-                QPoint(cx - size, cy ),
-                QPoint(cx + size, cy ),
+                QPoint(cx - size, cy),
+                QPoint(cx + size, cy),
                 QPoint(cx, cy - size)
             ])
             painter.setBrush(Qt.NoBrush)  # pas de remplissage
@@ -552,6 +577,7 @@ class ArtificialHorizon(QWidget):
             painter.setPen(pen)
             painter.drawPolygon(triangle)
         painter.end()
+
 
 # ======================================================
 # Analog Badin (Circular Airspeed Indicator)
@@ -657,6 +683,7 @@ class AnalogBadin(QWidget):
 
         painter.end()
 
+
 # ======================================================
 # Analog Altimeter (Circular Altimeter with Two Needles)
 # ======================================================
@@ -732,6 +759,7 @@ class AnalogAltimeter(QWidget):
         painter.drawLine(cx, cy, int(x), int(y))
         painter.end()
 
+
 class AnalogVario(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -793,6 +821,7 @@ class AnalogVario(QWidget):
         painter.setPen(QPen(QColor("white"), 3))
         painter.drawLine(int(cx), int(cy), int(x2), int(y2))
 
+
 # ======================================================
 # Main Window
 # ======================================================
@@ -800,10 +829,12 @@ class MainWindow(QMainWindow):
     def trace_plus(self):
         global TRACE
         TRACE += 2000
+
     def trace_minus(self):
         global TRACE
         if TRACE - 2000 >= 1000:
             TRACE -= 2000
+
     def reset_trace(self):
         global TRACE
         TRACE = TRACE_DEFAULT
@@ -850,7 +881,7 @@ class MainWindow(QMainWindow):
         wind_dir = np.radians(self.gps_wind_direction_vals)
 
         # angle relatif (normalisé -pi à pi)
-        theta =  heading -wind_dir
+        theta = heading - wind_dir
         theta = (theta + np.pi) % (2 * np.pi) - np.pi
 
         wind_speed_kt = self.gps_wind_speed_vals / 1.852
@@ -866,18 +897,48 @@ class MainWindow(QMainWindow):
         # ======================================================
         mask = self.df['gps_speed'] > VITESSE_MISE_EN_LIGNE
         self.index_enligne_devol = mask.idxmax()
-        #mask = self.df['gps_alt'] > 3000
-        #self.index_entree_3000 = mask.idxmax()
+        # mask = self.df['gps_alt'] > 3000
+        # self.index_entree_3000 = mask.idxmax()
         self.gps_max_alt = round(self.df['gps_alt'].max())
         print("Max Alt : ", self.gps_max_alt)
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ABView Version "+__version__)
+        self.setWindowTitle("ABView Version " + __version__)
         self.setFocusPolicy(Qt.StrongFocus)
         self.resize(2024, 1200)
 
-        # ---- état ----
+        self._init_state()
+        self._init_video()
+        self._init_audio()
+        self._init_flight_state()
+
+        self.init_UI()
+        QTimer.singleShot(0, self.goto_mise_en_ligne)
+
+        self.init_map_OSM_widget()
+        self.map_view.loadFinished.connect(self.on_map_loaded)
+
+        self.enable_matplotlib_gps = True
+        self.init_gps_pyqtgraph()
+
+        self.init_gfx()
+        self.calibrate_gfx(0)
+
+        self.compute_g_signed()
+        self.build_g_timeline()
+        self.build_energy_graph()
+        self.build_altitude_timeline()
+
+        self._init_timer()
+        self._init_metar()
+
+    # ------------------------------------------------------------------
+    # Init helpers (called once from __init__)
+    # ------------------------------------------------------------------
+
+    def _init_state(self):
+        """Charge le dataframe et initialise les variables de lecture."""
         self.load_dataframe(MERGED_DATA)
         self.i = 0
         self.idf = 0
@@ -887,14 +948,16 @@ class MainWindow(QMainWindow):
         self.stutter_count = 0
         self.recording = False
 
-        # ---- vidéos ----
+    def _init_video(self):
+        """Ouvre les deux containers vidéo et calcule l'offset temporel DF↔vidéo."""
+        self.video1_path = VIDEO1
+        self.video2_path = VIDEO2
+
+        # Probe pour compter les frames totales
         container_probe = av.open(VIDEO1)
-        stream_probe = container_probe.streams.video[0] #VIDEO ANALYSIS
-        self.frames_video = stream_probe.frames
+        self.frames_video = container_probe.streams.video[0].frames
         container_probe.close()
 
-        self.video1_path=VIDEO1
-        self.video2_path=VIDEO2
         self.container1 = av.open(self.video1_path)
         self.container2 = av.open(self.video2_path)
         self.stream1 = self.container1.streams.video[0]
@@ -903,25 +966,29 @@ class MainWindow(QMainWindow):
         self.stream2.thread_type = "AUTO"
         self.decoder1 = self.container1.decode(self.stream1)
         self.decoder2 = self.container2.decode(self.stream2)
+
         self.video1_start = get_mp4_creation_datetime(self.video1_path)
         self.video2_start = get_mp4_creation_datetime(self.video2_path)
-        self.video_df_offset = self.df.timestamp.iloc[0] - self.video1_start  # 🔑 OFFSET TEMPOREL (clé du problème)
+        # 🔑 OFFSET TEMPOREL : décalage entre l'origine du dataframe et le début vidéo
+        self.video_df_offset = self.df.timestamp.iloc[0] - self.video1_start
 
-        # ---- audio (video1) ----
+    def _init_audio(self):
+        """Initialise le pipeline audio (PyAV → Qt PCM). Silencieux si indisponible."""
         self.sync_enabled = False
         self.startup_time_ms = None
         try:
             self.audio_container = av.open(self.video1_path)
             self.audio_stream = self.audio_container.streams.audio[0]
-            # packet based audio demux (more stable than frame iterator)
+            # Démux par paquets (plus stable que l'itérateur de frames)
             self.audio_packets = self.audio_container.demux(self.audio_stream)
-            # force audio format compatible with Qt (stereo s16 interleaved)
+            # Rééchantillonnage vers stéréo s16 (compatible Qt)
             self.audio_rate = self.audio_stream.rate
             self.audio_channels = 2
             self.audio_resampler = av.audio.resampler.AudioResampler(
                 format="s16",
                 layout="stereo",
-                rate=self.audio_rate,)
+                rate=self.audio_rate,
+            )
             fmt = QAudioFormat()
             fmt.setSampleRate(self.audio_rate)
             fmt.setChannelCount(self.audio_channels)
@@ -933,76 +1000,60 @@ class MainWindow(QMainWindow):
             self.audio_device = self.audio_output.start()
             self.audio_buffer = bytearray()
             self.audio_started = True
-            self.audio_clock_sec = 0.0  # audio clock based on decoded PTS
+            self.audio_clock_sec = 0.0
         except Exception:
             self.audio_stream = None
 
-        # ---- Init de base pour INU/GFX
+    def _init_flight_state(self):
+        """Initialise les variables d'état vol (INU, instruments, bookmarks, vue GPS)."""
+        # Accélérations / G
         self.g_min = float("inf")
         self.g_max = float("-inf")
-        self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT #camera vericale au repos par défaut, ecran face à soi
         self.gs_max = float("-inf")
+        self.acc_vec_filtered = None
+        self.g_filter_alpha = 0.15
+
+        # Attitude
+        self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT
         self.pitch_deg = 0
         self.pitch_w = 0
         self.roll_w = 0
         self.bank_deg = 0.0
         self.heading_deg = 0.0
-        # ---- smoothed values for instruments (visual interpolation) ----
+
+        # Lissage instruments (interpolation visuelle)
         self.smooth_speed = None
         self.smooth_alt = None
-        self.instrument_alpha = 0.2  # smoothing factor (0=slow, 1=no smoothing)
-        # ---- filtered acceleration vector for smoother G trail ----
-        self.acc_vec_filtered = None
-        self.g_filter_alpha = 0.15
-        # ---- bookmarks ----
+        self.instrument_alpha = 0.2  # 0 = très lisse, 1 = pas de lissage
+
+        # Bookmarks
         self.bookmarks = []
         self.bookmarks_df = None
         self.last_bookmark_frame = None
         self.bookmark_overlay = None
-        # ---- init for gpsmatplotlib
+
+        # Vue GPS 3-D
         self.firstGPS = True
         self.last_azim = 0
-        self.fixed_elev = 20  # angle d'inclinaison verrouillé
-        #self.elev_locked = True
 
-        self.init_UI()
-        # jump to "mise en ligne" at startup
-        QTimer.singleShot(0, self.goto_mise_en_ligne)
-
-        self.init_map_OSM_widget()
-        self.map_view.loadFinished.connect(self.on_map_loaded)
-
-        self.enable_matplotlib_gps = True
-        self.init_gps_pyqtgraph()
-
-        self.init_gfx()
-        self.calibrate_gfx(0) # calibration auto en considérant qu'on démarre au sol
-
-        self.compute_g_signed()
-        self.build_g_timeline()
-        self.build_energy_graph()
-
-        self.build_altitude_timeline()
-
-        # ---- realtime timer (compensated loop) ----
+    def _init_timer(self):
+        """Configure le timer temps-réel à 30 fps avec compensation de dérive."""
         self.target_fps = 30
         self.frame_period_ms = 1000 / self.target_fps
 
         self.clock = QElapsedTimer()
         self.clock.start()
-
-        # absolute frame scheduling to avoid timing drift
-        self.next_frame_time = 0
+        self.next_frame_time = 0  # scheduling absolu pour éviter la dérive
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.main_loop)
-        self.timer.start(1)  # controlled manually
+        self.timer.start(1)
 
-        # Metar management
+    def _init_metar(self):
+        """Charge le METAR correspondant au début du vol."""
         t_start = self.df['timestamp'][0]
         metar_row = self.find_metar_for_time(t_start)
-        self.last_metar=metar_row.metar
-        #print(f"Metar at start: {self.last_metar}")
+        self.last_metar = metar_row.metar
 
     def closeEvent(self, event):
         """Sécurise la fermeture (évite crash wgpu / rendercanvas)"""
@@ -1055,7 +1106,7 @@ class MainWindow(QMainWindow):
     def init_UI(self):
         # ---- UI ----
         central = QWidget()
-        #central.setStyleSheet("background-color: white;")  # fond gris
+        # central.setStyleSheet("background-color: white;")  # fond gris
         self.setCentralWidget(central)
         self.layout = QVBoxLayout(central)
 
@@ -1130,7 +1181,6 @@ class MainWindow(QMainWindow):
         shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
         shortcut.activated.connect(self.close)
-
 
         shortcut = QShortcut(QKeySequence("Ctrl+Right"), self)
         shortcut.setContext(Qt.ApplicationShortcut)
@@ -1239,12 +1289,12 @@ class MainWindow(QMainWindow):
 
         # ---- Analog badin (circular airspeed indicator) ----
         self.video1_badin = AnalogBadin(self.video1)
-        self.video1_badin.setGeometry(10, int(self.video1.height()/2) - 80, 160, 160)
+        self.video1_badin.setGeometry(10, int(self.video1.height() / 2) - 80, 160, 160)
         self.video1_badin.show()
 
         # ---- Analog altimeter (right side) ----
         self.video1_altimeter = AnalogAltimeter(self.video1)
-        self.video1_altimeter.setGeometry(self.video1.width() - 170, int(self.video1.height()/2) - 80, 160, 160)
+        self.video1_altimeter.setGeometry(self.video1.width() - 170, int(self.video1.height() / 2) - 80, 160, 160)
         self.video1_altimeter.show()
 
         self.video1_vario = AnalogVario(self.video1)
@@ -1279,9 +1329,6 @@ class MainWindow(QMainWindow):
         self.video2.setMinimumSize(0, 0)
         self.grid.addWidget(self.video1, 0, 0, 1, 2)  # colonnes 0-1
         self.grid.addWidget(self.video2, 0, 2, 1, 2)  # colonnes 2-3
-
-
-
 
         # Actions Trace (menu Settings)
         self.act_trace_minus = QAction("Trace -", self)
@@ -1343,8 +1390,7 @@ class MainWindow(QMainWindow):
         self.alt_timeline.setScaledContents(True)
         self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
-
-        #self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
+        # self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
         self.video2_date_label = QLabel("", self.video2)
         self.video2_date_label.setStyleSheet(
             "color: black; background-color: white; padding: 4px 10px; font-family: 'Menlo'; font-size: 18px; font-weight: bold;"
@@ -1364,7 +1410,6 @@ class MainWindow(QMainWindow):
         self.video2_date_label.setText(text)
         self.video2_date_label.adjustSize()
 
-
         # ---- Elapsed time overlay (top center main window) ----
         self.elapsed_time_overlay = QLabel("", self.centralWidget())
         self.elapsed_time_overlay.setAlignment(Qt.AlignCenter)
@@ -1374,7 +1419,6 @@ class MainWindow(QMainWindow):
         self.elapsed_time_overlay.adjustSize()
         self.elapsed_time_overlay.raise_()
 
-
         self.btn_pause = QPushButton("⏸ Pause")
         self.btn_pause.clicked.connect(self.toggle_play)
 
@@ -1382,7 +1426,6 @@ class MainWindow(QMainWindow):
         self.btn_record = QPushButton("● REC")
         self.btn_record.setCheckable(True)
         self.btn_record.clicked.connect(self.toggle_recording)
-
 
         # ---- Open pygfx window in separate window (overlay top-center) ----
         # temporary creation without parent (gfx not yet initialized)
@@ -1423,7 +1466,6 @@ class MainWindow(QMainWindow):
         self.btn_fwd_10 = QPushButton("10s⏩")
         self.btn_fwd_10.clicked.connect(self.jump_fwd_10s)
 
-
         self.btn_pallier = QPushButton("Palier")
         self.btn_pallier.clicked.connect(self.seek_palier)
 
@@ -1462,7 +1504,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.btn_quitter)
 
         self.layout.addWidget(self.slider)
-        #self.layout.addWidget(self.timestamp_label)
+        # self.layout.addWidget(self.timestamp_label)
         self.layout.addLayout(buttons_layout)
 
         # ---- Now load bookmarks and update ticks, after slider is created ----
@@ -1508,7 +1550,7 @@ class MainWindow(QMainWindow):
         R_x_20 = np.array([
             [1, 0, 0],
             [0, np.cos(theta_x), -np.sin(theta_x)],
-            [0, np.sin(theta_x),  np.cos(theta_x)]
+            [0, np.sin(theta_x), np.cos(theta_x)]
         ])
 
         down_original = np.array([0.0, 0.0, -1.0])
@@ -1559,11 +1601,11 @@ class MainWindow(QMainWindow):
         def get_color(g):
             # points de contrôle (G, couleur RGB)
             stops = [
-                (-2.0, (0, 120, 255)),   # bleu
-                (0.8,  (0, 200, 255)),   # cyan
-                (1.0,  (0, 255, 0)),     # vert
-                (1.2,  (255, 255, 0)),   # jaune
-                (2.0,  (255, 0, 0)),     # rouge
+                (-2.0, (0, 120, 255)),  # bleu
+                (0.8, (0, 200, 255)),  # cyan
+                (1.0, (0, 255, 0)),  # vert
+                (1.2, (255, 255, 0)),  # jaune
+                (2.0, (255, 0, 0)),  # rouge
             ]
 
             # clamp
@@ -1608,7 +1650,6 @@ class MainWindow(QMainWindow):
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
         try:
             if not hasattr(self, "g_timeline_legend"):
-
                 # IMPORTANT: parent = g_timeline (not main window)
                 self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
                 self.g_timeline_legend.setStyleSheet(
@@ -1644,12 +1685,12 @@ class MainWindow(QMainWindow):
         def get_color(a):
             # points de contrôle (altitude ft, couleur RGB)
             stops = [
-                (0,    (120, 120, 120)),   # gris (sol)
-                (3000, (0, 200, 255)),     # cyan
-                (4000, (0, 255, 0)),       # vert
-                (5000, (255, 255, 0)),     # rouge
+                (0, (120, 120, 120)),  # gris (sol)
+                (3000, (0, 200, 255)),  # cyan
+                (4000, (0, 255, 0)),  # vert
+                (5000, (255, 255, 0)),  # rouge
                 (6000, (255, 0, 0)),  # rouge
-                (7000, (160, 0, 255)),     # violet (haut)
+                (7000, (160, 0, 255)),  # violet (haut)
             ]
 
             # clamp
@@ -1710,10 +1751,9 @@ class MainWindow(QMainWindow):
             try:
                 speed = self.df["gps_speed"].to_numpy()
                 alt = self.df["gps_alt"].to_numpy()
-                self.energy_full = 0.5 * speed**2 + 9.81 * alt * 0.3048
+                self.energy_full = 0.5 * speed ** 2 + 9.81 * alt * 0.3048
             except Exception:
                 self.energy_full = None
-
 
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
@@ -1913,7 +1953,8 @@ class MainWindow(QMainWindow):
                 self.sc_writer.startWriting()
 
                 # set handler's writer/input/adaptor
-                self.sc_handler.setWriter_input_adaptor_(self.sc_writer, self.sc_input, self.sc_adaptor, self.sc_audio_input)
+                self.sc_handler.setWriter_input_adaptor_(self.sc_writer, self.sc_input, self.sc_adaptor,
+                                                         self.sc_audio_input)
 
                 # ScreenCaptureKit requires a GCD dispatch queue
                 import dispatch
@@ -1943,7 +1984,7 @@ class MainWindow(QMainWindow):
                 self.btn_record.setText("■ REC")
                 self.btn_record.setStyleSheet("background-color: red; color: white; font-weight: bold;")
                 print("Recording start")
-                self.recording=True
+                self.recording = True
             except Exception as e:
                 print("Recording start failed:", e)
                 self.btn_record.setChecked(False)
@@ -1992,6 +2033,7 @@ class MainWindow(QMainWindow):
 
             self.btn_record.setText("● REC")
             self.btn_record.setStyleSheet("")
+
     def update_pitch_cam_menu(self):
         """Update menu text showing current camera mounting pitch."""
         if hasattr(self, "act_pitch_cam_plus"):
@@ -2046,8 +2088,8 @@ class MainWindow(QMainWindow):
         self.map_ready = False
         self.map_view = QWebEngineView()
         # HTML Leaflet avec OpenStreetMap
-        lat0 =self.df.gps_lat.iloc[0]
-        lon0 =self.df.gps_lon.iloc[0]
+        lat0 = self.df.gps_lat.iloc[0]
+        lon0 = self.df.gps_lon.iloc[0]
         self.map_view.setHtml(f"""
                 <!DOCTYPE html>
                 <html>
@@ -2087,10 +2129,10 @@ class MainWindow(QMainWindow):
                         iconSize: [24, 24],
                         iconAnchor: [12, 12]
                     }});
-                    
+
                     var marker = L.marker([{lat0}, {lon0}], {{ icon: planeIcon }}).addTo(map);
-                    
-                    
+
+
                     // ---- Trajectory (last 1 minute) ----
                     var trajectory = [];
                     var maxPoints = 600; // assuming ~10 Hz → ~1 minute
@@ -2185,7 +2227,7 @@ class MainWindow(QMainWindow):
                     }}
 
                     window.resetTrajectoryWithData = resetTrajectoryWithData;
-                    
+
 
                     window.resetTrajectory = resetTrajectory;
                   </script>
@@ -2370,8 +2412,8 @@ class MainWindow(QMainWindow):
         # aircraft position marker
         self.gps_point = glpg.GLScatterPlotItem(
             pos=np.zeros((1, 3)),
-            size=15,              # screen pixels
-            pxMode=True,          # keep constant size on screen
+            size=15,  # screen pixels
+            pxMode=True,  # keep constant size on screen
             color=(1.0, 0.0, 0.0, 1.0)
         )
 
@@ -2380,17 +2422,17 @@ class MainWindow(QMainWindow):
 
         # ground grid (visual reference in meters)
         grid = glpg.GLGridItem()
-        grid.setSize(4, 2)   # 2 km x 2 km area
+        grid.setSize(4, 2)  # 2 km x 2 km area
         grid.setSpacing(0.25, 0.25)  # grid every 100 m
         grid.translate(0, 0, -1)  # slightly below aircraft
         grid.rotate(BOX_HEADING, 0, 0, 1)
-        grid.setColor((150,150,150))
+        grid.setColor((150, 150, 150))
         self.gps_view.addItem(grid)
 
         # ---- vertical grid (YZ plane) ----
         self.grid_vertical_yz = glpg.GLGridItem()
         self.grid_vertical_yz.setSize(4, 2)
-        self.grid_vertical_yz.setSpacing(0.25,0.25)
+        self.grid_vertical_yz.setSpacing(0.25, 0.25)
         self.grid_vertical_yz.rotate(90, 1, 0, 0)
         self.grid_vertical_yz.translate(0, -1, 0)
         self.grid_vertical_yz.setColor((135, 206, 235))
@@ -2401,16 +2443,15 @@ class MainWindow(QMainWindow):
         self.grid_vertical_xz.setSize(2, 2)
         self.grid_vertical_xz.setSpacing(0.25, 0.25)
         self.grid_vertical_xz.rotate(90, 0, 1, 0)
-        self.grid_vertical_xz.translate(-1,0, 0)
+        self.grid_vertical_xz.translate(-1, 0, 0)
         self.grid_vertical_xz.setColor((135, 206, 235))
         self.gps_view.addItem(self.grid_vertical_xz)
         self.grid_vertical_xz.setVisible(False)
 
         # self.gps_view.addItem(self.gps_line)  # REMOVED
-        #self.gps_view.addItem(self.gps_point)
+        # self.gps_view.addItem(self.gps_point)
 
-
-        #stl_path = os.path.join(os.path.dirname(__file__), "plane.stl")
+        # stl_path = os.path.join(os.path.dirname(__file__), "plane.stl")
 
         try:
             m = mesh.Mesh.from_file(STL_SIMPLE_PLANE_FILE)
@@ -2421,7 +2462,7 @@ class MainWindow(QMainWindow):
             vertices = v.reshape(-1, 3)
 
             vertices *= 0.03  # Scale down
-            vertices -= vertices.mean(axis=0) # centrage
+            vertices -= vertices.mean(axis=0)  # centrage
             # rotation axes
             R_fix = np.array([
                 [0, 1, 0],  # X = nez
@@ -2460,7 +2501,6 @@ class MainWindow(QMainWindow):
             else:
                 raise RuntimeError("No meshdata found in GLMeshItem")
 
-
         # vertical line from aircraft to ground
         self.gps_vertical_line = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
@@ -2473,7 +2513,7 @@ class MainWindow(QMainWindow):
         # ---- ground projection of trajectory (shadow on ground) ----
         self.gps_shadow = glpg.GLLinePlotItem(
             pos=np.zeros((2, 3)),
-            #color=(0, 0, 1, 0.6), # gray
+            # color=(0, 0, 1, 0.6), # gray
             color=(0.6, 0.3, 0.1, 1),  # marron
             width=2,
             antialias=True
@@ -2484,7 +2524,7 @@ class MainWindow(QMainWindow):
             pos=np.zeros((2, 3)),
             # color=(0, 0, 1, 0.6), # gray
             color=(0, 0, 1, 1),  # 🔵 bleu (RGBA)
-            width=2,antialias=True
+            width=2, antialias=True
         )
         self.gps_view.addItem(self.gps_box_projection)
 
@@ -2494,7 +2534,8 @@ class MainWindow(QMainWindow):
 
         for z in altitude_scale:
             label = QLabel(f"{z}ft", self.gps_view)
-            label.setStyleSheet("color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
+            label.setStyleSheet(
+                "color: black; background-color: transparent; padding:2px; font-family:'Menlo'; font-size:10px;")
             label.adjustSize()
             label.show()
             label.raise_()
@@ -2539,17 +2580,16 @@ class MainWindow(QMainWindow):
         self.altitude_cursor_visible = True
         self.altitude_last_blink = 0
 
-
         # ---- horizontal speed bar (top of GPS view) ----
         self.speed_bar = QFrame(self.gps_view)
         self.speed_bar.setStyleSheet(
             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            " stop:0 rgba(0,120,255,200),"      # blue below 100 km/h
-            " stop:0.25 rgba(0,120,255,200),"   # 100/400
+            " stop:0 rgba(0,120,255,200),"  # blue below 100 km/h
+            " stop:0.25 rgba(0,120,255,200),"  # 100/400
             " stop:0.25 rgba(0,180,0,180),"
-            " stop:0.75 rgba(0,180,0,180),"     # up to 300 km/h
+            " stop:0.75 rgba(0,180,0,180),"  # up to 300 km/h
             " stop:0.75 rgba(255,220,0,200),"
-            " stop:0.85 rgba(255,220,0,200),"   # 300–340 km/h
+            " stop:0.85 rgba(255,220,0,200),"  # 300–340 km/h
             " stop:0.85 rgba(255,0,0,200),"
             " stop:1 rgba(255,0,0,200));"
         )
@@ -2588,13 +2628,13 @@ class MainWindow(QMainWindow):
         self.g_bar = QFrame(self.gps_view)
         self.g_bar.setStyleSheet(
             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            " stop:0 rgba(0,120,255,200),"      # -2G
-            " stop:0.25 rgba(0,120,255,200),"   # -1G
-            " stop:0.40 rgba(0,200,0,200),"     # 0G
-            " stop:0.55 rgba(0,200,0,200),"     # 1G
-            " stop:0.65 rgba(255,220,0,200),"   # 2G
-            " stop:0.85 rgba(255,0,0,220),"     # 3G
-            " stop:1 rgba(160,0,255,220));"     # 4G max
+            " stop:0 rgba(0,120,255,200),"  # -2G
+            " stop:0.25 rgba(0,120,255,200),"  # -1G
+            " stop:0.40 rgba(0,200,0,200),"  # 0G
+            " stop:0.55 rgba(0,200,0,200),"  # 1G
+            " stop:0.65 rgba(255,220,0,200),"  # 2G
+            " stop:0.85 rgba(255,0,0,220),"  # 3G
+            " stop:1 rgba(160,0,255,220));"  # 4G max
         )
         self.g_bar.setGeometry(0, 0, 200, 6)
         self.g_bar.show()
@@ -2716,13 +2756,11 @@ class MainWindow(QMainWindow):
         # center rectangular cursor on altitude bar
         self.altitude_cursor.move(bar_x - 7, y_cursor - 4)
 
-
         # blink triangle if climb/descent rate is high, and color by climb/descent
         try:
             fpm_raw = float(self.row.gps_fpm)
         except Exception:
             fpm_raw = 0.0
-
 
         self.altitude_cursor.setVisible(True)
         self.altitude_cursor_visible = True
@@ -2741,12 +2779,11 @@ class MainWindow(QMainWindow):
         max_len = 80  # ajuste visuellement
 
         # conversion en pixels
-        #length = int((abs(fpm_clamped) / fpm_max) * max_len)
-        length = int((abs(fpm_clamped) / fpm_max) ** 0.6 * max_len) # non linéaire pour amplifier faible valeur
-
+        # length = int((abs(fpm_clamped) / fpm_max) * max_len)
+        length = int((abs(fpm_clamped) / fpm_max) ** 0.6 * max_len)  # non linéaire pour amplifier faible valeur
 
         # position X (à côté du curseur altitude)
-        x_vario = bar_x+4  # à gauche du curseur
+        x_vario = bar_x + 4  # à gauche du curseur
 
         # position Y (origine = altitude cursor)
         y0 = y_cursor
@@ -2773,8 +2810,6 @@ class MainWindow(QMainWindow):
         # ---- pygfx ----
         self.gfx_display = gfx.Display()
         self.gfx_scene = gfx.Scene()
-
-
 
         # axes de repère local (X=rouge, Y=vert, Z=bleu) without arrow tips
         axes_len = 300
@@ -2805,17 +2840,17 @@ class MainWindow(QMainWindow):
 
         # vecteurs du repère local
         length = 400  # longueur des vecteurs
-        #x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
-        #elf.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
+        # x_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [length, 0, 0]], dtype=np.float32))
+        # elf.gfx_vec_x = gfx.Line(x_geom, gfx.LineMaterial(color="red", thickness=1),)
         y_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, length, 0]], dtype=np.float32))
         self.y_geom = y_geom  # Reference for later updates
         self.gfx_vec_y = gfx.Line(
             y_geom,
             gfx.LineMaterial(color="green", thickness=8, depth_test=False),
         )
-        #z_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, 0, length]], dtype=np.float32))
-        #self.gfx_vec_z = gfx.Line(z_geom, gfx.LineMaterial(color="blue", thickness=1),)
-        #self.gfx_object.add(self.gfx_vec_x);
+        # z_geom = gfx.Geometry(positions=np.array([[0, 0, 0], [0, 0, length]], dtype=np.float32))
+        # self.gfx_vec_z = gfx.Line(z_geom, gfx.LineMaterial(color="blue", thickness=1),)
+        # self.gfx_object.add(self.gfx_vec_x);
         self.gfx_object.add(self.gfx_vec_y);
         # self.gfx_object.add(self.gfx_vec_z)
 
@@ -2843,7 +2878,7 @@ class MainWindow(QMainWindow):
         # ---- Acceleration vector (line, updated each frame) ----
         acc_positions = np.array([[0, 0, 0], [0, 0, 0]], dtype=np.float32)
         self.acc_geom = gfx.Geometry(positions=acc_positions)
-        self.gfx_vec_acc = gfx.Line(self.acc_geom, gfx.LineMaterial(color="green", thickness=4, depth_test=False),)
+        self.gfx_vec_acc = gfx.Line(self.acc_geom, gfx.LineMaterial(color="green", thickness=4, depth_test=False), )
         self.gfx_object.add(self.gfx_vec_acc)
 
         # ---- Arrow head for acceleration vector ----
@@ -2879,9 +2914,9 @@ class MainWindow(QMainWindow):
 
         # ajout du groupe à la scène
         self.gfx_scene.add(self.gfx_object)
-        #self.gfx_scene.background = gfx.Background(None, gfx.BackgroundMaterial((1, 1, 1, 1)))
+        # self.gfx_scene.background = gfx.Background(None, gfx.BackgroundMaterial((1, 1, 1, 1)))
         self.gfx_display.show(self.gfx_scene)
-        #self.gfx_display.renderer.clear_color = (1, 1, 1, 1)
+        # self.gfx_display.renderer.clear_color = (1, 1, 1, 1)
 
         # ---- Camera configuration : Z axis up ----
         cam = self.gfx_display.camera
@@ -2892,8 +2927,8 @@ class MainWindow(QMainWindow):
         # Camera
         self.gfx_box = gfx.Mesh(
             gfx.box_geometry(240, 120, 600),  # X, Y, Z
-            gfx.MeshPhongMaterial(color="Gray"),)
-        self.gfx_box.local.position = (0,0,0)
+            gfx.MeshPhongMaterial(color="Gray"), )
+        self.gfx_box.local.position = (0, 0, 0)
         self.gfx_object.add(self.gfx_box)
         # Hidden by default
         self.gfx_box.visible = False
@@ -2902,7 +2937,7 @@ class MainWindow(QMainWindow):
         sphere_radius = 90
         self.gfx_sphere = gfx.Mesh(
             gfx.sphere_geometry(radius=sphere_radius),
-            gfx.MeshPhongMaterial(color="black"),)
+            gfx.MeshPhongMaterial(color="black"), )
         self.gfx_sphere.local.position = (0, 40, 180)
         self.gfx_object.add(self.gfx_sphere)
         # Hidden by default
@@ -2918,7 +2953,7 @@ class MainWindow(QMainWindow):
 
             for mesh in stl_meshes:
                 mesh.local.scale = (5, 5, 5)
-                mesh.local.position = (620, 500, -140) # for cap 10
+                mesh.local.position = (620, 500, -140)  # for cap 10
                 # ---- Parametric rotation: 180° around Z + tilt around X ----
                 # ---- STL tilt parameter (degrees) ----
                 self.stl_tilt_deg = 5.0  # default 5° around X
@@ -2929,31 +2964,31 @@ class MainWindow(QMainWindow):
 
                 # Quaternion for tilt around X
                 qx = np.array([
-                    math.sin(theta_x / 2.0),0.0,0.0,math.cos(theta_x / 2.0)])
+                    math.sin(theta_x / 2.0), 0.0, 0.0, math.cos(theta_x / 2.0)])
 
                 # Quaternion multiplication q = qz * qx
                 x1, y1, z1, w1 = qz
                 x2, y2, z2, w2 = qx
 
                 q = np.array([
-                    w1*x2 + x1*w2 + y1*z2 - z1*y2,
-                    w1*y2 - x1*z2 + y1*w2 + z1*x2,
-                    w1*z2 + x1*y2 - y1*x2 + z1*w2,
-                    w1*w2 - x1*x2 - y1*y2 - z1*z2])
+                    w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                    w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                    w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+                    w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2])
 
                 mesh.local.rotation = tuple(q)
                 self.gfx_object.add(mesh)
 
-            #print("CAP10.STL loaded successfully")
+            # print("CAP10.STL loaded successfully")
         except Exception as e:
             print(f"Error loading CAP10.STL: {e}")
 
         self.gfx_canvas = self.gfx_display.canvas
         self.gfx_canvas.setAttribute(Qt.WA_DeleteOnClose, False)
-        #self.gfx_alive = True
-        #self.gfx_render_enabled = True
+        # self.gfx_alive = True
+        # self.gfx_render_enabled = True
         self.gfx_canvas.destroyed.connect(self.on_gfx_destroyed)
-        #self.gfx_canvas.setStyleSheet("background-color: white;")
+        # self.gfx_canvas.setStyleSheet("background-color: white;")
         self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
         # ---- Attach detach button to gfx canvas (bottom-center overlay) ----
         if hasattr(self, "btn_detach_gfx"):
@@ -2974,19 +3009,21 @@ class MainWindow(QMainWindow):
 
         # ---- DataFrame info overlay (top-left) ----
         self.df_info_label = QLabel("Data:", self.gfx_canvas)
-        self.df_info_label.setStyleSheet("color: gray; background-color: transparent; padding: 4px; font-family: 'Menlo';")
+        self.df_info_label.setStyleSheet(
+            "color: gray; background-color: transparent; padding: 4px; font-family: 'Menlo';")
         self.df_info_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.df_info_label.adjustSize()
         self.df_info_label.move(10, 10)
         self.df_info_label.raise_()
 
         # ---- Timestamp overlay (ensure multi-line support) ----
-        #if hasattr(self, "timestamp_label"):
+        # if hasattr(self, "timestamp_label"):
         #    self.timestamp_label.setWordWrap(True)
 
         # ---- Pitch overlay (custom position) ----
         self.pitch_label = QLabel("Pitch:", self.gfx_canvas)
-        self.pitch_label.setStyleSheet("color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+        self.pitch_label.setStyleSheet(
+            "color: green; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
         self.pitch_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.pitch_label.adjustSize()
         # position top-right of main artificial horizon
@@ -3000,32 +3037,35 @@ class MainWindow(QMainWindow):
 
         # ---- Inclination overlay (custom position) ----
         self.roll_label = QLabel("Bank:", self.gfx_canvas)
-        self.roll_label.setStyleSheet("color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
+        self.roll_label.setStyleSheet(
+            "color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 28px; font-weight: bold;")
         self.roll_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.roll_label.adjustSize()
         self.roll_label.move(0, 300)
         self.roll_label.raise_()
 
-
         # ---- Acceleration magnitude (g) overlay ----
         self.g_label = QLabel("g:", self.gfx_canvas)
-        self.g_label.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+        self.g_label.setStyleSheet(
+            "color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.g_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.g_label.adjustSize()
-        self.g_label.move(self.gfx_canvas.width() - self.g_label.width() - 10,160)
+        self.g_label.move(self.gfx_canvas.width() - self.g_label.width() - 10, 160)
         self.g_label.raise_()
 
         # ---- Acceleration magnitude (g) minmax ----
         self.g_label_minmax = QLabel("g:", self.gfx_canvas)
-        self.g_label_minmax.setStyleSheet("color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;")
+        self.g_label_minmax.setStyleSheet(
+            "color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;")
         self.g_label_minmax.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.g_label_minmax.adjustSize()
-        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label.width() - 10,210)
+        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label.width() - 10, 210)
         self.g_label_minmax.raise_()
 
         # ---- GPS speed & altitude overlay (top-right) ----
         self.gps_label_speed = QLabel("GPS:", self.gfx_canvas)
-        self.gps_label_speed.setStyleSheet("color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+        self.gps_label_speed.setStyleSheet(
+            "color: red; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.gps_label_speed.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_speed.adjustSize()
         # position top‑right of pygfx window
@@ -3050,10 +3090,10 @@ class MainWindow(QMainWindow):
         self.gsmax_label.raise_()
         self.gsmax_label.show()
 
-
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_alt = QLabel("GPS:", self.gfx_canvas)
-        self.gps_label_alt.setStyleSheet("color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+        self.gps_label_alt.setStyleSheet(
+            "color: blue; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
         self.gps_label_alt.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
@@ -3075,8 +3115,6 @@ class MainWindow(QMainWindow):
         )
         self.gps_label_vario.raise_()
         self.gps_label_vario.show()
-
-
 
         # ---- Artificial Horizon (top-left) ----
         self.hud_horizon = ArtificialHorizon(self.gfx_canvas)
@@ -3127,10 +3165,11 @@ class MainWindow(QMainWindow):
 
     def compute_orientation(self):
 
-        #computed transform matrix
-        R = quat_to_rot([self.row.x4_quat_w,self.row.x4_quat_x,self.row.x4_quat_y,self.row.x4_quat_z])
-        theta_x = np.deg2rad(self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
-        R_x_20 = np.array([[1, 0, 0],[0, np.cos(theta_x), -np.sin(theta_x)],[0, np.sin(theta_x),  np.cos(theta_x)]])
+        # computed transform matrix
+        R = quat_to_rot([self.row.x4_quat_w, self.row.x4_quat_x, self.row.x4_quat_y, self.row.x4_quat_z])
+        theta_x = np.deg2rad(
+            self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
+        R_x_20 = np.array([[1, 0, 0], [0, np.cos(theta_x), -np.sin(theta_x)], [0, np.sin(theta_x), np.cos(theta_x)]])
         self.R_final = R_x_20 @ perm[R_recalage_repere] @ R
         if not np.isfinite(self.R_final).all():
             return
@@ -3146,9 +3185,10 @@ class MainWindow(QMainWindow):
         self.down_original = np.array([0.0, 0.0, -1.0])
 
         # computed vectors
-        self.fwd = self.R_final.T @ fwd_original; self.up = self.R_final.T @ up_original; #down = self.R_final.T @ self.down_original
+        self.fwd = self.R_final.T @ fwd_original;
+        self.up = self.R_final.T @ up_original;  # down = self.R_final.T @ self.down_original
         self.nose_vec = self.fwd * 400
-        acc = np.array([-self.row.x4_acc_x,-self.row.x4_acc_y,-self.row.x4_acc_z])# rotation
+        acc = np.array([-self.row.x4_acc_x, -self.row.x4_acc_y, -self.row.x4_acc_z])  # rotation
         norm_acc = np.linalg.norm(acc)
         if not np.isfinite(norm_acc) or norm_acc < 1e-6:
             acc = np.array([0.0, 0.0, 0.0])
@@ -3156,7 +3196,7 @@ class MainWindow(QMainWindow):
             acc = acc / norm_acc
         self.g = norm_acc / 9.81
         self.acc_vec = R_x_20 @ perm[R_recalage_repere] @ acc
-        self.acc_vec = self.acc_vec * 300 +  self.acc_vec * 100 * self.g # scaling up
+        self.acc_vec = self.acc_vec * 300 + self.acc_vec * 100 * self.g  # scaling up
         # ---- low-pass filter to smooth G vector trail ----
         if self.acc_vec_filtered is None:
             self.acc_vec_filtered = self.acc_vec.copy()
@@ -3220,8 +3260,7 @@ class MainWindow(QMainWindow):
         self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
 
         # compute energy
-        self.energy=0.5*self.row.gps_speed**2 + 9.81 * self.row.gps_alt * 0.3048
-
+        self.energy = 0.5 * self.row.gps_speed ** 2 + 9.81 * self.row.gps_alt * 0.3048
 
     def update_energy_graph(self):
         # ---- Update rolling energy graph ----
@@ -3289,6 +3328,7 @@ class MainWindow(QMainWindow):
 
             except Exception:
                 pass
+
     def update_gfx_orientation(self):
 
         self.compute_orientation()
@@ -3350,26 +3390,30 @@ class MainWindow(QMainWindow):
             return
         self.g_label.adjustSize()
         # place G value below Alt and Vario overlays
-        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(),140)
+        self.g_label.move(self.gfx_canvas.width() - self.g_label.width(), 140)
         self.g_label_minmax.adjustSize()
-        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(),190)
+        self.g_label_minmax.move(self.gfx_canvas.width() - self.g_label_minmax.width(), 190)
 
         # update acceleration vector geometry & color
         if self.g > 0.8:
             err = min(abs(self.g - 1.0), 1.0)
-            err2G = max(self.g-2.0,0)
-            r = err;g = 1.0 - err;b = err2G/2
+            err2G = max(self.g - 2.0, 0)
+            r = err;
+            g = 1.0 - err;
+            b = err2G / 2
         else:
-            r=0;g=0;b=1
+            r = 0;
+            g = 0;
+            b = 1
 
         self.gfx_vec_acc.material.color = (r, g, b, 1)
         self.gfx_acc_arrow.material.color = (r, g, b, 1)
         self.g_label.setStyleSheet(
-            f"color: rgb({r * 255},{g*255},{b*255}); "
+            f"color: rgb({r * 255},{g * 255},{b * 255}); "
             "background-color: transparent; padding: 10px; "
             "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
 
-        #rotation de l'objet
+        # rotation de l'objet
         M = np.eye(4)
         M[:3, :3] = self.R_final.T
         if np.isfinite(M).all():
@@ -3384,7 +3428,6 @@ class MainWindow(QMainWindow):
 
         # ---- Update Wingtip Artificial Horizon ----
         if hasattr(self, "hud_horizon_wing"):
-
             # invert pitch sign for wingtip reference (viewed from the side)
             self.hud_horizon_wing.pitch = -self.pitch_w
             self.hud_horizon_wing.bank = self.roll_w
@@ -3393,8 +3436,8 @@ class MainWindow(QMainWindow):
 
         # ---- Update dataframe info label ----
         # compute elapsed time since start of dataset
-        t0 =self.df.timestamp.iloc[0]
-        t_now =self.df.timestamp.iloc[self.idf]
+        t0 = self.df.timestamp.iloc[0]
+        t_now = self.df.timestamp.iloc[self.idf]
         elapsed = t_now - t0
         elapsed_s = int(elapsed.total_seconds())
         em = elapsed_s // 60
@@ -3418,9 +3461,9 @@ class MainWindow(QMainWindow):
             f"Frame: {self.i}"
             f"\nStutters: {self.stutter_count}"
             f"\nCPU: {self._cpu_percent:.0f}%"
-            #f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
-            #f"\nElapsed: {em:02d}:{es:02d}"
-            #f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
+            # f"\nTime: {t_now.strftime('%H:%M:%S.%f')[:-3]}"
+            # f"\nElapsed: {em:02d}:{es:02d}"
+            # f"\nFrames skipped: {self.frame_skipped_count} / {self.frame_last_delay:+04d}ms"
         )
         self.df_info_label.adjustSize()
         self.df_info_label.move(
@@ -3453,30 +3496,38 @@ class MainWindow(QMainWindow):
         if self.row.gps_speed > self.gs_max:
             self.gs_max = self.row.gps_speed
         self.gps_label_speed.adjustSize()
-        self.gps_label_speed.move(self.gfx_canvas.width() - self.gps_label_speed.width() - 10,0)
+        self.gps_label_speed.move(self.gfx_canvas.width() - self.gps_label_speed.width() - 10, 0)
 
         # update GSmax label
         self.gsmax_label.setText(f"GSmax {self.gs_max:.0f}")
         self.gsmax_label.adjustSize()
-        self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10,45)
-
+        self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10, 45)
 
         # update speed vector geometry & color
-        r = 0;g = 0;b = 0
+        r = 0;
+        g = 0;
+        b = 0
         if self.row.gps_speed < 113:
-            r=g=0; b=255
+            r = g = 0;
+            b = 255
         else:
             if self.row.gps_speed > 112 and self.row.gps_speed < 236:
-                r=0; g=255; b=0
+                r = 0;
+                g = 255;
+                b = 0
             else:
                 if self.row.gps_speed > 235 and self.row.gps_speed < 300:
-                    r=int((self.row.gps_speed-235)/(300-235)*255); g=255-int((self.row.gps_speed-235)/(300-235)*255); b=0
+                    r = int((self.row.gps_speed - 235) / (300 - 235) * 255);
+                    g = 255 - int((self.row.gps_speed - 235) / (300 - 235) * 255);
+                    b = 0
                 else:
-                    r=255;g=0;b=0
+                    r = 255;
+                    g = 0;
+                    b = 0
 
         # apply same color to velocity vector (gfx_vec_y)
-        self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
-        self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+        self.gfx_vec_y.material.color = (r / 255.0, g / 255.0, b / 255.0, 1.0)
+        self.gfx_y_arrow.material.color = (r / 255.0, g / 255.0, b / 255.0, 1.0)
 
         self.gps_label_speed.setStyleSheet(
             f"color: rgb({r},{g},{b}); "
@@ -3486,12 +3537,12 @@ class MainWindow(QMainWindow):
         self.gps_label_alt.setText(f"Alt {self.row.gps_alt:.0f} ft")
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
-            self.gfx_canvas.width() - self.gps_label_alt.width(),60)
+            self.gfx_canvas.width() - self.gps_label_alt.width(), 60)
 
         self.gps_label_vario.setText(f"{self.row.gps_fpm:.0f} ft/min")
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
-            self.gfx_canvas.width() - self.gps_label_vario.width(),100)
+            self.gfx_canvas.width() - self.gps_label_vario.width(), 100)
 
         self.update_energy_graph()
 
@@ -3587,7 +3638,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_badin"):
             self.video1_badin.speed = self.smooth_speed
             self.video1_badin.update()
-            xb = int(self.video1.width()/2 - self.video1_badin.width()) - 60
+            xb = int(self.video1.width() / 2 - self.video1_badin.width()) - 60
             yb = int(self.video1.height() - self.video1_badin.height())
             self.video1_badin.move(xb, yb)
 
@@ -3601,7 +3652,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "video1_altimeter"):
             self.video1_altimeter.alt = self.smooth_alt
             self.video1_altimeter.update()
-            xa = int(self.video1.width() / 2 ) + 60
+            xa = int(self.video1.width() / 2) + 60
             ya = int(self.video1.height() - self.video1_altimeter.height())
             self.video1_altimeter.move(xa, ya)
 
@@ -3614,7 +3665,7 @@ class MainWindow(QMainWindow):
                 self.smooth_fpm = (1 - a) * self.smooth_fpm + a * row.gps_fpm
             self.video1_vario.fpm = self.smooth_fpm
             self.video1_vario.update()
-            xv = int(self.video1.width() / 2 ) + 60 + self.video1_altimeter.width()
+            xv = int(self.video1.width() / 2) + 60 + self.video1_altimeter.width()
             yv = int(self.video1.height() - self.video1_vario.height())
             self.video1_vario.move(xv, yv)
         # ---- Update vario overlay on video1 (bottom-right) ----
@@ -3648,11 +3699,11 @@ class MainWindow(QMainWindow):
         start = max(0, where - 50)
         end = min(self.frames_df, where + 50)
 
-        acc =self.df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
+        acc = self.df.iloc[start:end][["x4_acc_x", "x4_acc_y", "x4_acc_z"]].to_numpy()
         grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
         self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
-        print("Angle de montage : ", round(self.montage_pitch_angle,1))
+        print("Angle de montage : ", round(self.montage_pitch_angle, 1))
 
         # update menu display of camera pitch
         try:
@@ -3699,7 +3750,6 @@ class MainWindow(QMainWindow):
         # initialize absolute schedule
         if self.next_frame_time == 0:
             self.next_frame_time = now
-
 
         if self.playing:
             # 🔊 audio ALWAYS runs
@@ -3854,11 +3904,11 @@ class MainWindow(QMainWindow):
                 self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
                 self.startup_time_ms = self.clock.elapsed()
                 self.audio_started = True
-                #self.audio_prebuffer_done = False
+                # self.audio_prebuffer_done = False
 
             except Exception:
                 pass
-        #self.next_frame_time = self.clock.elapsed()
+        # self.next_frame_time = self.clock.elapsed()
 
     def goto_bookmark(self, frame):
         self.seek_video(frame)
@@ -4063,7 +4113,7 @@ class MainWindow(QMainWindow):
                                     channels = 2  # safe default
 
                             buffer_duration = len(self.audio_buffer) / (
-                                sample_rate * channels * bytes_per_sample
+                                    sample_rate * channels * bytes_per_sample
                             )
 
                             self.audio_clock_sec = float(f.pts * f.time_base) - buffer_duration
@@ -4088,13 +4138,14 @@ class MainWindow(QMainWindow):
             if written <= 0:
                 break
             self.audio_buffer = self.audio_buffer[written:]
+
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
     def get_video_frame_from_df_index(self, df_index):
         if df_index < 0 or df_index >= self.frames_df:
             raise ValueError("df_index hors limites")
         # timestamp dataframe
-        ts_df =self.df.timestamp.iloc[df_index]
+        ts_df = self.df.timestamp.iloc[df_index]
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
         # delta par rapport au début vidéo 1
@@ -4137,7 +4188,7 @@ class MainWindow(QMainWindow):
         # ---- Auto stop recording at end of playback ----
         if self.i >= self.frames_video - 1 and self.recording:
             self.toggle_recording(False)
-            self.recording=False
+            self.recording = False
 
         if self.current_video_time_utc is not None:
             self.sync_dataframe_on_video()
@@ -4166,7 +4217,7 @@ class MainWindow(QMainWindow):
         # ---- Elapsed time overlay update ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
@@ -4256,21 +4307,21 @@ class MainWindow(QMainWindow):
         elif idx >= self.frames_df:
             self.idf = self.frames_df - 1
         else:
-            before =self.df.timestamp.iloc[idx - 1]
-            after =self.df.timestamp.iloc[idx]
+            before = self.df.timestamp.iloc[idx - 1]
+            after = self.df.timestamp.iloc[idx]
             self.idf = idx - 1 if abs(ts - before) <= abs(after - ts) else idx
 
         # cache dataframe row once per frame
-        self.row =self.df.iloc[self.idf]
+        self.row = self.df.iloc[self.idf]
         self.slider.blockSignals(True)
         self.slider.setValue(self.i)
         self.slider.blockSignals(False)
-        #self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
+        # self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # ---- Elapsed time overlay update (compute txt here) ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc -self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - self.df.timestamp.iloc[0]
                 total_sec = int(elapsed.total_seconds())
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
@@ -4289,7 +4340,7 @@ class MainWindow(QMainWindow):
         # ---- Previous bookmark overlay update ----
         try:
             if self.current_video_time_utc is not None and self.bookmarks_df is not None:
-                #t = self.current_video_time_utc
+                # t = self.current_video_time_utc
                 df_b = self.bookmarks_df
                 # bookmarks passés uniquement
                 past = df_b[df_b["frame"] <= self.i]
@@ -4304,7 +4355,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-
     # ==================================================
     # 🔑 SYNCHRO VIDEO ← DF
     # ==================================================
@@ -4316,7 +4366,7 @@ class MainWindow(QMainWindow):
         if df_index < 0 or df_index >= frames_df:
             raise ValueError("df_index hors limites")
         # timestamp dataframe
-        ts_df =self.df.timestamp.iloc[df_index]
+        ts_df = self.df.timestamp.iloc[df_index]
         # temps vidéo correspondant (UTC)
         ts_video_utc = ts_df - self.video_df_offset
         # delta par rapport au début vidéo 1
@@ -4399,7 +4449,7 @@ class MainWindow(QMainWindow):
         if self.map_ready:
             lat = row.gps_lat
             lon = row.gps_lon
-            heading = row.gps_heading-45
+            heading = row.gps_heading - 45
             self.map_view.page().runJavaScript(
                 f"window.updateMarker({lat}, {lon}, {heading});"
             )
@@ -4424,14 +4474,14 @@ class MainWindow(QMainWindow):
 
         lon0 = self.gps_lon_vals[end]
         lat0 = self.gps_lat_vals[end]
-        #alt0 = self.gps_alt_vals[end]
+        # alt0 = self.gps_alt_vals[end]
 
         # convert degrees to approximate meters
         x = (lon - lon0) * 111320 * np.cos(np.radians(lat0)) / 1000
         y = (lat - lat0) * 111320 / 1000
 
-        if len(alt) > 0 and alt[-1] > 3000:#décalage de 3000 si dans le box
-            z = (alt-3000-1000) / 1000
+        if len(alt) > 0 and alt[-1] > 3000:  # décalage de 3000 si dans le box
+            z = (alt - 3000 - 1000) / 1000
         else:
             z = (alt - 1000) / 1000
         # debug: dernière position calculée
@@ -4465,7 +4515,7 @@ class MainWindow(QMainWindow):
             self.grid_vertical_xz.rotate(90, 0, 1, 0)
             self.grid_vertical_xz.translate(xz, 0, 0)
             self.grid_vertical_xz.rotate(BOX_HEADING, 0, 0, 1)
-            #self.grid_vertical_xz.setVisible(False)
+            # self.grid_vertical_xz.setVisible(False)
 
         # ---- update ground projection (shadow) ----
         if len(pts) > 1:
@@ -4477,10 +4527,10 @@ class MainWindow(QMainWindow):
             # ---- projection sur un plan vertical incliné de 50° par rapport à XZ ----
             pts_box = pts.copy()
             # 1) rotation inverse pour aligner le plan avec XZ
-            pts_box = pts_box @ ROT_BOX # 1) rotation inverse pour aligner le plan avec XZ
-            px=-1
-            if az == -112.5 or az == -337.5 or az== -22.5 or az==-67.5:
-               px=1
+            pts_box = pts_box @ ROT_BOX  # 1) rotation inverse pour aligner le plan avec XZ
+            px = -1
+            if az == -112.5 or az == -337.5 or az == -22.5 or az == -67.5:
+                px = 1
             # 2) projection sur XZ
             pts_box[:, 1] = px
             # 3) retour dans le repère initial
@@ -4499,17 +4549,16 @@ class MainWindow(QMainWindow):
             colors = np.zeros((len(pts), 4))
 
             # blue -> green -> red gradient
-            colors[:, 0] = zn                       # red increases with altitude
-            colors[:, 1] = 1.0 - np.abs(zn - 0.5)*2 # green strongest mid-altitude
-            colors[:, 2] = 1.0 - zn                 # blue decreases with altitude
-            colors[:, 3] = 1.0                      # alpha
+            colors[:, 0] = zn  # red increases with altitude
+            colors[:, 1] = 1.0 - np.abs(zn - 0.5) * 2  # green strongest mid-altitude
+            colors[:, 2] = 1.0 - zn  # blue decreases with altitude
+            colors[:, 3] = 1.0  # alpha
 
             # update the bundle of lines to simulate a tube
             for line in self.gps_lines:
                 off = line._tube_offset
                 pts_off = pts + off
                 line.setData(pos=pts_off, color=colors)
-
 
         if end < len(self.gps_lat_vals):
             # aircraft stays at center
@@ -4519,7 +4568,6 @@ class MainWindow(QMainWindow):
             pitch = float(getattr(self, "pitch_deg", 0.0))
             roll = float(getattr(self, "bank_deg", 0.0))
 
-
             self.gps_aircraft.resetTransform()
 
             # rotations (ordre important)
@@ -4527,7 +4575,7 @@ class MainWindow(QMainWindow):
             # rotations
             self.gps_aircraft.rotate(-roll, 1, 0, 0)  # FIX
             self.gps_aircraft.rotate(pitch, 0, 1, 0)
-            self.gps_aircraft.rotate(- heading-90, 0, 0, 1)
+            self.gps_aircraft.rotate(- heading - 90, 0, 0, 1)
             self.gps_aircraft.translate(0, 0, z[-1])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
@@ -4648,17 +4696,16 @@ class MainWindow(QMainWindow):
 
             self.g_cursor.setStyleSheet(f"background-color: {color};")
 
-        if alt[-1] > 5500 :
+        if alt[-1] > 5500:
             zoom = 8
-        elif alt[-1] <3000:
+        elif alt[-1] < 3000:
             zoom = 6
         else:
             zoom = 4
 
         if zoom != self.gps_lastzoom:
-                self.gps_lastzoom = zoom
-                self.gps_view.setCameraPosition(distance=zoom )
-
+            self.gps_lastzoom = zoom
+            self.gps_view.setCameraPosition(distance=zoom)
 
     def detach_gfx_window(self):
         """Toggle detach/close for pygfx canvas."""
@@ -4683,7 +4730,7 @@ class MainWindow(QMainWindow):
             self.btn_detach_gfx.hide()
         self.gfx_window.resize(900, 700)
 
-        #self.btn_detach_gfx.setText("Close 3D")
+        # self.btn_detach_gfx.setText("Close 3D")
 
         # detect close event
         self.gfx_window.closeEvent = self._on_gfx_window_closed
@@ -4799,8 +4846,8 @@ class MainWindow(QMainWindow):
         print("💀 gfx_canvas destroyed")
 
         # HARD guard: prevent any further rendering calls immediately
-        #self.gfx_render_enabled = False
-        #self.gfx_alive = False
+        # self.gfx_render_enabled = False
+        # self.gfx_alive = False
 
         # disconnect canvas from display ASAP to stop rendercanvas callbacks
         try:
@@ -4809,8 +4856,9 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        #print("Stack at destruction:")
-        #traceback.print_stack()
+        # print("Stack at destruction:")
+        # traceback.print_stack()
+
 
 STYLE_SHEET = """
     QPushButton {
@@ -4842,13 +4890,13 @@ STYLE_SHEET = """
     QMenu::item:selected {
         background-color: #d0d0d0;
     }
-    
+
     QSlider::groove:horizontal {
     height: 6px;
     background: #ddd;
     border-radius: 3px;
     }
-    
+
     QSlider::handle:horizontal {
         background: #666;
         border: 1px solid #444;
@@ -4857,16 +4905,16 @@ STYLE_SHEET = """
         margin: -5px 0;  /* centre la poignée */
         border-radius: 7px;
     }
-    
+
     QSlider::handle:horizontal:hover {
         background: #444;
     }
-    
+
     QSlider::sub-page:horizontal {
         background: #4a90e2;  /* partie parcourue */
         border-radius: 3px;
     }
-    
+
     QSlider::add-page:horizontal {
         background: #ddd;
         border-radius: 3px;
@@ -4929,6 +4977,7 @@ STYLE_SHEET = """
 
     """
 
+
 def select_abv_bundle(parent=None):
     dialog = QFileDialog(parent)
     dialog.setWindowTitle("ABView - Select Flight")
@@ -4975,12 +5024,14 @@ def select_abv_bundle(parent=None):
     if result:
         files = dialog.selectedFiles()
         if files:
-            return files[0]+"/"
+            return files[0] + "/"
 
     return None
+
+
 # ======================================================
 if __name__ == "__main__":
-    #global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
+    # global PDL, MERGED_DATA, INPUT_METAR, VIDEO1, VIDEO2, BOOKMARK_FILE, caffeinate
     app = QApplication(sys.argv)
     palette = app.palette()
     palette.setColor(palette.Window, Qt.white)
@@ -5005,22 +5056,24 @@ if __name__ == "__main__":
     VIDEO2 = PDL + "back.mp4"
     BOOKMARK_FILE = PDL + "bookmark.csv"
 
-
     import subprocess
+
     caffeinate = subprocess.Popen(["caffeinate"])
     win = MainWindow()
     win.show()
-    #QTimer.singleShot(0, start_app)
+
+
+    # QTimer.singleShot(0, start_app)
 
     def cleanup():
         print("🧹 CLEANUP START")
 
         try:
             # stop any ongoing update loops before detaching canvas
-            #try:
-                #win.gfx_render_enabled = False
-                #win.gfx_alive = False
-            #except Exception:
+            # try:
+            # win.gfx_render_enabled = False
+            # win.gfx_alive = False
+            # except Exception:
             #    pass
             if hasattr(win, "gfx_display"):
                 try:
@@ -5040,6 +5093,5 @@ if __name__ == "__main__":
 
 
     app.aboutToQuit.connect(cleanup)
-
 
     app.exec_()
