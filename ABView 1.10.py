@@ -15,6 +15,7 @@ import OpenGL.GL as gl
 import pyqtgraph.opengl as glpg
 from stl import mesh
 import math, time, sys, os
+import psutil
 from datetime import datetime, timedelta, timezone
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
@@ -875,6 +876,16 @@ class MainWindow(QMainWindow):
         self.gps_wind_speed_vals = self.df["era5_wind_speed"].to_numpy()
         self.gps_wind_direction_vals = self.df["era5_wind_direction"].to_numpy()
         self.timestamp_vals = self.df["timestamp"].to_numpy()
+        self.x4_quat_w_vals = self.df["x4_quat_w"].to_numpy()
+        self.x4_quat_x_vals = self.df["x4_quat_x"].to_numpy()
+        self.x4_quat_y_vals = self.df["x4_quat_y"].to_numpy()
+        self.x4_quat_z_vals = self.df["x4_quat_z"].to_numpy()
+        self.x4_acc_x_vals = self.df["x4_acc_x"].to_numpy()
+        self.x4_acc_y_vals = self.df["x4_acc_y"].to_numpy()
+        self.x4_acc_z_vals = self.df["x4_acc_z"].to_numpy()
+        self.gps_speed_vals = self.df["gps_speed"].to_numpy()
+        self.gps_fpm_vals = self.df["gps_fpm"].to_numpy()
+        self.t0_timestamp = self.df.timestamp.iloc[0]
 
         # ---- Wind components (vectorized) ----
         heading = np.radians(self.gps_heading_vals)
@@ -966,6 +977,8 @@ class MainWindow(QMainWindow):
         self.stream2.thread_type = "AUTO"
         self.decoder1 = self.container1.decode(self.stream1)
         self.decoder2 = self.container2.decode(self.stream2)
+        fps_raw = float(self.stream1.average_rate)
+        self.fps_video = fps_raw if fps_raw > 0 else 30.0
 
         self.video1_start = get_mp4_creation_datetime(self.video1_path)
         self.video2_start = get_mp4_creation_datetime(self.video2_path)
@@ -1015,6 +1028,10 @@ class MainWindow(QMainWindow):
 
         # Attitude
         self.montage_pitch_angle = PITCH_MONTAGE_PAR_DEFAUT
+        theta_x = np.deg2rad(self.montage_pitch_angle)
+        self.R_x_20_cached = np.array([[1, 0, 0],
+                                       [0, np.cos(theta_x), -np.sin(theta_x)],
+                                       [0, np.sin(theta_x),  np.cos(theta_x)]])
         self.pitch_deg = 0
         self.pitch_w = 0
         self.roll_w = 0
@@ -1031,10 +1048,32 @@ class MainWindow(QMainWindow):
         self.bookmarks_df = None
         self.last_bookmark_frame = None
         self.bookmark_overlay = None
+        self._bm_frames_cache = np.array([], dtype=int)
+        self._bm_names_cache = np.array([], dtype=object)
+
+        # Stylesheet color caches (avoid re-parsing CSS every frame)
+        self._last_g_color = None
+        self._last_speed_color = None
 
         # Vue GPS 3-D
         self.firstGPS = True
         self.last_azim = 0
+
+    def _rebuild_R_x_20(self):
+        """Recompute the cached pitch-mounting rotation matrix after angle change."""
+        theta_x = np.deg2rad(self.montage_pitch_angle)
+        self.R_x_20_cached = np.array([[1, 0, 0],
+                                       [0, np.cos(theta_x), -np.sin(theta_x)],
+                                       [0, np.sin(theta_x),  np.cos(theta_x)]])
+
+    def _rebuild_bookmark_cache(self):
+        """Rebuild numpy caches for bookmark hot-loop lookup."""
+        if self.bookmarks_df is not None and not self.bookmarks_df.empty:
+            self._bm_frames_cache = self.bookmarks_df["frame"].to_numpy(dtype=int)
+            self._bm_names_cache = self.bookmarks_df["name"].to_numpy(dtype=object)
+        else:
+            self._bm_frames_cache = np.array([], dtype=int)
+            self._bm_names_cache = np.array([], dtype=object)
 
     def _init_timer(self):
         """Configure le timer temps-réel à 30 fps avec compensation de dérive."""
@@ -2044,6 +2083,7 @@ class MainWindow(QMainWindow):
     def pitch_cam_plus(self):
         """Increase camera mounting pitch by 1 degree."""
         self.montage_pitch_angle += 1
+        self._rebuild_R_x_20()
         self.update_pitch_cam_menu()
 
         # refresh display immediately even when paused
@@ -2057,6 +2097,7 @@ class MainWindow(QMainWindow):
     def pitch_cam_minus(self):
         """Decrease camera mounting pitch by 1 degree."""
         self.montage_pitch_angle -= 1
+        self._rebuild_R_x_20()
         self.update_pitch_cam_menu()
 
         # refresh display immediately even when paused
@@ -3165,18 +3206,14 @@ class MainWindow(QMainWindow):
 
     def compute_orientation(self):
 
-        # computed transform matrix
-        R = quat_to_rot([self.row.x4_quat_w, self.row.x4_quat_x, self.row.x4_quat_y, self.row.x4_quat_z])
-        theta_x = np.deg2rad(
-            self.montage_pitch_angle)  # ---- Rotation supplémentaire : +montage_pitch_angle° autour de X (appliquée en dernier) ----
-        R_x_20 = np.array([[1, 0, 0], [0, np.cos(theta_x), -np.sin(theta_x)], [0, np.sin(theta_x), np.cos(theta_x)]])
+        # computed transform matrix (use pre-cached numpy arrays — no pandas row access)
+        idf = self.idf
+        R = quat_to_rot([self.x4_quat_w_vals[idf], self.x4_quat_x_vals[idf],
+                         self.x4_quat_y_vals[idf], self.x4_quat_z_vals[idf]])
+        # use cached pitch-mounting rotation (recomputed only when angle changes)
+        R_x_20 = self.R_x_20_cached
         self.R_final = R_x_20 @ perm[R_recalage_repere] @ R
         if not np.isfinite(self.R_final).all():
-            return
-        try:
-            U, _, Vt = np.linalg.svd(self.R_final)
-            self.R_final = U @ Vt
-        except Exception:
             return
 
         # original vectors
@@ -3188,7 +3225,7 @@ class MainWindow(QMainWindow):
         self.fwd = self.R_final.T @ fwd_original;
         self.up = self.R_final.T @ up_original;  # down = self.R_final.T @ self.down_original
         self.nose_vec = self.fwd * 400
-        acc = np.array([-self.row.x4_acc_x, -self.row.x4_acc_y, -self.row.x4_acc_z])  # rotation
+        acc = np.array([-self.x4_acc_x_vals[idf], -self.x4_acc_y_vals[idf], -self.x4_acc_z_vals[idf]])
         norm_acc = np.linalg.norm(acc)
         if not np.isfinite(norm_acc) or norm_acc < 1e-6:
             acc = np.array([0.0, 0.0, 0.0])
@@ -3259,8 +3296,8 @@ class MainWindow(QMainWindow):
         self.right_w = np.cross(fwd_w, up_w)
         self.roll_w = np.degrees(np.arctan2(self.right_w[2], up_w[2]))
 
-        # compute energy
-        self.energy = 0.5 * self.row.gps_speed ** 2 + 9.81 * self.row.gps_alt * 0.3048
+        # compute energy (use numpy caches)
+        self.energy = 0.5 * self.gps_speed_vals[idf] ** 2 + 9.81 * self.gps_alt_vals[idf] * 0.3048
 
     def update_energy_graph(self):
         # ---- Update rolling energy graph ----
@@ -3271,20 +3308,21 @@ class MainWindow(QMainWindow):
                     return
                 # rebuild buffer directly from dataframe (handles seek)
                 if hasattr(self, "energy_full") and self.energy_full is not None:
-                    t_current = self.df.timestamp.iloc[self.idf].timestamp()
-                    t0 = t_current - 30
-
-                    # find indices in last 30 seconds
-                    times = self.df.timestamp
-                    import pandas as pd
-                    mask = (times >= times.iloc[self.idf] - pd.Timedelta(seconds=30)) & (times <= times.iloc[self.idf])
-                    idxs = times[mask].index
-
-                    self.energy_time = [times.iloc[i].timestamp() for i in idxs]
-                    self.energy_values = [float(self.energy_full[i]) for i in idxs]
+                    # use pre-cached numpy timestamp array — no pandas access in hot path
+                    t_now = self.timestamp_vals[self.idf]
+                    t_30s_ago = t_now - np.timedelta64(30, 's')
+                    mask = (self.timestamp_vals >= t_30s_ago) & (self.timestamp_vals <= t_now)
+                    idxs = np.where(mask)[0]
+                    epoch = np.datetime64(0, 's')
+                    sec_unit = np.timedelta64(1, 's')
+                    self.energy_time = ((self.timestamp_vals[idxs] - epoch) / sec_unit).tolist()
+                    self.energy_values = self.energy_full[idxs].tolist()
                 else:
                     # fallback incremental
-                    t = self.df.timestamp.iloc[self.idf].timestamp()
+                    t_now = self.timestamp_vals[self.idf]
+                    epoch = np.datetime64(0, 's')
+                    sec_unit = np.timedelta64(1, 's')
+                    t = float((t_now - epoch) / sec_unit)
                     e = float(self.energy)
                     self.energy_time.append(t)
                     self.energy_values.append(e)
@@ -3408,10 +3446,13 @@ class MainWindow(QMainWindow):
 
         self.gfx_vec_acc.material.color = (r, g, b, 1)
         self.gfx_acc_arrow.material.color = (r, g, b, 1)
-        self.g_label.setStyleSheet(
-            f"color: rgb({r * 255},{g * 255},{b * 255}); "
-            "background-color: transparent; padding: 10px; "
-            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+        new_g_color = (int(r * 255), int(g * 255), int(b * 255))
+        if new_g_color != self._last_g_color:
+            self.g_label.setStyleSheet(
+                f"color: rgb{new_g_color}; "
+                "background-color: transparent; padding: 10px; "
+                "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+            self._last_g_color = new_g_color
 
         # rotation de l'objet
         M = np.eye(4)
@@ -3435,17 +3476,15 @@ class MainWindow(QMainWindow):
             self.hud_horizon_wing.update()
 
         # ---- Update dataframe info label ----
-        # compute elapsed time since start of dataset
-        t0 = self.df.timestamp.iloc[0]
-        t_now = self.df.timestamp.iloc[self.idf]
+        # compute elapsed time since start of dataset (use numpy caches)
+        t0 = self.t0_timestamp
+        t_now = self.timestamp_vals[self.idf]
         elapsed = t_now - t0
         elapsed_s = int(elapsed.total_seconds())
         em = elapsed_s // 60
         es = elapsed_s % 60
 
         # --- CPU sampling (1 Hz) ---
-        import time
-        import psutil
         if not hasattr(self, "_last_cpu_update"):
             self._last_cpu_update = 0
             self._cpu_percent = 0
@@ -3491,10 +3530,15 @@ class MainWindow(QMainWindow):
         self.roll_label.move(hx, hy)
 
         # ---- Update GPS speed / altitude overlay ----
-        self.gps_label_speed.setText(f"GS {self.row.gps_speed:.0f} km/h")
+        # use pre-cached numpy arrays for hot-path row access
+        gps_speed = self.gps_speed_vals[self.idf]
+        gps_alt = self.gps_alt_vals[self.idf]
+        gps_fpm = self.gps_fpm_vals[self.idf]
+
+        self.gps_label_speed.setText(f"GS {gps_speed:.0f} km/h")
         # update GS max
-        if self.row.gps_speed > self.gs_max:
-            self.gs_max = self.row.gps_speed
+        if gps_speed > self.gs_max:
+            self.gs_max = gps_speed
         self.gps_label_speed.adjustSize()
         self.gps_label_speed.move(self.gfx_canvas.width() - self.gps_label_speed.width() - 10, 0)
 
@@ -3504,42 +3548,34 @@ class MainWindow(QMainWindow):
         self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10, 45)
 
         # update speed vector geometry & color
-        r = 0;
-        g = 0;
-        b = 0
-        if self.row.gps_speed < 113:
-            r = g = 0;
-            b = 255
+        if gps_speed < 113:
+            r, g, b = 0, 0, 255
+        elif gps_speed < 236:
+            r, g, b = 0, 255, 0
+        elif gps_speed < 300:
+            t = int((gps_speed - 235) / (300 - 235) * 255)
+            r, g, b = t, 255 - t, 0
         else:
-            if self.row.gps_speed > 112 and self.row.gps_speed < 236:
-                r = 0;
-                g = 255;
-                b = 0
-            else:
-                if self.row.gps_speed > 235 and self.row.gps_speed < 300:
-                    r = int((self.row.gps_speed - 235) / (300 - 235) * 255);
-                    g = 255 - int((self.row.gps_speed - 235) / (300 - 235) * 255);
-                    b = 0
-                else:
-                    r = 255;
-                    g = 0;
-                    b = 0
+            r, g, b = 255, 0, 0
 
         # apply same color to velocity vector (gfx_vec_y)
         self.gfx_vec_y.material.color = (r / 255.0, g / 255.0, b / 255.0, 1.0)
         self.gfx_y_arrow.material.color = (r / 255.0, g / 255.0, b / 255.0, 1.0)
 
-        self.gps_label_speed.setStyleSheet(
-            f"color: rgb({r},{g},{b}); "
-            "background-color: transparent; padding: 10px; "
-            "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+        new_speed_color = (r, g, b)
+        if new_speed_color != self._last_speed_color:
+            self.gps_label_speed.setStyleSheet(
+                f"color: rgb{new_speed_color}; "
+                "background-color: transparent; padding: 10px; "
+                "font-family: 'Menlo'; font-size: 44px; font-weight: bold;")
+            self._last_speed_color = new_speed_color
 
-        self.gps_label_alt.setText(f"Alt {self.row.gps_alt:.0f} ft")
+        self.gps_label_alt.setText(f"Alt {gps_alt:.0f} ft")
         self.gps_label_alt.adjustSize()
         self.gps_label_alt.move(
             self.gfx_canvas.width() - self.gps_label_alt.width(), 60)
 
-        self.gps_label_vario.setText(f"{self.row.gps_fpm:.0f} ft/min")
+        self.gps_label_vario.setText(f"{gps_fpm:.0f} ft/min")
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(), 100)
@@ -3703,6 +3739,7 @@ class MainWindow(QMainWindow):
         grav = np.mean(acc, axis=0)
         grav = grav / np.linalg.norm(grav)
         self.montage_pitch_angle = math.degrees(math.acos(grav[1])) - OFFSET_PITCH_SOL_PALLIER
+        self._rebuild_R_x_20()
         print("Angle de montage : ", round(self.montage_pitch_angle, 1))
 
         # update menu display of camera pitch
@@ -3801,6 +3838,7 @@ class MainWindow(QMainWindow):
                 self.bookmarks_df = self.bookmarks_df.sort_values("frame").reset_index(drop=True)
         except Exception:
             self.bookmarks_df = pd.DataFrame(columns=["time", "name", "frame"])
+        self._rebuild_bookmark_cache()
         self.refresh_bookmark_menu()
         self.update_bookmark_ticks()
 
@@ -3845,6 +3883,7 @@ class MainWindow(QMainWindow):
         # sort bookmarks by frame index
         self.bookmarks_df = self.bookmarks_df.sort_values("frame").reset_index(drop=True)
         self.save_bookmarks()
+        self._rebuild_bookmark_cache()
         self.refresh_bookmark_menu()
         self.update_bookmark_ticks()
 
@@ -4199,25 +4238,19 @@ class MainWindow(QMainWindow):
         self.update_video_label()
         self.update_g_timeline_cursor()
 
-        if self.bookmarks_df is not None and not self.bookmarks_df.empty:
-            fps = float(self.stream1.average_rate)
-            if fps <= 0:
-                fps = 30
-            fps = int(fps)
-
-            for _, row_bm in self.bookmarks_df.iterrows():
-                frame = int(row_bm["frame"])
-                trigger_frame = frame - fps  # 1 second before
-                if self.i == trigger_frame:
-                    name = str(row_bm["name"])
+        if len(self._bm_frames_cache) > 0:
+            fps = int(self.fps_video)
+            for j in range(len(self._bm_frames_cache)):
+                frame = self._bm_frames_cache[j]
+                if self.i == frame - fps:
                     if frame != self.last_bookmark_frame:
-                        self.show_bookmark_overlay(name)
+                        self.show_bookmark_overlay(str(self._bm_names_cache[j]))
                         self.last_bookmark_frame = frame
 
         # ---- Elapsed time overlay update ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - self.t0_timestamp
                 total_sec = int(elapsed.total_seconds())
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
@@ -4321,7 +4354,7 @@ class MainWindow(QMainWindow):
         # ---- Elapsed time overlay update (compute txt here) ----
         try:
             if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - self.df.timestamp.iloc[0]
+                elapsed = self.current_video_time_utc - self.t0_timestamp
                 total_sec = int(elapsed.total_seconds())
                 h = total_sec // 3600
                 m = (total_sec % 3600) // 60
