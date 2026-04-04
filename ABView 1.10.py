@@ -4070,7 +4070,8 @@ class MainWindow(QMainWindow):
             else:
                 bytes_free = 16384
             # 🔑 on remplit un peu plus que nécessaire
-            target_buffer = max(bytes_free * 2, 16384)
+            target_buffer = max(bytes_free * 2, 32768)
+            target_buffer = min(target_buffer, 65536)  # hard cap to avoid latency drift
             # 🔑 décodage adaptatif
             while len(self.audio_buffer) < target_buffer:
                 packet = next(self.audio_packets)
@@ -4082,7 +4083,31 @@ class MainWindow(QMainWindow):
                         if f is None:
                             continue
                         if f.pts is not None:
-                            self.audio_clock_sec = float(f.pts * f.time_base)
+                            bytes_per_sample = 2  # assuming s16
+
+                            # fallback safe values if attributes not initialized
+                            sample_rate = getattr(self, "audio_sample_rate", None)
+                            channels = getattr(self, "audio_channels", None)
+
+                            if sample_rate is None:
+                                try:
+                                    sample_rate = f.sample_rate
+                                    self.audio_sample_rate = sample_rate
+                                except Exception:
+                                    sample_rate = 48000  # safe default
+
+                            if channels is None:
+                                try:
+                                    channels = len(f.layout.channels)
+                                    self.audio_channels = channels
+                                except Exception:
+                                    channels = 2  # safe default
+
+                            buffer_duration = len(self.audio_buffer) / (
+                                sample_rate * channels * bytes_per_sample
+                            )
+
+                            self.audio_clock_sec = float(f.pts * f.time_base) - buffer_duration
                         self.audio_buffer += f.to_ndarray().tobytes()
         except StopIteration:
             return
@@ -4090,13 +4115,13 @@ class MainWindow(QMainWindow):
             print("audio error:", e)
             return
         # 🔊 écriture CONTINUE (critique)
-        chunk_size = 4096
+        chunk_size = 4096  # lower latency, better sync
         if not hasattr(self, "audio_output"):
             return
         bytes_free = self.audio_output.bytesFree()
 
         if len(self.audio_buffer) < chunk_size:
-            self.stutter_count += 1
+            self.stutter_count += 1  # underflow risk
 
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
