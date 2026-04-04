@@ -3240,6 +3240,73 @@ class MainWindow(QMainWindow):
         # compute energy
         self.energy=0.5*self.row.gps_speed**2 + 9.81 * self.row.gps_alt * 0.3048
 
+
+    def update_energy_graph(self):
+        # ---- Update rolling energy graph ----
+        if hasattr(self, "energy_plot"):
+            try:
+                # update graph only every 30 frames (performance optimization)
+                if hasattr(self, "i") and self.i % 30 != 0:
+                    return
+                # rebuild buffer directly from dataframe (handles seek)
+                if hasattr(self, "energy_full") and self.energy_full is not None:
+                    t_current = self.df.timestamp.iloc[self.idf].timestamp()
+                    t0 = t_current - 30
+
+                    # find indices in last 30 seconds
+                    times = self.df.timestamp
+                    import pandas as pd
+                    mask = (times >= times.iloc[self.idf] - pd.Timedelta(seconds=30)) & (times <= times.iloc[self.idf])
+                    idxs = times[mask].index
+
+                    self.energy_time = [times.iloc[i].timestamp() for i in idxs]
+                    self.energy_values = [float(self.energy_full[i]) for i in idxs]
+                else:
+                    # fallback incremental
+                    t = self.df.timestamp.iloc[self.idf].timestamp()
+                    e = float(self.energy)
+                    self.energy_time.append(t)
+                    self.energy_values.append(e)
+
+                    t0 = t - 30
+                    while self.energy_time and self.energy_time[0] < t0:
+                        self.energy_time.pop(0)
+                        self.energy_values.pop(0)
+
+                # normalize time to start at 0
+                if self.energy_time:
+                    t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
+                else:
+                    t_rel = []
+
+                self.energy_curve.setData(t_rel, self.energy_values)
+
+                # enforce minimum Y span of 10000
+                try:
+                    if len(self.energy_values) > 0:
+                        ymin = min(self.energy_values)
+                        ymax = max(self.energy_values)
+                        if (ymax - ymin) < 15000:
+                            center = (ymax + ymin) / 2
+                            ymin = center - 7500
+                            ymax = center + 7500
+                        self.energy_plot.setYRange(ymin, ymax, padding=0)
+                except Exception:
+                    pass
+
+                # keep plot anchored bottom-right (responsive)
+                try:
+                    self.energy_plot.setGeometry(
+                        0,
+                        self.gfx_canvas.height() - 160,
+                        300,
+                        140
+                    )
+                except Exception:
+                    pass
+
+            except Exception:
+                pass
     def update_gfx_orientation(self):
 
         self.compute_orientation()
@@ -3412,72 +3479,6 @@ class MainWindow(QMainWindow):
         self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10,45)
 
 
-        # ---- Update rolling energy graph ----
-        if hasattr(self, "energy_plot"):
-            try:
-                # update graph only every 30 frames (performance optimization)
-                if hasattr(self, "i") and self.i % 30 != 0:
-                    return
-                # rebuild buffer directly from dataframe (handles seek)
-                if hasattr(self, "energy_full") and self.energy_full is not None:
-                    t_current = self.df.timestamp.iloc[self.idf].timestamp()
-                    t0 = t_current - 30
-
-                    # find indices in last 30 seconds
-                    times = self.df.timestamp
-                    import pandas as pd
-                    mask = (times >= times.iloc[self.idf] - pd.Timedelta(seconds=30)) & (times <= times.iloc[self.idf])
-                    idxs = times[mask].index
-
-                    self.energy_time = [times.iloc[i].timestamp() for i in idxs]
-                    self.energy_values = [float(self.energy_full[i]) for i in idxs]
-                else:
-                    # fallback incremental
-                    t = self.df.timestamp.iloc[self.idf].timestamp()
-                    e = float(self.energy)
-                    self.energy_time.append(t)
-                    self.energy_values.append(e)
-
-                    t0 = t - 30
-                    while self.energy_time and self.energy_time[0] < t0:
-                        self.energy_time.pop(0)
-                        self.energy_values.pop(0)
-
-                # normalize time to start at 0
-                if self.energy_time:
-                    t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
-                else:
-                    t_rel = []
-
-                self.energy_curve.setData(t_rel, self.energy_values)
-
-                # enforce minimum Y span of 10000
-                try:
-                    if len(self.energy_values) > 0:
-                        ymin = min(self.energy_values)
-                        ymax = max(self.energy_values)
-                        if (ymax - ymin) < 15000:
-                            center = (ymax + ymin) / 2
-                            ymin = center - 7500
-                            ymax = center + 7500
-                        self.energy_plot.setYRange(ymin, ymax, padding=0)
-                except Exception:
-                    pass
-
-                # keep plot anchored bottom-right (responsive)
-                try:
-                    self.energy_plot.setGeometry(
-                        0,
-                        self.gfx_canvas.height() - 160,
-                        300,
-                        140
-                    )
-                except Exception:
-                    pass
-
-            except Exception:
-                pass
-
         # update speed vector geometry & color
         r = 0;g = 0;b = 0
         if self.row.gps_speed < 113:
@@ -3492,10 +3493,8 @@ class MainWindow(QMainWindow):
                     r=255;g=0;b=0
 
         # apply same color to velocity vector (gfx_vec_y)
-        if hasattr(self, "gfx_vec_y"):
-            self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
-        if hasattr(self, "gfx_y_arrow"):
-            self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+        self.gfx_vec_y.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
+        self.gfx_y_arrow.material.color = (r/255.0, g/255.0, b/255.0, 1.0)
 
         self.gps_label_speed.setStyleSheet(
             f"color: rgb({r},{g},{b}); "
@@ -3511,6 +3510,8 @@ class MainWindow(QMainWindow):
         self.gps_label_vario.adjustSize()
         self.gps_label_vario.move(
             self.gfx_canvas.width() - self.gps_label_vario.width(),100)
+
+        self.update_energy_graph()
 
     def update_video_label(self):
         row = self.row
