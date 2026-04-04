@@ -1769,22 +1769,6 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "elapsed_time_overlay"):
             return
 
-        # IMPORTANT : forcer recalcul taille
-        self.elapsed_time_overlay.adjustSize()
-
-        # utiliser largeur de la fenêtre principale (plus fiable)
-        w = self.width()
-
-        x = (w - self.elapsed_time_overlay.width()) // 2
-        y = 17
-
-        self.elapsed_time_overlay.move(x, y)
-        self.elapsed_time_overlay.raise_()
-
-    def _position_elapsed_time_overlay(self):
-        if not hasattr(self, "elapsed_time_overlay"):
-            return
-
         self.elapsed_time_overlay.adjustSize()
         w = self.width()
 
