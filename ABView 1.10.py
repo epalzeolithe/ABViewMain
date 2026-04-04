@@ -860,7 +860,6 @@ class MainWindow(QMainWindow):
 
         self.metar_df = pd.read_csv(INPUT_METAR, encoding="utf-8")
         self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
-        self.metar_df["time"] = pd.to_datetime(self.metar_df["time"], format="mixed", utc=True)
 
         # ======================================================
         # TOP remarquables
