@@ -4214,8 +4214,7 @@ class MainWindow(QMainWindow):
             frames_to_skip = int(delay * fps)
 
             # clamp to avoid brutal jumps
-            frames_to_skip = min(frames_to_skip, 15)
-
+            frames_to_skip = min(frames_to_skip, 10)
             for _ in range(frames_to_skip):
                 try:
                     frame = next(decoder)
