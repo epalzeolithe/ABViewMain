@@ -2,8 +2,8 @@
 SKIP_X4_EXPORT = False
 SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
-SKIP_METAR = True
-SKIP_WIND = True
+SKIP_METAR = False
+SKIP_WIND = False
 CONSOLE_WINDOW = False
 
 import os,re
