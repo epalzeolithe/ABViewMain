@@ -4095,6 +4095,9 @@ class MainWindow(QMainWindow):
             return
         bytes_free = self.audio_output.bytesFree()
 
+        if len(self.audio_buffer) < chunk_size:
+            self.stutter_count += 1
+
         # 🔑 on vide autant que possible (et pas 1 seul chunk)
         while len(self.audio_buffer) >= chunk_size:
             written = self.audio_device.write(self.audio_buffer[:chunk_size])

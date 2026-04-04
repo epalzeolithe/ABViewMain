@@ -2,8 +2,8 @@
 SKIP_X4_EXPORT = False
 SKIP_GNS3000_IMPORT = False
 SKIP_IPHONE_IMPORT = False
-SKIP_METAR = False
-SKIP_WIND = False
+SKIP_METAR = True
+SKIP_WIND = True
 CONSOLE_WINDOW = False
 
 import os,re
@@ -477,6 +477,14 @@ def get_wind(lat, lon, dt: datetime):
     output_file = "data/raw/temp/wind_era5.nc"
     create_cdsapirc("3fbb3d97-320a-43d3-bb61-43a3ab32216b")
     c = cdsapi.Client()
+    # ---- ERA5 availability safeguard ----
+    # ERA5 data is not real-time (≈ 5 days delay)
+    max_available = datetime.utcnow() - timedelta(days=7)
+    if dt > max_available:
+        print(f"[WARN] ERA5 date {dt} not available, clamping to {max_available}")
+        dt = max_available
+    # Round to the nearest hour for ERA5
+    dt_rounded = dt.replace(minute=0, second=0, microsecond=0)
     c.retrieve(
         "reanalysis-era5-pressure-levels",
         {
@@ -486,10 +494,10 @@ def get_wind(lat, lon, dt: datetime):
                 "v_component_of_wind",
             ],
             "pressure_level": list(pressure_levels.values()),
-            "year": dt.strftime("%Y"),
-            "month": dt.strftime("%m"),
-            "day": dt.strftime("%d"),
-            "time": dt.strftime("%H:%M"),
+            "year": dt_rounded.strftime("%Y"),
+            "month": dt_rounded.strftime("%m"),
+            "day": dt_rounded.strftime("%d"),
+            "time": dt_rounded.strftime("%H:%M"),
             "format": "netcdf",
             "area": [
                 lat + 0.1,
@@ -875,9 +883,8 @@ def main():
         xdf = xdf.reset_index(drop=True)
         st1 = get_mp4_creation_datetime(SUBDIR+X4_INSV_1)
         xdf['timestamp'] = st1 + pd.to_timedelta(xdf['timestamp_ms'], unit='ms')
-        xdf["timestamp"] = xdf["timestamp"].dt.tz_convert("Etc/GMT-1")
-        xdf['timestamp'] = xdf['timestamp'].dt.tz_localize(None)
-        xdf["timestamp"] = xdf["timestamp"].astype("datetime64[us]")
+        xdf['timestamp'] = xdf['timestamp'].dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+        xdf['timestamp'] = xdf['timestamp'].astype("datetime64[us]")
 
         print("*************** CUT END of INSV1 ***************")
         xdf_begin = xdf['timestamp'].iloc[0]
