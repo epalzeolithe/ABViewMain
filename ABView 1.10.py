@@ -3068,19 +3068,6 @@ class MainWindow(QMainWindow):
         self.gsmax_label.raise_()
         self.gsmax_label.show()
 
-        # ---- Energy label (just under GSmax) ----
-        self.energy_label = QLabel("E:", self.gfx_canvas)
-        self.energy_label.setStyleSheet(
-            "color: gray; background-color: transparent; padding: 10px; font-family: 'Menlo'; font-size: 14px; font-weight: bold;"
-        )
-        self.energy_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.energy_label.adjustSize()
-        self.energy_label.move(
-            self.gfx_canvas.width() - self.energy_label.width() - 10,
-            80
-        )
-        self.energy_label.raise_()
-        self.energy_label.show()
 
         # ---- GPS speed & altitude overlay (bottom-right) ----
         self.gps_label_alt = QLabel("GPS:", self.gfx_canvas)
@@ -3424,17 +3411,6 @@ class MainWindow(QMainWindow):
         self.gsmax_label.adjustSize()
         self.gsmax_label.move(self.gfx_canvas.width() - self.gsmax_label.width() - 10,45)
 
-        # update Energy label
-        if hasattr(self, "energy_label"):
-            try:
-                self.energy_label.setText(f"E {self.energy:.0f}")
-            except Exception:
-                self.energy_label.setText("E --")
-            self.energy_label.adjustSize()
-            self.energy_label.move(
-                self.gfx_canvas.width() - self.energy_label.width() - 10,
-                80
-            )
 
         # ---- Update rolling energy graph ----
         if hasattr(self, "energy_plot"):
