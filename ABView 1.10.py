@@ -3311,7 +3311,6 @@ class MainWindow(QMainWindow):
         # assignation
         self.energy_values = values.tolist()
         self.energy_time = t_rel.tolist()
-
         self.energy_curve.setData(t_rel, self.energy_values)
 
         if len(self.energy_values) > 0:
