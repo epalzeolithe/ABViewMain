@@ -1786,13 +1786,9 @@ class MainWindow(QMainWindow):
 
     def build_energy_graph(self):
         # ---- Precompute full energy vector once ----
-        if not hasattr(self, "energy_full"):
-            try:
-                speed = self.df["gps_speed"].to_numpy()
-                alt = self.df["gps_alt"].to_numpy()
-                self.energy_full = 0.5 * speed ** 2 + 9.81 * alt * 0.3048
-            except Exception:
-                self.energy_full = None
+        speed = self.df["gps_speed"].to_numpy()
+        alt = self.df["gps_alt"].to_numpy()
+        self.energy_full = 0.5 * ((speed/12.96) ** 2) + 9.81 * alt * 0.3048
 
     def update_bookmark_ticks(self):
         # slider may not be initialized yet during early init_UI
@@ -3178,10 +3174,7 @@ class MainWindow(QMainWindow):
         self.energy_plot.setStyleSheet("background: transparent;")
         self.energy_plot.showGrid(x=True, y=True, alpha=0.3)
         # ensure viewbox is also transparent
-        try:
-            self.energy_plot.getPlotItem().getViewBox().setBackgroundColor(None)
-        except Exception:
-            pass
+        self.energy_plot.getPlotItem().getViewBox().setBackgroundColor(None)
         self.energy_plot.enableAutoRange(axis='y')
 
         # style clean
@@ -3300,72 +3293,43 @@ class MainWindow(QMainWindow):
         self.energy = 0.5 * self.gps_speed_vals[idf] ** 2 + 9.81 * self.gps_alt_vals[idf] * 0.3048
 
     def update_energy_graph(self):
-        # ---- Update rolling energy graph ----
-        if hasattr(self, "energy_plot"):
-            try:
-                # update graph only every 30 frames (performance optimization)
-                if hasattr(self, "i") and self.i % 30 != 0:
-                    return
-                # rebuild buffer directly from dataframe (handles seek)
-                if hasattr(self, "energy_full") and self.energy_full is not None:
-                    # use pre-cached numpy timestamp array — no pandas access in hot path
-                    t_now = self.timestamp_vals[self.idf]
-                    t_30s_ago = t_now - np.timedelta64(30, 's')
-                    mask = (self.timestamp_vals >= t_30s_ago) & (self.timestamp_vals <= t_now)
-                    idxs = np.where(mask)[0]
-                    epoch = np.datetime64(0, 's')
-                    sec_unit = np.timedelta64(1, 's')
-                    self.energy_time = ((self.timestamp_vals[idxs] - epoch) / sec_unit).tolist()
-                    self.energy_values = self.energy_full[idxs].tolist()
-                else:
-                    # fallback incremental
-                    t_now = self.timestamp_vals[self.idf]
-                    epoch = np.datetime64(0, 's')
-                    sec_unit = np.timedelta64(1, 's')
-                    t = float((t_now - epoch) / sec_unit)
-                    e = float(self.energy)
-                    self.energy_time.append(t)
-                    self.energy_values.append(e)
+        if hasattr(self, "i") and self.i % 30 != 0:
+            return
 
-                    t0 = t - 30
-                    while self.energy_time and self.energy_time[0] < t0:
-                        self.energy_time.pop(0)
-                        self.energy_values.pop(0)
+        # fenêtre = 500 derniers points
+        end_idx = self.idf
+        start_idx = max(0, end_idx - 5000)
 
-                # normalize time to start at 0
-                if self.energy_time:
-                    t_rel = [tt - self.energy_time[0] for tt in self.energy_time]
-                else:
-                    t_rel = []
+        # slicing direct numpy (très rapide)
+        values = self.energy_full[start_idx:end_idx]
 
-                self.energy_curve.setData(t_rel, self.energy_values)
+        # axe temps relatif
+        df_freq = getattr(self, "df_freq", 30.0)
+        n = len(values)
+        t_rel = np.arange(n) / df_freq
 
-                # enforce minimum Y span of 10000
-                try:
-                    if len(self.energy_values) > 0:
-                        ymin = min(self.energy_values)
-                        ymax = max(self.energy_values)
-                        if (ymax - ymin) < 15000:
-                            center = (ymax + ymin) / 2
-                            ymin = center - 7500
-                            ymax = center + 7500
-                        self.energy_plot.setYRange(ymin, ymax, padding=0)
-                except Exception:
-                    pass
+        # assignation
+        self.energy_values = values.tolist()
+        self.energy_time = t_rel.tolist()
 
-                # keep plot anchored bottom-right (responsive)
-                try:
-                    self.energy_plot.setGeometry(
-                        0,
-                        self.gfx_canvas.height() - 160,
-                        300,
-                        140
-                    )
-                except Exception:
-                    pass
+        self.energy_curve.setData(t_rel, self.energy_values)
 
-            except Exception:
-                pass
+        if len(self.energy_values) > 0:
+            ymin = min(self.energy_values)
+            ymax = max(self.energy_values)
+            if (ymax - ymin) < 2000:
+                center = (ymax + ymin) / 2
+                ymin = center - 1000
+                ymax = center + 1000
+            self.energy_plot.setYRange(ymin, ymax, padding=0)
+
+        # keep plot anchored bottom-right (responsive)
+        self.energy_plot.setGeometry(
+            0,
+            self.gfx_canvas.height() - 100,
+            300,
+            100)
+
 
     def update_gfx_orientation(self):
 
