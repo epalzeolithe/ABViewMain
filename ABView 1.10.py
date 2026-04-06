@@ -3890,8 +3890,9 @@ class MainWindow(QMainWindow):
             try:
                 import json
 
-                lat = self.gps_lat_vals[start:self.idf]
-                lon = self.gps_lon_vals[start:self.idf]
+                # downsample (1 point every 30)
+                lat = self.gps_lat_vals[start:self.idf:30]
+                lon = self.gps_lon_vals[start:self.idf:30]
 
                 # stack into [[lat, lon], ...]
                 points = np.column_stack((lat, lon)).tolist()
