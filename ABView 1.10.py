@@ -3882,6 +3882,24 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+        # ---- Rebuild OSM trajectory after seek ----
+        if self.map_ready:
+            import json
+
+            window = 5000  # ~1 minute d'historique
+            start = max(0, self.idf - window)
+
+            points = [
+                [float(self.df.gps_lat.iloc[i]), float(self.df.gps_lon.iloc[i])]
+                for i in range(start, self.idf)
+            ]
+
+            js = f"resetTrajectoryWithData({json.dumps(points)})"
+
+            if hasattr(self, "map_view"):
+                self.map_view.page().runJavaScript(js)
+
+
         fps = float(self.stream1.average_rate)
         ts = int((frame / fps) / float(self.stream1.time_base))
         self.container1.seek(ts, stream=self.stream1)
@@ -4426,16 +4444,16 @@ class MainWindow(QMainWindow):
 
     # ==================================================
     def on_slider(self, value):
-        # move both videos to the requested frame
-        self.seek_video(value)
-        # force an immediate refresh when paused
-        if not self.playing:
-            self.update_all()
         try:
             if self.map_ready:
                 self.map_view.page().runJavaScript("resetTrajectory();")
         except Exception:
             pass
+        # move both videos to the requested frame
+        self.seek_video(value)
+        # force an immediate refresh when paused
+        if not self.playing:
+            self.update_all()
 
     def update_gps_pyqtgraph(self):
         # skip updates only during playback
