@@ -3945,7 +3945,6 @@ class MainWindow(QMainWindow):
         If called again within 2 seconds, jump one bookmark further back."""
         if self.bookmarks_df is None or self.bookmarks_df.empty:
             return
-        import time
         now = time.time()
         # bookmarks before current frame
         past = self.bookmarks_df[self.bookmarks_df["frame"] < self.i]
@@ -3966,23 +3965,17 @@ class MainWindow(QMainWindow):
         self.goto_bookmark(frame)
 
     def goto_next_bookmark(self):
-        """Jump to the next bookmark after the current frame."""
-
         if self.bookmarks_df is None or self.bookmarks_df.empty:
             return
-
-        # chercher les bookmarks après la frame actuelle
+      # chercher les bookmarks après la frame actuelle
         future = self.bookmarks_df[self.bookmarks_df["frame"] > self.i]
-
         if future.empty:
             print("No next bookmark")
             return
-
         frame = int(future.iloc[0]["frame"])
         self.goto_bookmark(frame)
 
     def show_bookmark_overlay(self, name):
-
         if self.bookmark_overlay is None:
             return
 
@@ -4011,13 +4004,10 @@ class MainWindow(QMainWindow):
 
         # keep audio synchronized with video pause/play
         if hasattr(self, "audio_output") and self.audio_stream is not None:
-            try:
-                if self.playing:
-                    self.audio_output.resume()
-                else:
-                    self.audio_output.suspend()
-            except Exception:
-                pass
+            if self.playing:
+                self.audio_output.resume()
+            else:
+                self.audio_output.suspend()
 
     # ==================================================
     # Gestion clavier (Espace = Pause / Lecture)
@@ -4181,24 +4171,21 @@ class MainWindow(QMainWindow):
         return frame_index
 
     def update_wind(self):
-        try:
-            ws = self.gps_wind_speed_vals[self.idf] / 1.852
-            wd = self.gps_wind_direction_vals[self.idf]
+        ws = self.gps_wind_speed_vals[self.idf] / 1.852
+        wd = self.gps_wind_direction_vals[self.idf]
 
-            self.map_wind_label.setText(f"{ws:.0f} kt\n{wd:.0f}°")
-            self.map_wind_label.adjustSize()
+        self.map_wind_label.setText(f"{ws:.0f} kt\n{wd:.0f}°")
+        self.map_wind_label.adjustSize()
 
-            # rotation de la flèche (direction du vent)
-            if hasattr(self, "wind_arrow_base"):
-                transform = QTransform().rotate(wd)
-                rotated = self.wind_arrow_base.transformed(transform, Qt.SmoothTransformation)
-                self.map_wind_arrow.setPixmap(rotated)
-                self.map_wind_arrow.adjustSize()
+        # rotation de la flèche (direction du vent)
+        if hasattr(self, "wind_arrow_base"):
+            transform = QTransform().rotate(wd)
+            rotated = self.wind_arrow_base.transformed(transform, Qt.SmoothTransformation)
+            self.map_wind_arrow.setPixmap(rotated)
+            self.map_wind_arrow.adjustSize()
 
-            self._position_map_wind_label()
+        self._position_map_wind_label()
 
-        except Exception:
-            pass
 
     # ==================================================
     def update_all(self):
@@ -4229,20 +4216,17 @@ class MainWindow(QMainWindow):
                         self.last_bookmark_frame = frame
 
         # ---- Elapsed time overlay update ----
-        try:
-            if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - self.t0_timestamp
-                total_sec = int(elapsed.total_seconds())
-                h = total_sec // 3600
-                m = (total_sec % 3600) // 60
-                s = total_sec % 60
-                if h > 0:
-                    txt = f"{h:02d}:{m:02d}:{s:02d}"
-                else:
-                    txt = f"{m:02d}:{s:02d}"
-                self.elapsed_time_overlay.setText(txt)
-        except Exception:
-            pass
+        if self.current_video_time_utc is not None:
+            elapsed = self.current_video_time_utc - self.t0_timestamp
+            total_sec = int(elapsed.total_seconds())
+            h = total_sec // 3600
+            m = (total_sec % 3600) // 60
+            s = total_sec % 60
+            if h > 0:
+                txt = f"{h:02d}:{m:02d}:{s:02d}"
+            else:
+                txt = f"{m:02d}:{s:02d}"
+            self.elapsed_time_overlay.setText(txt)
 
     # ==================================================
     def sync_video_to_audio(self, decoder, frame, stream):
@@ -4333,41 +4317,35 @@ class MainWindow(QMainWindow):
         # self.timestamp_label.setText(f"Video time : {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # ---- Elapsed time overlay update (compute txt here) ----
-        try:
-            if self.current_video_time_utc is not None:
-                elapsed = self.current_video_time_utc - self.t0_timestamp
-                total_sec = int(elapsed.total_seconds())
-                h = total_sec // 3600
-                m = (total_sec % 3600) // 60
-                s = total_sec % 60
-                if h > 0:
-                    txt = f"{h:02d}:{m:02d}:{s:02d}"
-                else:
-                    txt = f"{m:02d}:{s:02d}"
-                self.elapsed_time_overlay.setText(txt)
-                self.elapsed_time_overlay.adjustSize()
-                self._position_elapsed_time_overlay()
-                QTimer.singleShot(0, self._position_elapsed_time_overlay)
-        except Exception:
-            pass
+        if self.current_video_time_utc is not None:
+            elapsed = self.current_video_time_utc - self.t0_timestamp
+            total_sec = int(elapsed.total_seconds())
+            h = total_sec // 3600
+            m = (total_sec % 3600) // 60
+            s = total_sec % 60
+            if h > 0:
+                txt = f"{h:02d}:{m:02d}:{s:02d}"
+            else:
+                txt = f"{m:02d}:{s:02d}"
+            self.elapsed_time_overlay.setText(txt)
+            self.elapsed_time_overlay.adjustSize()
+            self._position_elapsed_time_overlay()
+            QTimer.singleShot(0, self._position_elapsed_time_overlay)
 
         # ---- Previous bookmark overlay update ----
-        try:
-            if self.current_video_time_utc is not None and self.bookmarks_df is not None:
-                # t = self.current_video_time_utc
-                df_b = self.bookmarks_df
-                # bookmarks passés uniquement
-                past = df_b[df_b["frame"] <= self.i]
-                if len(past) > 0:
-                    last = past.iloc[-1]
-                    name = str(last.get("name", last.get("label", "")))
-                    self.prev_bookmark_overlay.setText(name)
-                    self.prev_bookmark_overlay.show()
-                    self.prev_bookmark_overlay.adjustSize()
-                else:
-                    self.prev_bookmark_overlay.hide()
-        except Exception:
-            pass
+        if self.current_video_time_utc is not None and self.bookmarks_df is not None:
+            # t = self.current_video_time_utc
+            df_b = self.bookmarks_df
+            # bookmarks passés uniquement
+            past = df_b[df_b["frame"] <= self.i]
+            if len(past) > 0:
+                last = past.iloc[-1]
+                name = str(last.get("name", last.get("label", "")))
+                self.prev_bookmark_overlay.setText(name)
+                self.prev_bookmark_overlay.show()
+                self.prev_bookmark_overlay.adjustSize()
+            else:
+                self.prev_bookmark_overlay.hide()
 
     # ==================================================
     # 🔑 SYNCHRO VIDEO ← DF
