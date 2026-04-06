@@ -402,10 +402,8 @@ class SCStreamHandler(NSObject, protocols=[objc.protocolNamed("SCStreamOutput")]
             elif outputType == ScreenCaptureKit.SCStreamOutputTypeAudio:
                 if hasattr(self, "audio_input") and self.audio_input is not None:
                     if self.audio_input.isReadyForMoreMediaData():
-                        try:
-                            self.audio_input.appendSampleBuffer_(sampleBuffer)
-                        except Exception:
-                            pass
+                        self.audio_input.appendSampleBuffer_(sampleBuffer)
+
 
         except Exception as e:
             print("SCStream handler error:", e)
@@ -1100,42 +1098,26 @@ class MainWindow(QMainWindow):
 
             # ---- stop Qt timer FIRST ----
             if hasattr(self, "timer"):
-                try:
-                    self.timer.stop()
-                except Exception:
-                    pass
+                self.timer.stop()
 
             # ---- stop pygfx / rendercanvas cleanly ----
             if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
-                try:
-                    # ---- CRITICAL: stop rendercanvas loop BEFORE Qt deletes widget ----
-                    try:
-                        if hasattr(self.gfx_canvas, "_rc_canvas"):
-                            loop = getattr(self.gfx_canvas._rc_canvas, "_loop", None)
-                            if loop is not None:
-                                loop.stop(force=True)
-                    except Exception:
-                        pass
-
-                    # ---- detach from Qt ----
-                    self.gfx_canvas.setParent(None)
-                    self.gfx_canvas.hide()
-                except Exception:
-                    pass
+                # ---- CRITICAL: stop rendercanvas loop BEFORE Qt deletes widget ----
+                if hasattr(self.gfx_canvas, "_rc_canvas"):
+                    loop = getattr(self.gfx_canvas._rc_canvas, "_loop", None)
+                    if loop is not None:
+                        loop.stop(force=True)
+                # ---- detach from Qt ----
+                self.gfx_canvas.setParent(None)
+                self.gfx_canvas.hide()
 
             # ---- process remaining Qt events (flush callbacks) ----
             QApplication.processEvents()
 
             # ---- now safe deletion ----
             if hasattr(self, "gfx_canvas") and self.gfx_canvas is not None:
-                try:
-                    try:
-                        self.gfx_canvas.close()
-                    except Exception:
-                        pass
-                    self.gfx_canvas.deleteLater()
-                except Exception:
-                    pass
+                self.gfx_canvas.close()
+                self.gfx_canvas.deleteLater()
 
         except Exception:
             pass
@@ -1358,7 +1340,7 @@ class MainWindow(QMainWindow):
         self.video1_fpm_label.adjustSize()
         self.video1_fpm_label.raise_()
         # Not needed for VideoYUVWidget (handled in paintEvent)
-        pass
+        #pass
         # prevent QLabel from expanding to the raw video resolution
         self.video1.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.video2.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
@@ -1687,26 +1669,21 @@ class MainWindow(QMainWindow):
         self.g_timeline.setPixmap(pix)
 
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
-        try:
-            if not hasattr(self, "g_timeline_legend"):
-                # IMPORTANT: parent = g_timeline (not main window)
-                self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
-                self.g_timeline_legend.setStyleSheet(
-                    "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
-                )
-                self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
-                self.g_timeline_legend.raise_()
-
-            self.g_timeline_legend.adjustSize()
-
-            # position INSIDE the bar (top-left)
-            self.g_timeline_legend.move(0, 0)
+        if not hasattr(self, "g_timeline_legend"):
+            # IMPORTANT: parent = g_timeline (not main window)
+            self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
+            self.g_timeline_legend.setStyleSheet(
+                "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
+            )
+            self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.g_timeline_legend.raise_()
 
-            self.g_timeline_legend.show()
+        self.g_timeline_legend.adjustSize()
 
-        except Exception:
-            pass
+        # position INSIDE the bar (top-left)
+        self.g_timeline_legend.move(0, 0)
+        self.g_timeline_legend.raise_()
+        self.g_timeline_legend.show()
 
     def build_altitude_timeline(self):
         if "gps_alt" not in self.df.columns:
@@ -5021,7 +4998,6 @@ if __name__ == "__main__":
 
     def cleanup():
         print("🧹 CLEANUP START")
-
         try:
             if hasattr(win, "gfx_display"):
                 win.gfx_display.canvas = None
