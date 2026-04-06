@@ -3915,26 +3915,20 @@ class MainWindow(QMainWindow):
 
         # ---- reset audio when seeking ----
         if self.audio_stream is not None:
-            try:
-                fps = float(self.stream1.average_rate)
-                ts_audio = int((frame / fps) / float(self.audio_stream.time_base))
-                # seek audio container
-                self.audio_container.seek(ts_audio, stream=self.audio_stream)
-                # recreate packet generator
-                self.audio_packets = self.audio_container.demux(self.audio_stream)
-                # clear buffered audio and restart buffering
-                self.audio_buffer = bytearray()
-                self.audio_clock_sec = 0.0
-                # reset sync warmup after seek
-                self.sync_enabled = False
-                self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
-                self.startup_time_ms = self.clock.elapsed()
-                self.audio_started = True
-                # self.audio_prebuffer_done = False
-
-            except Exception:
-                pass
-        # self.next_frame_time = self.clock.elapsed()
+            fps = float(self.stream1.average_rate)
+            ts_audio = int((frame / fps) / float(self.audio_stream.time_base))
+            # seek audio container
+            self.audio_container.seek(ts_audio, stream=self.audio_stream)
+            # recreate packet generator
+            self.audio_packets = self.audio_container.demux(self.audio_stream)
+            # clear buffered audio and restart buffering
+            self.audio_buffer = bytearray()
+            self.audio_clock_sec = 0.0
+            # reset sync warmup after seek
+            self.sync_enabled = False
+            self.sync_reenable_time = self.clock.elapsed() + 300  # 300 ms
+            self.startup_time_ms = self.clock.elapsed()
+            self.audio_started = True
 
     def goto_bookmark(self, frame):
         self.seek_video(frame)
