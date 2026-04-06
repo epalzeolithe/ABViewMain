@@ -15,7 +15,7 @@ import OpenGL.GL as gl
 import pyqtgraph.opengl as glpg
 from stl import mesh
 import math, time, sys, os
-import psutil
+import psutil,json
 from datetime import datetime, timedelta, timezone
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
@@ -3882,22 +3882,27 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-        # ---- Rebuild OSM trajectory after seek ----
+        # ---- Rebuild OSM trajectory after seek (use numpy caches, no pandas) ----
         if self.map_ready:
-            import json
-
-            window = 5000  # ~1 minute d'historique
+            window = 5000
             start = max(0, self.idf - window)
 
-            points = [
-                [float(self.df.gps_lat.iloc[i]), float(self.df.gps_lon.iloc[i])]
-                for i in range(start, self.idf)
-            ]
+            try:
+                import json
 
-            js = f"resetTrajectoryWithData({json.dumps(points)})"
+                lat = self.gps_lat_vals[start:self.idf]
+                lon = self.gps_lon_vals[start:self.idf]
 
-            if hasattr(self, "map_view"):
-                self.map_view.page().runJavaScript(js)
+                # stack into [[lat, lon], ...]
+                points = np.column_stack((lat, lon)).tolist()
+
+                js = f"resetTrajectoryWithData({json.dumps(points)})"
+
+                if hasattr(self, "map_view"):
+                    self.map_view.page().runJavaScript(js)
+
+            except Exception as e:
+                print("Trajectory rebuild (numpy) failed:", e)
 
 
         fps = float(self.stream1.average_rate)
