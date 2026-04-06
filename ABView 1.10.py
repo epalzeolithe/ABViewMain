@@ -4422,11 +4422,8 @@ class MainWindow(QMainWindow):
 
     # ==================================================
     def on_slider(self, value):
-        try:
-            if self.map_ready:
-                self.map_view.page().runJavaScript("resetTrajectory();")
-        except Exception:
-            pass
+        if self.map_ready:
+            self.map_view.page().runJavaScript("resetTrajectory();")
         # move both videos to the requested frame
         self.seek_video(value)
         # force an immediate refresh when paused
@@ -4448,11 +4445,8 @@ class MainWindow(QMainWindow):
 
         # keep METAR overlay visible and correctly positioned
         if hasattr(self, "map_metar_label"):
-            try:
-                self.map_metar_label.setText(getattr(self, "last_metar", ""))
-                self._position_map_metar_label()
-            except Exception:
-                pass
+            self.map_metar_label.setText(getattr(self, "last_metar", ""))
+            self._position_map_metar_label()
 
         end = self.idf
         start = end - TRACE
@@ -4479,12 +4473,9 @@ class MainWindow(QMainWindow):
         # debug: dernière position calculée
         if len(x) > 0:
             # ---- vertical projection to ground ----
-            try:
-                p_air = np.array([x[-1], y[-1], z[-1]])
-                p_ground = np.array([x[-1], y[-1], -1.0])
-                self.gps_vertical_line.setData(pos=np.vstack([p_air, p_ground]))
-            except Exception:
-                pass
+            p_air = np.array([x[-1], y[-1], z[-1]])
+            p_ground = np.array([x[-1], y[-1], -1.0])
+            self.gps_vertical_line.setData(pos=np.vstack([p_air, p_ground]))
 
         pts = np.column_stack([x, y, z])
 
@@ -4571,10 +4562,7 @@ class MainWindow(QMainWindow):
             self.gps_aircraft.translate(0, 0, z[-1])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
-        try:
-            self.update_altitude_labels()
-        except Exception:
-            pass
+        self.update_altitude_labels()
 
         # ---- update horizontal GPS speed bar ----
         if hasattr(self, "speed_bar") and hasattr(self, "speed_cursor"):
@@ -4733,19 +4721,16 @@ class MainWindow(QMainWindow):
     def _on_gfx_window_closed(self, event):
         """Restore pygfx canvas back into main layout when detached window closes."""
         self.gfx_render_enabled = False
-        try:
-            self.gfx_canvas.setParent(self)
-            self.gfx_canvas.hide()
-            self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
-            self.gfx_canvas.show()
-            self.gfx_render_enabled = True
-            self.gfx_detached = False
-            # restore overlay button when returning to main window
-            if hasattr(self, "btn_detach_gfx"):
-                self.btn_detach_gfx.show()
-                self.btn_detach_gfx.raise_()
-        except Exception:
-            pass
+        self.gfx_canvas.setParent(self)
+        self.gfx_canvas.hide()
+        self.grid.addWidget(self.gfx_canvas, 1, 0, 1, 2)
+        self.gfx_canvas.show()
+        self.gfx_render_enabled = True
+        self.gfx_detached = False
+        # restore overlay button when returning to main window
+        if hasattr(self, "btn_detach_gfx"):
+            self.btn_detach_gfx.show()
+            self.btn_detach_gfx.raise_()
         event.accept()
 
     def detach_video1_window(self):
@@ -4766,14 +4751,11 @@ class MainWindow(QMainWindow):
         self.video1_window.show()
 
     def _on_video1_window_closed(self, event):
-        try:
-            self.video1.setParent(None)
-            self.grid.addWidget(self.video1, 0, 0, 1, 2)
-            self.video1_detached = False
-            self.btn_detach_video1.show()
-            self.btn_detach_video1.raise_()
-        except Exception:
-            pass
+        self.video1.setParent(None)
+        self.grid.addWidget(self.video1, 0, 0, 1, 2)
+        self.video1_detached = False
+        self.btn_detach_video1.show()
+        self.btn_detach_video1.raise_()
         event.accept()
 
     def detach_video2_window(self):
@@ -4793,14 +4775,11 @@ class MainWindow(QMainWindow):
         self.video2_window.show()
 
     def _on_video2_window_closed(self, event):
-        try:
-            self.video2.setParent(None)
-            self.grid.addWidget(self.video2, 0, 2, 1, 2)
-            self.video2_detached = False
-            self.btn_detach_video2.show()
-            self.btn_detach_video2.raise_()
-        except Exception:
-            pass
+        self.video2.setParent(None)
+        self.grid.addWidget(self.video2, 0, 2, 1, 2)
+        self.video2_detached = False
+        self.btn_detach_video2.show()
+        self.btn_detach_video2.raise_()
         event.accept()
 
     def detach_pyqtgraph_window(self):
@@ -4823,34 +4802,17 @@ class MainWindow(QMainWindow):
         self.pyqtgraph_window.show()
 
     def _on_pyqtgraph_window_closed(self, event):
-        """Restore matplotlib canvas back into the grid when the detached window closes."""
-        try:
-            self.gps_view.setParent(None)
-            self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
-            self.pyqtgraph_detached = False
-            self.btn_detach_pyqtgraph.show()
-            self.btn_detach_pyqtgraph.raise_()
-        except Exception:
-            pass
+        self.gps_view.setParent(None)
+        self.grid.addWidget(self.gps_view, 1, 2, 1, 1)
+        self.pyqtgraph_detached = False
+        self.btn_detach_pyqtgraph.show()
+        self.btn_detach_pyqtgraph.raise_()
         event.accept()
 
     def on_gfx_destroyed(self):
         print("💀 gfx_canvas destroyed")
-
-        # HARD guard: prevent any further rendering calls immediately
-        # self.gfx_render_enabled = False
-        # self.gfx_alive = False
-
-        # disconnect canvas from display ASAP to stop rendercanvas callbacks
-        try:
-            if hasattr(self, "gfx_display") and hasattr(self.gfx_display, "canvas"):
-                self.gfx_display.canvas = None
-        except Exception:
-            pass
-
-        # print("Stack at destruction:")
-        # traceback.print_stack()
-
+        if hasattr(self, "gfx_display") and hasattr(self.gfx_display, "canvas"):
+            self.gfx_display.canvas = None
 
 STYLE_SHEET = """
     QPushButton {
@@ -5061,24 +5023,12 @@ if __name__ == "__main__":
         print("🧹 CLEANUP START")
 
         try:
-            # stop any ongoing update loops before detaching canvas
-            # try:
-            # win.gfx_render_enabled = False
-            # win.gfx_alive = False
-            # except Exception:
-            #    pass
             if hasattr(win, "gfx_display"):
-                try:
-                    win.gfx_display.canvas = None
-                except Exception:
-                    pass
+                win.gfx_display.canvas = None
         except Exception as e:
             print("cleanup gfx error:", e)
 
-        try:
-            win.playing = False
-        except:
-            pass
+        win.playing = False
 
         print("🧹 CLEANUP DONE")
         caffeinate.terminate()
