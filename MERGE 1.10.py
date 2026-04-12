@@ -493,9 +493,11 @@ def get_wind(lat, lon, dt: datetime):
     # ---- ERA5 availability safeguard ----
     # ERA5 data is not real-time (≈ 5 days delay)
     max_available = datetime.utcnow() - timedelta(days=7)
+    wind_ok = True
     if dt > max_available:
         print(f"[WARN] ERA5 date {dt} not available, clamping to {max_available}")
         dt = max_available
+        wind_ok = False
     # Round to the nearest hour for ERA5
     dt_rounded = dt.replace(minute=0, second=0, microsecond=0)
     c.retrieve(
@@ -539,6 +541,10 @@ def get_wind(lat, lon, dt: datetime):
         speed_kmh = speed_ms * 3.6
         direction_rad = np.arctan2(-u_val, -v_val)
         direction_deg = (np.degrees(direction_rad) + 360) % 360
+        if not wind_ok:
+            speed_kmh = 0
+            direction_deg = 0
+
         results.append({
             "wind_altitude": alt_label,
             "wind_speed": speed_kmh,
