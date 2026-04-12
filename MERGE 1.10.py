@@ -495,7 +495,7 @@ def get_wind(lat, lon, dt: datetime):
     max_available = datetime.utcnow() - timedelta(days=7)
     wind_ok = True
     if dt > max_available:
-        print(f"[WARN] ERA5 date {dt} not available, clamping to {max_available}")
+        print(f"[WARN] ERA5 date {dt} not available, clamping to {max_available} and setting datas to ZERO")
         dt = max_available
         wind_ok = False
     # Round to the nearest hour for ERA5
