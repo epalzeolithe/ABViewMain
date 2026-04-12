@@ -3397,6 +3397,20 @@ class MainWindow(QMainWindow):
         # rotation de l'objet
         M = np.eye(4)
         M[:3, :3] = self.R_final.T
+
+        # ---- ORTHONORMALIZE ROTATION (CRITICAL FIX) ----
+        try:
+            R = M[:3, :3]
+
+            U, _, Vt = np.linalg.svd(R)
+            R_clean = U @ Vt
+
+            M[:3, :3] = R_clean
+
+        except Exception as e:
+            print("⚠️ SVD cleanup failed:", e)
+            return
+
         if np.isfinite(M).all():
             self.gfx_object.local.matrix = M
 
