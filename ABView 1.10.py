@@ -1402,7 +1402,7 @@ class MainWindow(QMainWindow):
         self.g_timeline = QLabel(self)
         self.g_timeline.setFixedHeight(12)
         self.g_timeline.setStyleSheet("background-color: black;")
-        self.g_timeline.setScaledContents(True)
+        self.g_timeline.setScaledContents(False)
         self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
         self.alt_timeline = QLabel(self)
@@ -1610,24 +1610,7 @@ class MainWindow(QMainWindow):
             return
         values = self.df["g_signed"].to_numpy()
 
-        values = self.df["g_signed"].to_numpy()
 
-        # ---- downsample: keep peak (abs max) every 100 points ----
-        chunk_size = 100
-        n = len(values)
-
-        if n > chunk_size:
-            trimmed = values[: (n // chunk_size) * chunk_size]
-            reshaped = trimmed.reshape(-1, chunk_size)
-
-            # index du pic en valeur absolue dans chaque tranche
-            idx = np.argmax(np.abs(reshaped), axis=1)
-
-            # récupérer les vraies valeurs signées
-            values = reshaped[np.arange(len(idx)), idx]
-        else:
-            # si peu de points, on garde tel quel
-            values = values
 
         n = len(values)
 
@@ -1663,8 +1646,6 @@ class MainWindow(QMainWindow):
                 img.setPixel(x, y, color)
 
         pix = QPixmap.fromImage(img)
-        if self.g_timeline.width() > 0:
-            pix = pix.scaled(self.g_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.FastTransformation)
         self.g_timeline.setPixmap(pix)
 
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
