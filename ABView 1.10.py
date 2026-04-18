@@ -318,7 +318,7 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
 
         # ---- triangle FIXE ----
         size = 40
-        painter.setPen(QPen(QColor(128, 0, 150), 3))
+        painter.setPen(QPen(QColor(0, 255, 120), 3))
 
         # position gauche milieu (même que horizon)
         cx = 60
