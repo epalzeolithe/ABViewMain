@@ -311,6 +311,7 @@ class VideoYUVOpenGLWidget(QOpenGLWidget):
 
         pitch = self.pitch_w
         pitch_offset = int(pitch * 3)
+
         # ---- horizon ----
         painter.setPen(QPen(QColor(20, 20, 139), 2))
         painter.drawLine(-50, pitch_offset, 50, pitch_offset)
