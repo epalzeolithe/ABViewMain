@@ -3964,8 +3964,8 @@ class MainWindow(QMainWindow):
     def seek_video(self, frame):
         self.i = int(frame)
         # reset frame counter to avoid sync gating after seek
-        if self.i < 5:
-            self.i = int(frame)
+        #if self.i < 5:
+        #    self.i = int(frame)
 
         # TO FIX A DEPLACER AU BON ENDROIT
         # ---- Reset trails when seeking (nose + G vector history) ----
@@ -4484,7 +4484,7 @@ class MainWindow(QMainWindow):
         Calcule l'index frame vidéo à partir d'un index du dataframe.
         Retourne l'index de frame correspondant dans la vidéo 1.
         """
-        if df_index < 0 or df_index >= frames_df:
+        if df_index < 0 or df_index >= self.frames_df:
             raise ValueError("df_index hors limites")
         # timestamp dataframe
         ts_df = self.df.timestamp.iloc[df_index]
