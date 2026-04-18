@@ -1408,7 +1408,7 @@ class MainWindow(QMainWindow):
         self.alt_timeline = QLabel(self)
         self.alt_timeline.setFixedHeight(12)
         self.alt_timeline.setStyleSheet("background-color: black;")
-        self.alt_timeline.setScaledContents(True)
+        self.alt_timeline.setScaledContents(False)
         self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
         # self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
@@ -1682,11 +1682,11 @@ class MainWindow(QMainWindow):
             # points de contrôle (altitude ft, couleur RGB)
             stops = [
                 (0, (120, 120, 120)),  # gris (sol)
-                (3000, (0, 200, 255)),  # cyan
-                (4000, (0, 255, 0)),  # vert
-                (5000, (255, 255, 0)),  # rouge
-                (6000, (255, 0, 0)),  # rouge
-                (7000, (160, 0, 255)),  # violet (haut)
+                (3000, (0, 180, 255)),  # bleu clair (bas)
+                (4000, (0, 255, 0)),  # vert (normal)
+                (5000, (255, 200, 0)),  # orange (attention)
+                (6000, (255, 0, 0)),  # rouge (limite)
+                (7000, (180, 0, 0)),  # rouge foncé (extrême)
             ]
 
             # clamp
@@ -1720,8 +1720,6 @@ class MainWindow(QMainWindow):
                 img.setPixel(x, y, color)
 
         pix = QPixmap.fromImage(img)
-        if self.alt_timeline.width() > 0:
-            pix = pix.scaled(self.alt_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         self.alt_timeline.setPixmap(pix)
 
         # ---- Legend "Altitude" ----
