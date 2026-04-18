@@ -1439,8 +1439,7 @@ class MainWindow(QMainWindow):
             "juillet", "août", "septembre", "octobre", "novembre", "décembre"
         ]
 
-        ts0 = self.df.timestamp.iloc[0]
-        text = f"{ts0.day} {mois_fr[ts0.month - 1]} {ts0.year}"
+        text = f"{ts0.day} {mois_fr[ts0.month - 1]} {ts0.year} {ts0.strftime('%H:%M:%S')}"
 
         self.video2_date_label.setText(text)
         self.video2_date_label.adjustSize()
@@ -4307,6 +4306,29 @@ class MainWindow(QMainWindow):
         self.update_wind()
         self.update_gfx_orientation()
         self.update_video_label()
+        # ---- Update video2 date/time overlay (synced to playback) ----
+        if hasattr(self, "video2_date_label") and self.current_video_time_utc is not None:
+            ts = self.current_video_time_utc
+            try:
+                # convert UTC -> local (Europe/Paris)
+                if ts.tzinfo is None:
+                    import datetime, zoneinfo
+                    ts = ts.replace(tzinfo=datetime.timezone.utc)
+                    ts = ts.astimezone(zoneinfo.ZoneInfo("Europe/Paris"))
+                else:
+                    ts = ts.astimezone()
+            except Exception:
+                pass
+
+            mois_fr = [
+                "janvier", "février", "mars", "avril", "mai", "juin",
+                "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+            ]
+
+            text = f"{ts.day} {mois_fr[ts.month - 1]} {ts.year} {ts.strftime('%H:%M:%S')}"
+
+            self.video2_date_label.setText(text)
+            self.video2_date_label.adjustSize()
         self.update_g_timeline_cursor()
 
         if len(self._bm_frames_cache) > 0:
@@ -4330,6 +4352,9 @@ class MainWindow(QMainWindow):
             else:
                 txt = f"{m:02d}:{s:02d}"
             self.elapsed_time_overlay.setText(txt)
+
+
+
 
     # ==================================================
     def sync_video_to_audio(self, decoder, frame, stream):
