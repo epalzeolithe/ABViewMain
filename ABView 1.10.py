@@ -935,10 +935,8 @@ class MainWindow(QMainWindow):
         self.calibrate_gfx(0)
 
         self.compute_g_signed()
-        self.build_g_timeline()
         self.build_energy_graph()
-        self.build_altitude_timeline()
-        self.build_fpm_timeline()
+        QTimer.singleShot(0, self._build_all_timelines)
 
         self._init_timer()
         self._init_metar()
@@ -1404,19 +1402,28 @@ class MainWindow(QMainWindow):
         self.g_timeline.setFixedHeight(12)
         self.g_timeline.setStyleSheet("background-color: black;")
         self.g_timeline.setScaledContents(False)
+        self.g_timeline.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.g_timeline.setMinimumWidth(0)
         self.grid.addWidget(self.g_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
+        self.g_timeline.installEventFilter(self)
 
         self.alt_timeline = QLabel(self)
         self.alt_timeline.setFixedHeight(12)
         self.alt_timeline.setStyleSheet("background-color: black;")
         self.alt_timeline.setScaledContents(False)
+        self.alt_timeline.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.alt_timeline.setMinimumWidth(0)
         self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
+        self.alt_timeline.installEventFilter(self)
 
         self.fpm_timeline = QLabel(self)
         self.fpm_timeline.setFixedHeight(12)
         self.fpm_timeline.setStyleSheet("background-color: black;")
         self.fpm_timeline.setScaledContents(False)
-        self.grid.addWidget(self.fpm_timeline,self.grid.rowCount(),0,1,self.grid.columnCount())
+        self.fpm_timeline.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.fpm_timeline.setMinimumWidth(0)
+        self.grid.addWidget(self.fpm_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
+        self.fpm_timeline.installEventFilter(self)
 
         # self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
         self.video2_date_label = QLabel("", self.video2)
@@ -1617,11 +1624,8 @@ class MainWindow(QMainWindow):
             return
         values = self.df["g_signed"].to_numpy()
 
-
-
         n = len(values)
-
-        width = max(500, min(2000, n // 3))  # compression intelligente
+        width = max(10, self.g_timeline.width())
         height = 12
 
         img = QImage(width, height, QImage.Format_RGB888)
@@ -1638,19 +1642,41 @@ class MainWindow(QMainWindow):
             else:
                 return (255, 50, 50)      # rouge vif
 
-        for x in range(width):
-            idx = int(x / width * (n - 1))
-            g = values[idx]
+        if n == 0:
+            return
 
-            # clamp
-            g = max(g_min, min(g_max, g))
+        if width >= n:
+            # 🔥 CAS CRITIQUE : peu de data → on étire correctement
+            for x in range(width):
+                idx = int(x * n / width)
+                if idx >= n:
+                    idx = n - 1
 
-            r, gcol, b = get_color(g)
+                fpm = values[idx]
 
-            color = (r << 16) | (gcol << 8) | b
+                r, g, b = get_color(fpm)
+                color = (r << 16) | (g << 8) | b
 
-            for y in range(height):
-                img.setPixel(x, y, color)
+                for y in range(height):
+                    img.setPixel(x, y, color)
+
+        else:
+            # 📊 CAS NORMAL : beaucoup de data → agrégation
+            for x in range(width):
+                start = int(x * n / width)
+                end = int((x + 1) * n / width)
+
+                if end <= start:
+                    end = start + 1
+
+                segment = values[start:end]
+                fpm = segment[np.argmax(np.abs(segment))]
+
+                r, g, b = get_color(fpm)
+                color = (r << 16) | (g << 8) | b
+
+                for y in range(height):
+                    img.setPixel(x, y, color)
 
         pix = QPixmap.fromImage(img)
         self.g_timeline.setPixmap(pix)
@@ -1679,7 +1705,7 @@ class MainWindow(QMainWindow):
         values = self.df["gps_alt"].to_numpy()
         n = len(values)
 
-        width = max(500, min(2000, n // 3))
+        width = max(10, self.alt_timeline.width())
         height = 12
 
         img = QImage(width, height, QImage.Format_RGB888)
@@ -1717,8 +1743,11 @@ class MainWindow(QMainWindow):
                     return (r, g, b)
 
         for x in range(width):
-            idx = int(x / width * (n - 1))
-            alt = values[idx]
+            start = int(x * n / width)
+            end = int((x + 1) * n / width)
+            if end <= start:
+                end = start + 1
+            alt = np.mean(values[start:end])
 
             r, g, b = get_color(alt)
             color = (r << 16) | (g << 8) | b
@@ -1765,8 +1794,13 @@ class MainWindow(QMainWindow):
             values = reshaped[np.arange(len(idx)), idx]
 
         n = len(values)
+        # if too few points after downsampling, repeat to fill width better
+        if n < self.fpm_timeline.width():
+            repeat_factor = int(np.ceil(self.fpm_timeline.width() / max(1, n)))
+            values = np.repeat(values, repeat_factor)
+            n = len(values)
 
-        width = max(500, min(2000, n_original // 3))
+        width = max(10, self.fpm_timeline.width())
         height = 12
 
         img = QImage(width, height, QImage.Format_RGB888)
@@ -1780,8 +1814,12 @@ class MainWindow(QMainWindow):
                 return (180, 180, 180)  # neutre (gris clair)
 
         for x in range(width):
-            idx = int(x / width * (n - 1))
-            fpm = values[idx]
+            start = int(x * n / width)
+            end = int((x + 1) * n / width)
+            if end <= start:
+                end = start + 1
+            segment = values[start:end]
+            fpm = segment[np.argmax(np.abs(segment))]
 
             r, g, b = get_color(fpm)
             color = (r << 16) | (g << 8) | b
@@ -1804,6 +1842,36 @@ class MainWindow(QMainWindow):
         self.fpm_timeline_legend.adjustSize()
         self.fpm_timeline_legend.move(0, 0)
         self.fpm_timeline_legend.show()
+
+
+    def _build_all_timelines(self):
+        try:
+            self.build_g_timeline()
+            self.build_altitude_timeline()
+            self.build_fpm_timeline()
+        except Exception:
+            pass
+
+    def eventFilter(self, obj, event):
+        from PyQt5.QtCore import QEvent
+
+        if event.type() == QEvent.Resize:
+            if obj in (self.g_timeline, self.alt_timeline, self.fpm_timeline):
+                QTimer.singleShot(0, self._build_all_timelines)
+
+        return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        if hasattr(self, "_resize_timer"):
+            self._resize_timer.stop()
+        else:
+            self._resize_timer = QTimer()
+            self._resize_timer.setSingleShot(True)
+            self._resize_timer.timeout.connect(self._build_all_timelines)
+
+        self._resize_timer.start(50)
 
     def build_energy_graph(self):
         # ---- Precompute full energy vector once ----
