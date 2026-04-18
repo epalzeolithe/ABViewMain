@@ -938,6 +938,7 @@ class MainWindow(QMainWindow):
         self.build_g_timeline()
         self.build_energy_graph()
         self.build_altitude_timeline()
+        self.build_fpm_timeline()
 
         self._init_timer()
         self._init_metar()
@@ -1411,6 +1412,12 @@ class MainWindow(QMainWindow):
         self.alt_timeline.setScaledContents(False)
         self.grid.addWidget(self.alt_timeline, self.grid.rowCount(), 0, 1, self.grid.columnCount())
 
+        self.fpm_timeline = QLabel(self)
+        self.fpm_timeline.setFixedHeight(12)
+        self.fpm_timeline.setStyleSheet("background-color: black;")
+        self.fpm_timeline.setScaledContents(False)
+        self.grid.addWidget(self.fpm_timeline,self.grid.rowCount(),0,1,self.grid.columnCount())
+
         # self.timestamp_label = QLabel(alignment=Qt.AlignCenter)
         self.video2_date_label = QLabel("", self.video2)
         self.video2_date_label.setStyleSheet(
@@ -1738,6 +1745,65 @@ class MainWindow(QMainWindow):
 
         except Exception:
             pass
+
+    def build_fpm_timeline(self):
+        if "gps_fpm" not in self.df.columns:
+            return
+
+        values = self.df["gps_fpm"].to_numpy()
+        n_original = len(values)
+
+        # ---- downsample: keep peak (abs max) every 100 points ----
+        chunk_size = 100
+        n = len(values)
+
+        if n > chunk_size:
+            trimmed = values[: (n // chunk_size) * chunk_size]
+            reshaped = trimmed.reshape(-1, chunk_size)
+
+            idx = np.argmax(np.abs(reshaped), axis=1)
+            values = reshaped[np.arange(len(idx)), idx]
+
+        n = len(values)
+
+        width = max(500, min(2000, n_original // 3))
+        height = 12
+
+        img = QImage(width, height, QImage.Format_RGB888)
+
+        def get_color(fpm):
+            if fpm > 1500:
+                return (0, 255, 0)      # montée forte (vert)
+            elif fpm < -1500:
+                return (255, 0, 0)      # descente forte (rouge)
+            else:
+                return (180, 180, 180)  # neutre (gris clair)
+
+        for x in range(width):
+            idx = int(x / width * (n - 1))
+            fpm = values[idx]
+
+            r, g, b = get_color(fpm)
+            color = (r << 16) | (g << 8) | b
+
+            for y in range(height):
+                img.setPixel(x, y, color)
+
+        pix = QPixmap.fromImage(img)
+        self.fpm_timeline.setPixmap(pix)
+
+        # ---- Legend "Vario" ----
+        if not hasattr(self, "fpm_timeline_legend"):
+            self.fpm_timeline_legend = QLabel("Vario", self.fpm_timeline)
+            self.fpm_timeline_legend.setStyleSheet(
+                "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
+            )
+            self.fpm_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self.fpm_timeline_legend.raise_()
+
+        self.fpm_timeline_legend.adjustSize()
+        self.fpm_timeline_legend.move(0, 0)
+        self.fpm_timeline_legend.show()
 
     def build_energy_graph(self):
         # ---- Precompute full energy vector once ----
