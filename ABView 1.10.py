@@ -1609,6 +1609,26 @@ class MainWindow(QMainWindow):
         if "g_signed" not in self.df.columns:
             return
         values = self.df["g_signed"].to_numpy()
+
+        values = self.df["g_signed"].to_numpy()
+
+        # ---- downsample: keep peak (abs max) every 100 points ----
+        chunk_size = 100
+        n = len(values)
+
+        if n > chunk_size:
+            trimmed = values[: (n // chunk_size) * chunk_size]
+            reshaped = trimmed.reshape(-1, chunk_size)
+
+            # index du pic en valeur absolue dans chaque tranche
+            idx = np.argmax(np.abs(reshaped), axis=1)
+
+            # récupérer les vraies valeurs signées
+            values = reshaped[np.arange(len(idx)), idx]
+        else:
+            # si peu de points, on garde tel quel
+            values = values
+
         n = len(values)
 
         width = max(500, min(2000, n // 3))  # compression intelligente
@@ -1620,34 +1640,13 @@ class MainWindow(QMainWindow):
         g_max = 4.0
 
         def get_color(g):
-            # points de contrôle (G, couleur RGB)
-            stops = [
-                (-2.0, (0, 120, 255)),  # bleu
-                (0.8, (0, 200, 255)),  # cyan
-                (1.0, (0, 255, 0)),  # vert
-                (1.2, (255, 255, 0)),  # jaune
-                (2.0, (255, 0, 0)),  # rouge
-            ]
-
-            # clamp
-            if g <= stops[0][0]:
-                return stops[0][1]
-            if g >= stops[-1][0]:
-                return stops[-1][1]
-
-            # interpolation
-            for i in range(len(stops) - 1):
-                g0, c0 = stops[i]
-                g1, c1 = stops[i + 1]
-
-                if g0 <= g <= g1:
-                    t = (g - g0) / (g1 - g0)
-
-                    r = int(c0[0] + (c1[0] - c0[0]) * t)
-                    gcol = int(c0[1] + (c1[1] - c0[1]) * t)
-                    b = int(c0[2] + (c1[2] - c0[2]) * t)
-
-                    return (r, gcol, b)
+            # mapping DISCRET sans interpolation
+            if g < 0.5:
+                return (0, 180, 255)      # bleu clair
+            elif g < 1.5:
+                return (0, 255, 0)        # vert
+            else:
+                return (255, 50, 50)      # rouge vif
 
         for x in range(width):
             idx = int(x / width * (n - 1))
@@ -1665,7 +1664,7 @@ class MainWindow(QMainWindow):
 
         pix = QPixmap.fromImage(img)
         if self.g_timeline.width() > 0:
-            pix = pix.scaled(self.g_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            pix = pix.scaled(self.g_timeline.width(), height, Qt.IgnoreAspectRatio, Qt.FastTransformation)
         self.g_timeline.setPixmap(pix)
 
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
