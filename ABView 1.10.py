@@ -1915,6 +1915,7 @@ class MainWindow(QMainWindow):
         """Enable/disable timeline zoom and rebuild timelines."""
         self.timeline_zoom = checked
         self._build_all_timelines()
+        self.update_g_timeline_cursor()
 
     def eventFilter(self, obj, event):
         from PyQt5.QtCore import QEvent
