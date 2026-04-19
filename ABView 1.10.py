@@ -937,6 +937,7 @@ class MainWindow(QMainWindow):
 
         self.compute_g_signed()
         self.build_energy_graph()
+        self.init_timeline_zoom()
         QTimer.singleShot(0, self._build_all_timelines)
 
         self._init_timer()
@@ -1897,22 +1898,14 @@ class MainWindow(QMainWindow):
         self.timeline_end = int(len(mask) - 1 - np.argmax(mask[::-1]))
 
     def _build_all_timelines(self):
-        try:
-            self.init_timeline_zoom()
-            self.build_g_timeline()
-            self.build_altitude_timeline()
-            self.build_fpm_timeline()
-        except Exception:
-            pass
+        self.build_g_timeline()
+        self.build_altitude_timeline()
+        self.build_fpm_timeline()
 
     def toggle_timeline_zoom(self, checked):
         """Enable/disable timeline zoom and rebuild timelines."""
         self.timeline_zoom = checked
-
-        try:
-            self._build_all_timelines()
-        except Exception:
-            pass
+        self._build_all_timelines()
 
     def eventFilter(self, obj, event):
         from PyQt5.QtCore import QEvent
