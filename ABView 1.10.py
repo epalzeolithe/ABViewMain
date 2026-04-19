@@ -1227,7 +1227,7 @@ class MainWindow(QMainWindow):
         # ---- Toggle timeline zoom ----
         self.act_toggle_timeline_zoom = QAction("Zoom Timeline", self)
         self.act_toggle_timeline_zoom.setCheckable(True)
-        self.act_toggle_timeline_zoom.setChecked(True)
+        self.act_toggle_timeline_zoom.setChecked(getattr(self, "timeline_zoom", False))
         self.act_toggle_timeline_zoom.setShortcut(QKeySequence("Z"))
         self.act_toggle_timeline_zoom.setShortcutContext(Qt.ApplicationShortcut)
         self.act_toggle_timeline_zoom.triggered.connect(self.toggle_timeline_zoom)
@@ -1387,12 +1387,6 @@ class MainWindow(QMainWindow):
         self.act_toggle_axes.triggered.connect(self.toggle_axes_visibility)
         menu_settings.addAction(self.act_toggle_axes)
 
-        # ---- Toggle timeline zoom ----
-        self.act_toggle_timeline_zoom = QAction("Zoom Timeline", self)
-        self.act_toggle_timeline_zoom.setCheckable(True)
-        self.act_toggle_timeline_zoom.setChecked(True)
-        self.act_toggle_timeline_zoom.triggered.connect(self.toggle_timeline_zoom)
-        menu_settings.addAction(self.act_toggle_timeline_zoom)
 
         # ---- Recalibrate camera mounting from current frame ----
         self.act_recalibrate_sol = QAction("Recalibrer Sol", self)
@@ -1714,6 +1708,8 @@ class MainWindow(QMainWindow):
             self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.g_timeline_legend.raise_()
 
+        label = "G Forces (Z)" if getattr(self, "timeline_zoom", False) else "G Forces"
+        self.g_timeline_legend.setText(label)
         self.g_timeline_legend.adjustSize()
 
         # position INSIDE the bar (top-left)
@@ -1797,6 +1793,8 @@ class MainWindow(QMainWindow):
                 self.alt_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
                 self.alt_timeline_legend.raise_()
 
+            label = "Altitude (Z)" if getattr(self, "timeline_zoom", False) else "Altitude"
+            self.alt_timeline_legend.setText(label)
             self.alt_timeline_legend.adjustSize()
             self.alt_timeline_legend.move(0, 0)
             self.alt_timeline_legend.show()
@@ -1874,6 +1872,8 @@ class MainWindow(QMainWindow):
             self.fpm_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.fpm_timeline_legend.raise_()
 
+        label = "Vario (Z)" if getattr(self, "timeline_zoom", False) else "Vario"
+        self.fpm_timeline_legend.setText(label)
         self.fpm_timeline_legend.adjustSize()
         self.fpm_timeline_legend.move(0, 0)
         self.fpm_timeline_legend.show()
