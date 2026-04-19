@@ -99,6 +99,12 @@ ROT_BOX = np.array([
     [np.sin(np.radians(BOX_HEADING)), np.cos(np.radians(BOX_HEADING)), 0.0],
     [0.0, 0.0, 1.0]])
 
+Rz_180 = np.array([
+    [-1,  0,  0],
+    [ 0, 1,  0],
+    [ 0,  0,  -1]
+])
+
 
 class VideoYUVOpenGLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
@@ -929,7 +935,6 @@ class MainWindow(QMainWindow):
         self.init_map_OSM_widget()
         self.map_view.loadFinished.connect(self.on_map_loaded)
 
-        self.enable_matplotlib_gps = True
         self.init_gps_pyqtgraph()
 
         self.init_gfx()
@@ -1031,6 +1036,7 @@ class MainWindow(QMainWindow):
         self.R_x_20_cached = np.array([[1, 0, 0],
                                        [0, np.cos(theta_x), -np.sin(theta_x)],
                                        [0, np.sin(theta_x),  np.cos(theta_x)]])
+        self.montage_inverse = False
         self.pitch_deg = 0
         self.pitch_w = 0
         self.roll_w = 0
@@ -1232,6 +1238,15 @@ class MainWindow(QMainWindow):
         self.act_toggle_timeline_zoom.setShortcutContext(Qt.ApplicationShortcut)
         self.act_toggle_timeline_zoom.triggered.connect(self.toggle_timeline_zoom)
         menu_settings.addAction(self.act_toggle_timeline_zoom)
+
+        # ---- Camera inversion toggle ----
+        self.act_toggle_camera_inversion = QAction("Inversion caméra", self)
+        self.act_toggle_camera_inversion.setCheckable(True)
+        self.act_toggle_camera_inversion.setChecked(getattr(self, "montage_inverse", False))
+        self.act_toggle_camera_inversion.setShortcut(QKeySequence("I"))
+        self.act_toggle_camera_inversion.setShortcutContext(Qt.ApplicationShortcut)
+        self.act_toggle_camera_inversion.triggered.connect(self.toggle_camera_inversion)
+        menu_settings.addAction(self.act_toggle_camera_inversion)
 
         # ---- Reload bookmarks CSV ----
         self.act_reload_bookmarks = QAction("Recharger CSV", self)
@@ -2273,6 +2288,17 @@ class MainWindow(QMainWindow):
                 self.grid_vertical_xz.setVisible(checked)
         except Exception:
             pass
+
+    def toggle_camera_inversion(self, checked=None):
+        # support QAction + toggle manuel
+        if checked is None:
+            self.montage_inverse = not getattr(self, "montage_inverse", False)
+        else:
+            self.montage_inverse = checked
+
+        # synchronise l'état du menu
+        if hasattr(self, "act_toggle_camera_inversion"):
+            self.act_toggle_camera_inversion.setChecked(self.montage_inverse)
 
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
@@ -3359,7 +3385,10 @@ class MainWindow(QMainWindow):
                          self.x4_quat_y_vals[idf], self.x4_quat_z_vals[idf]])
         # use cached pitch-mounting rotation (recomputed only when angle changes)
         R_x_20 = self.R_x_20_cached
-        self.R_final = R_x_20 @ perm[R_recalage_repere] @ R
+        if self.montage_inverse:
+            self.R_final = R_x_20 @ perm[R_recalage_repere] @ Rz_180 @ R
+        else:
+            self.R_final = R_x_20 @ perm[R_recalage_repere]  @ R
         if not np.isfinite(self.R_final).all():
             return
 
@@ -4357,8 +4386,12 @@ class MainWindow(QMainWindow):
 
     # ==================================================
     def update_all(self):
-        self.update_video(self.decoder1, self.video1, self.video1_start, self.stream1)
-        self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
+        if self.montage_inverse:
+            self.update_video(self.decoder2, self.video1, self.video1_start, self.stream1)
+            self.update_video(self.decoder1, self.video2, self.video2_start, self.stream2)
+        else:
+            self.update_video(self.decoder1, self.video1, self.video1_start, self.stream1)
+            self.update_video(self.decoder2, self.video2, self.video2_start, self.stream2)
         self.i += 1
         # ---- Auto stop recording at end of playback ----
         if self.i >= self.frames_video - 1 and self.recording:
