@@ -5089,7 +5089,7 @@ class MainWindow(QMainWindow):
         event.accept()
 
     def on_gfx_destroyed(self):
-        print("💀 gfx_canvas destroyed")
+        #print("💀 gfx_canvas destroyed")
         if hasattr(self, "gfx_display") and hasattr(self.gfx_display, "canvas"):
             self.gfx_display.canvas = None
 
@@ -5299,7 +5299,7 @@ if __name__ == "__main__":
     # QTimer.singleShot(0, start_app)
 
     def cleanup():
-        print("🧹 CLEANUP START")
+        #print("🧹 CLEANUP START")
         try:
             if hasattr(win, "gfx_display"):
                 win.gfx_display.canvas = None
@@ -5308,7 +5308,7 @@ if __name__ == "__main__":
 
         win.playing = False
 
-        print("🧹 CLEANUP DONE")
+        #print("🧹 CLEANUP DONE")
         caffeinate.terminate()
 
 
