@@ -1867,8 +1867,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "fpm_timeline_legend"):
             self.fpm_timeline_legend = QLabel("Vario", self.fpm_timeline)
             self.fpm_timeline_legend.setStyleSheet(
-                "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
-            )
+                "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;")
             self.fpm_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.fpm_timeline_legend.raise_()
 
