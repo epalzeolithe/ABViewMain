@@ -32,7 +32,7 @@ class ConsoleWindow(QTextEdit):
         self.allow_close = False
         self.start_requested = False
         self.last_key = None
-        self.setWindowTitle("MERGE "+__version__+" - Console")
+        self.setWindowTitle("CONVERT "+__version__+" - Console")
         self.setReadOnly(True)
         self.resize(900, 500)
 
