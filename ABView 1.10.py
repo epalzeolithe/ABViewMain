@@ -1983,7 +1983,8 @@ class MainWindow(QMainWindow):
 
             tick = QFrame(self.centralWidget())
             tick.setStyleSheet("background-color: rgb(80,80,80);")  # gris foncé
-            tick.setGeometry(x, slider_y - 6, 2, 6)
+            slider_h = geom.height()
+            tick.setGeometry(x, slider_y + slider_h, 2, 6)
 
             # tooltip (optionnel)
             tick.setToolTip(str(row.get("name", "")))
@@ -4649,9 +4650,8 @@ class MainWindow(QMainWindow):
             )
 
         # keep METAR overlay visible and correctly positioned
-        if hasattr(self, "map_metar_label"):
-            self.map_metar_label.setText(getattr(self, "last_metar", ""))
-            self._position_map_metar_label()
+        self.map_metar_label.setText(getattr(self, "last_metar", ""))
+        self._position_map_metar_label()
 
         end = self.idf
         start = end - TRACE
@@ -4758,13 +4758,15 @@ class MainWindow(QMainWindow):
 
             self.gps_aircraft.resetTransform()
 
-            # rotations (ordre important)
-
             # rotations
             self.gps_aircraft.rotate(-roll, 1, 0, 0)  # FIX
             self.gps_aircraft.rotate(pitch, 0, 1, 0)
             self.gps_aircraft.rotate(- heading - 90, 0, 0, 1)
-            self.gps_aircraft.translate(0, 0, z[-1])
+            # ---- safety: avoid empty data when timeline zoom is active ----
+            if z is None or len(z) == 0:
+                self.gps_aircraft.translate(0, 0, 0)
+            else:
+                self.gps_aircraft.translate(0, 0, z[-1])
 
         # ---- update altitude labels for pyqtgraph GPS view ----
         self.update_altitude_labels()
