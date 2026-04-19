@@ -1117,7 +1117,7 @@ class MainWindow(QMainWindow):
         self.figures = converted_figures
 
         print(f"✅ {len(self.figures)} figures détectées")
-        print(self.figures)
+        #print(self.figures)
 
     def __init__(self):
         super().__init__()
@@ -1149,7 +1149,7 @@ class MainWindow(QMainWindow):
         self.pitch_vals = None
         self.bank_vals = None
         self.g_vals = None
-        self.analyze_flight()
+        #self.analyze_flight()
 
 
         self.build_energy_graph()
@@ -2151,6 +2151,18 @@ class MainWindow(QMainWindow):
 
     def toggle_timeline_zoom(self, checked):
         """Enable/disable timeline zoom and rebuild timelines."""
+
+        if checked:
+            if self.idf < self.timeline_start:
+                checked = False
+            if self.idf > self.timeline_end:
+                checked = False
+
+        self.act_toggle_timeline_zoom.blockSignals(True)
+        self.act_toggle_timeline_zoom.setChecked(checked)
+        self.act_toggle_timeline_zoom.blockSignals(False)
+
+
         self.timeline_zoom = checked
         self._build_all_timelines()
         self.update_g_timeline_cursor()
@@ -4431,12 +4443,20 @@ class MainWindow(QMainWindow):
 
         for fig in self.figures:
             if fig["start"] > current:
-                print(fig["type"])
+                fps = float(self.stream1.average_rate) if self.stream1 and self.stream1.average_rate else 30.0
+                total_sec = int(fig["start"] / fps)
+                m = total_sec // 60
+                s = total_sec % 60
+                print(f'{fig["type"]} @ {m:02d}:{s:02d}')
                 self.seek_video(fig["start"])
                 return
 
         # if none found → go to first
-        print(self.figures[0]["type"])
+        fps = float(self.stream1.average_rate) if self.stream1 and self.stream1.average_rate else 30.0
+        total_sec = int(self.figures[0]["start"] / fps)
+        m = total_sec // 60
+        s = total_sec % 60
+        print(f'{self.figures[0]["type"]} @ {m:02d}:{s:02d}')
         self.seek_video(self.figures[0]["start"])
 
     def goto_prev_figure(self):
@@ -4448,12 +4468,20 @@ class MainWindow(QMainWindow):
 
         for fig in reversed(self.figures):
             if fig["start"] < current:
-                print(fig["type"])
+                fps = float(self.stream1.average_rate) if self.stream1 and self.stream1.average_rate else 30.0
+                total_sec = int(fig["start"] / fps)
+                m = total_sec // 60
+                s = total_sec % 60
+                print(f'{fig["type"]} @ {m:02d}:{s:02d}')
                 self.seek_video(fig["start"])
                 return
 
         # if none found → go to last
-        print(self.figures[-1]["type"])
+        fps = float(self.stream1.average_rate) if self.stream1 and self.stream1.average_rate else 30.0
+        total_sec = int(self.figures[-1]["start"] / fps)
+        m = total_sec // 60
+        s = total_sec % 60
+        print(f'{self.figures[-1]["type"]} @ {m:02d}:{s:02d}')
         self.seek_video(self.figures[-1]["start"])
 
     # ==================================================
@@ -4645,6 +4673,18 @@ class MainWindow(QMainWindow):
 
         self._position_map_wind_label()
 
+    def set_timeline_zoom(self, enabled):
+        if self.timeline_zoom == enabled:
+            return  # évite les boucles inutiles
+
+        self.timeline_zoom = enabled
+
+        if hasattr(self, "act_timeline_zoom"):
+            self.act_timeline_zoom.blockSignals(True)
+            self.act_timeline_zoom.setChecked(enabled)
+            self.act_timeline_zoom.blockSignals(False)
+
+        self._build_all_timelines()
 
     # ==================================================
     def update_all(self):
@@ -4693,12 +4733,10 @@ class MainWindow(QMainWindow):
         # ---- Disable timeline zoom if current position is before zoom window ----
         if self.timeline_zoom:
             if self.idf < self.timeline_start:
-                self.timeline_zoom = False
-                self._build_all_timelines()
+                self.set_timeline_zoom(False)
         if self.timeline_zoom:
             if self.idf > self.timeline_end:
-                self.timeline_zoom = False
-                self._build_all_timelines()
+                self.set_timeline_zoom(False)
 
         self.update_g_timeline_cursor()
 
