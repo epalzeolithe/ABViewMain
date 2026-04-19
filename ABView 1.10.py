@@ -4431,10 +4431,12 @@ class MainWindow(QMainWindow):
 
         for fig in self.figures:
             if fig["start"] > current:
+                print(fig["type"])
                 self.seek_video(fig["start"])
                 return
 
         # if none found → go to first
+        print(self.figures[0]["type"])
         self.seek_video(self.figures[0]["start"])
 
     def goto_prev_figure(self):
@@ -4446,10 +4448,12 @@ class MainWindow(QMainWindow):
 
         for fig in reversed(self.figures):
             if fig["start"] < current:
+                print(fig["type"])
                 self.seek_video(fig["start"])
                 return
 
         # if none found → go to last
+        print(self.figures[-1]["type"])
         self.seek_video(self.figures[-1]["start"])
 
     # ==================================================
