@@ -4914,7 +4914,8 @@ class MainWindow(QMainWindow):
         # hide overlay button while detached window is open
         if hasattr(self, "btn_detach_gfx"):
             self.btn_detach_gfx.hide()
-        self.gfx_window.resize(900, 700)
+        # match main window size
+        self.gfx_window.resize(self.size())
 
         # self.btn_detach_gfx.setText("Close 3D")
 
@@ -4951,7 +4952,8 @@ class MainWindow(QMainWindow):
         self.video1_window = QMainWindow(self)
         self.video1_window.setWindowTitle("Video 1")
         self.video1_window.setCentralWidget(self.video1)
-        self.video1_window.resize(900, 600)
+        # match main window size
+        self.video1_window.resize(self.size())
         self.btn_detach_video1.hide()
         self.video1_window.closeEvent = self._on_video1_window_closed
         self.video1_window.show()
@@ -4975,7 +4977,8 @@ class MainWindow(QMainWindow):
         self.video2_window = QMainWindow(self)
         self.video2_window.setWindowTitle("Video 2")
         self.video2_window.setCentralWidget(self.video2)
-        self.video2_window.resize(900, 600)
+        # match main window size
+        self.video2_window.resize(self.size())
         self.btn_detach_video2.hide()
         self.video2_window.closeEvent = self._on_video2_window_closed
         self.video2_window.show()
@@ -5001,7 +5004,8 @@ class MainWindow(QMainWindow):
         self.pyqtgraph_window = QMainWindow(self)
         self.pyqtgraph_window.setWindowTitle("GPS Graph")
         self.pyqtgraph_window.setCentralWidget(self.gps_view)
-        self.pyqtgraph_window.resize(900, 700)
+        # match main window size
+        self.pyqtgraph_window.resize(self.size())
         self.btn_detach_pyqtgraph.hide()
         # detect close
         self.pyqtgraph_window.closeEvent = self._on_pyqtgraph_window_closed
