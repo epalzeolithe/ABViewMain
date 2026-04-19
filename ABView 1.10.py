@@ -1701,14 +1701,14 @@ class MainWindow(QMainWindow):
         # ---- Legend "G Forces" (top-left INSIDE the timeline) ----
         if not hasattr(self, "g_timeline_legend"):
             # IMPORTANT: parent = g_timeline (not main window)
-            self.g_timeline_legend = QLabel("G Forces", self.g_timeline)
+            self.g_timeline_legend = QLabel("GForce", self.g_timeline)
             self.g_timeline_legend.setStyleSheet(
                 "color: black; background-color: white; padding: 2px 6px; font-family: 'Menlo'; font-size: 10px; font-weight: bold;"
             )
             self.g_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.g_timeline_legend.raise_()
 
-        label = "G Forces (Z)" if getattr(self, "timeline_zoom", False) else "G Forces"
+        label = "GForce(Z)" if getattr(self, "timeline_zoom", False) else "GForce"
         self.g_timeline_legend.setText(label)
         self.g_timeline_legend.adjustSize()
 
@@ -1793,7 +1793,7 @@ class MainWindow(QMainWindow):
                 self.alt_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
                 self.alt_timeline_legend.raise_()
 
-            label = "Altitude (Z)" if getattr(self, "timeline_zoom", False) else "Altitude"
+            label = "Alt(Z)" if getattr(self, "timeline_zoom", False) else "Alt"
             self.alt_timeline_legend.setText(label)
             self.alt_timeline_legend.adjustSize()
             self.alt_timeline_legend.move(0, 0)
@@ -1872,7 +1872,7 @@ class MainWindow(QMainWindow):
             self.fpm_timeline_legend.setAttribute(Qt.WA_TransparentForMouseEvents)
             self.fpm_timeline_legend.raise_()
 
-        label = "Vario (Z)" if getattr(self, "timeline_zoom", False) else "Vario"
+        label = "Vario(Z)" if getattr(self, "timeline_zoom", False) else "Vario"
         self.fpm_timeline_legend.setText(label)
         self.fpm_timeline_legend.adjustSize()
         self.fpm_timeline_legend.move(0, 0)
@@ -4587,17 +4587,16 @@ class MainWindow(QMainWindow):
         # compute global position
         x_global = self.g_timeline.x() + x_local
 
-        # compute vertical span (G + Alt timelines)
+        # compute vertical span across all timelines (G + Alt + Vario)
+        timelines = [self.g_timeline]
         if hasattr(self, "alt_timeline"):
-            y_top = min(self.g_timeline.y(), self.alt_timeline.y())
-            y_bottom = max(
-                self.g_timeline.y() + self.g_timeline.height(),
-                self.alt_timeline.y() + self.alt_timeline.height()
-            )
-            total_height = y_bottom - y_top
-        else:
-            y_top = self.g_timeline.y()
-            total_height = self.g_timeline.height()
+            timelines.append(self.alt_timeline)
+        if hasattr(self, "fpm_timeline"):
+            timelines.append(self.fpm_timeline)
+
+        y_top = min(t.y() for t in timelines)
+        y_bottom = max(t.y() + t.height() for t in timelines)
+        total_height = y_bottom - y_top
 
         # create cursor once (IMPORTANT: parent = self, not g_timeline)
         if not hasattr(self, "g_timeline_cursor"):
