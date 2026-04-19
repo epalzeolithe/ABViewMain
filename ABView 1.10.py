@@ -1224,6 +1224,15 @@ class MainWindow(QMainWindow):
         shortcut.setContext(Qt.ApplicationShortcut)
         shortcut.activated.connect(self.jump_back_2s)
 
+        # ---- Toggle timeline zoom ----
+        self.act_toggle_timeline_zoom = QAction("Zoom Timeline", self)
+        self.act_toggle_timeline_zoom.setCheckable(True)
+        self.act_toggle_timeline_zoom.setChecked(True)
+        self.act_toggle_timeline_zoom.setShortcut(QKeySequence("Z"))
+        self.act_toggle_timeline_zoom.setShortcutContext(Qt.ApplicationShortcut)
+        self.act_toggle_timeline_zoom.triggered.connect(self.toggle_timeline_zoom)
+        menu_settings.addAction(self.act_toggle_timeline_zoom)
+
         # ---- Reload bookmarks CSV ----
         self.act_reload_bookmarks = QAction("Recharger CSV", self)
         self.act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
