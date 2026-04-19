@@ -1424,6 +1424,11 @@ class MainWindow(QMainWindow):
         act_mise_en_ligne.triggered.connect(self.goto_mise_en_ligne)
         menu_navigation.addAction(act_mise_en_ligne)
 
+        # ---- Analyse des figures ----
+        act_analyze_flight = QAction("Analyser les figures", self)
+        act_analyze_flight.triggered.connect(self.analyze_flight)
+        menu_navigation.addAction(act_analyze_flight)
+
         # ---- Shortcuts ----
 
         shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
