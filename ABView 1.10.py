@@ -918,6 +918,25 @@ class MainWindow(QMainWindow):
         self.gps_max_alt = round(self.df['gps_alt'].max())
         print("Max Alt : ", self.gps_max_alt)
 
+    def load_camera_inversion_state(self):
+        try:
+            if os.path.exists(self.inversion_file):
+                with open(self.inversion_file, "r") as f:
+                    val = f.read().strip()
+                    self.montage_inverse = (val == "1")
+            else:
+                self.montage_inverse = False
+        except Exception as e:
+            print("Error loading inversion state:", e)
+            self.montage_inverse = False
+
+    def save_camera_inversion_state(self):
+        try:
+            with open(self.inversion_file, "w") as f:
+                f.write("1" if self.montage_inverse else "0")
+        except Exception as e:
+            print("Error saving inversion state:", e)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ABView Version " + __version__)
@@ -928,6 +947,9 @@ class MainWindow(QMainWindow):
         self._init_video()
         self._init_audio()
         self._init_flight_state()
+        self.bundle_path = os.path.dirname(MERGED_DATA)
+        self.inversion_file = os.path.join(self.bundle_path, "inverted.txt")
+        self.load_camera_inversion_state()
 
         self.init_UI()
         QTimer.singleShot(0, self.goto_mise_en_ligne)
@@ -2299,6 +2321,10 @@ class MainWindow(QMainWindow):
         # synchronise l'état du menu
         if hasattr(self, "act_toggle_camera_inversion"):
             self.act_toggle_camera_inversion.setChecked(self.montage_inverse)
+
+        # 💾 sauvegarde automatique
+
+        self.save_camera_inversion_state()
 
     def init_map_OSM_widget(self):
         # ---- OpenStreetMap (OSM) ----
