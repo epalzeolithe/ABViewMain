@@ -1623,6 +1623,12 @@ class MainWindow(QMainWindow):
         if "g_signed" not in self.df.columns:
             return
         values = self.df["g_signed"].to_numpy()
+        # ---- apply timeline zoom ----
+        if getattr(self, "timeline_zoom", False):
+            start = max(0, getattr(self, "timeline_start", 0))
+            end = min(len(values) - 1, getattr(self, "timeline_end", len(values) - 1))
+            if end > start:
+                values = values[start:end + 1]
 
         n = len(values)
         width = max(10, self.g_timeline.width())
@@ -1703,6 +1709,12 @@ class MainWindow(QMainWindow):
             return
 
         values = self.df["gps_alt"].to_numpy()
+        # ---- apply timeline zoom ----
+        if getattr(self, "timeline_zoom", False):
+            start = max(0, getattr(self, "timeline_start", 0))
+            end = min(len(values) - 1, getattr(self, "timeline_end", len(values) - 1))
+            if end > start:
+                values = values[start:end + 1]
         n = len(values)
 
         width = max(10, self.alt_timeline.width())
@@ -1780,6 +1792,12 @@ class MainWindow(QMainWindow):
             return
 
         values = self.df["gps_fpm"].to_numpy()
+        # ---- apply timeline zoom ----
+        if getattr(self, "timeline_zoom", False):
+            start = max(0, getattr(self, "timeline_start", 0))
+            end = min(len(values) - 1, getattr(self, "timeline_end", len(values) - 1))
+            if end > start:
+                values = values[start:end + 1]
         n_original = len(values)
 
         # ---- downsample: keep peak (abs max) every 100 points ----
@@ -1844,8 +1862,37 @@ class MainWindow(QMainWindow):
         self.fpm_timeline_legend.show()
 
 
+    def init_timeline_zoom(self):
+        """Initialize timeline zoom bounds based on altitude > 3000 ft."""
+        # already initialized → do nothing
+        if hasattr(self, "timeline_start") and hasattr(self, "timeline_end"):
+            return
+
+        self.timeline_zoom = True
+
+        if "gps_alt" not in self.df.columns or len(self.df) == 0:
+            self.timeline_start = 0
+            self.timeline_end = len(self.df) - 1
+            return
+
+        alt = self.df["gps_alt"].to_numpy()
+        mask = alt > 3000
+
+        if not np.any(mask):
+            # fallback: no segment above 3000 ft
+            self.timeline_start = 0
+            self.timeline_end = len(alt) - 1
+            return
+
+        # first occurrence
+        self.timeline_start = int(np.argmax(mask))
+
+        # last occurrence
+        self.timeline_end = int(len(mask) - 1 - np.argmax(mask[::-1]))
+
     def _build_all_timelines(self):
         try:
+            self.init_timeline_zoom()
             self.build_g_timeline()
             self.build_altitude_timeline()
             self.build_fpm_timeline()
@@ -4503,8 +4550,20 @@ class MainWindow(QMainWindow):
         return frame_index
 
     def update_g_timeline_cursor(self):
-        # compute x inside timeline
-        x_local = int(self.idf / self.frames_df * self.g_timeline.width())
+        # ---- compute cursor position (with optional zoom) ----
+        if getattr(self, "timeline_zoom", False):
+            start = getattr(self, "timeline_start", 0)
+            end = getattr(self, "timeline_end", self.frames_df - 1)
+
+            # clamp idf inside zoom window
+            idf_clamped = max(start, min(self.idf, end))
+
+            span = max(1, end - start)
+            rel = (idf_clamped - start) / span
+        else:
+            rel = self.idf / self.frames_df
+
+        x_local = int(rel * self.g_timeline.width())
 
         # compute global position
         x_global = self.g_timeline.x() + x_local
