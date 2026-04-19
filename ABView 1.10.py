@@ -937,6 +937,188 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print("Error saving inversion state:", e)
 
+    def analyze_flight(self):
+        if self.frames_df <= 0:
+            return
+
+        print("🔍 Analyse des figures...")
+
+        # utilise tes arrays existants (rapide)
+        pitch = np.zeros(self.frames_df)
+        bank = np.zeros(self.frames_df)
+        gvals = np.zeros(self.frames_df)
+
+        current_idf = self.idf
+
+        for i in range(self.frames_df):
+            self.idf = i
+            self.compute_orientation()
+            pitch[i] = self.pitch_deg
+            bank[i] = self.bank_deg
+            gvals[i] = self.g
+
+        self.idf = current_idf
+
+        self.pitch_vals = pitch
+        self.bank_vals = bank
+        self.g_vals = gvals
+
+        self.figures = []
+
+        # ---- LOOP detection ----
+        in_loop = False
+        start = 0
+
+        for i in range(self.frames_df):
+            p = pitch[i]
+            g = gvals[i]
+
+            detect = abs(p) > 80 and g > 1.5
+
+            if detect:
+                if not in_loop:
+                    start = i
+                    in_loop = True
+            else:
+                if in_loop:
+                    if i - start > 20:  # filtre bruit
+                        self.figures.append({
+                            "type": "LOOP",
+                            "start": start,
+                            "end": i
+                        })
+                    in_loop = False
+
+        if in_loop:
+            self.figures.append({
+                "type": "LOOP",
+                "start": start,
+                "end": self.frames_df - 1
+            })
+
+        # ---- BARREL ROLL detection ----
+        in_roll = False
+        start = 0
+
+        for i in range(1, self.frames_df):
+            bank_rate = bank[i] - bank[i - 1]
+
+            detect = abs(bank_rate) > 5 and abs(pitch[i]) < 60
+
+            if detect:
+                if not in_roll:
+                    start = i
+                    in_roll = True
+            else:
+                if in_roll:
+                    if i - start > 20:
+                        self.figures.append({
+                            "type": "ROLL",
+                            "start": start,
+                            "end": i
+                        })
+                in_roll = False
+
+        # ---- HAMMERHEAD detection (stall turn) ----
+        in_hammer = False
+        start = 0
+
+        for i in range(1, self.frames_df):
+            pitch_up = pitch[i] > 70
+            low_speed = self.gps_speed_vals[i] < 120
+            yaw_change = abs(self.gps_heading_vals[i] - self.gps_heading_vals[i - 1]) > 20
+
+            detect = pitch_up and low_speed and yaw_change
+
+            if detect:
+                if not in_hammer:
+                    start = i
+                    in_hammer = True
+            else:
+                if in_hammer:
+                    if i - start > 10:
+                        self.figures.append({
+                            "type": "HAMMERHEAD",
+                            "start": start,
+                            "end": i
+                        })
+                in_hammer = False
+
+        # ---- IMMELMANN detection ----
+        in_immel = False
+        start = 0
+
+        for i in range(1, self.frames_df):
+            pitch_up = pitch[i] > 60
+            roll_change = abs(bank[i] - bank[i - 1]) > 20
+            heading_change = abs(self.gps_heading_vals[i] - self.gps_heading_vals[i - 1]) < 5
+
+            detect = pitch_up and roll_change and heading_change
+
+            if detect:
+                if not in_immel:
+                    start = i
+                    in_immel = True
+            else:
+                if in_immel:
+                    if i - start > 20:
+                        self.figures.append({
+                            "type": "IMMELMANN",
+                            "start": start,
+                            "end": i
+                        })
+                in_immel = False
+
+        # ---- SPIN detection ----
+        in_spin = False
+        start = 0
+
+        for i in range(1, self.frames_df):
+            high_roll_rate = abs(bank[i] - bank[i - 1]) > 15
+            low_speed = self.gps_speed_vals[i] < 100
+            descent = self.gps_fpm_vals[i] < -1500
+
+            detect = high_roll_rate and low_speed and descent
+
+            if detect:
+                if not in_spin:
+                    start = i
+                    in_spin = True
+            else:
+                if in_spin:
+                    if i - start > 15:
+                        self.figures.append({
+                            "type": "SPIN",
+                            "start": start,
+                            "end": i
+                        })
+                in_spin = False
+
+        # ---- sort figures by start time ----
+        self.figures = sorted(self.figures, key=lambda f: f["start"])
+
+        # ---- Convert dataframe indices to video frame indices ----
+        converted_figures = []
+
+        for fig in self.figures:
+            try:
+                start_v = self.get_video_frame_from_df_index(fig["start"])
+                end_v = self.get_video_frame_from_df_index(fig["end"])
+
+                new_fig = fig.copy()
+                new_fig["start"] = start_v
+                new_fig["end"] = end_v
+
+                converted_figures.append(new_fig)
+
+            except Exception as e:
+                print("Figure conversion error:", e)
+
+        self.figures = converted_figures
+
+        print(f"✅ {len(self.figures)} figures détectées")
+        print(self.figures)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ABView Version " + __version__)
@@ -958,11 +1140,18 @@ class MainWindow(QMainWindow):
         self.map_view.loadFinished.connect(self.on_map_loaded)
 
         self.init_gps_pyqtgraph()
-
         self.init_gfx()
         self.calibrate_gfx(0)
 
         self.compute_g_signed()
+        # ---- Figure analysis ----
+        self.figures = []
+        self.pitch_vals = None
+        self.bank_vals = None
+        self.g_vals = None
+        self.analyze_flight()
+
+
         self.build_energy_graph()
         self.init_timeline_zoom()
         QTimer.singleShot(0, self._build_all_timelines)
@@ -1179,6 +1368,19 @@ class MainWindow(QMainWindow):
         act_quitter.setMenuRole(QAction.NoRole)  # 👈 IMPORTANT
         act_quitter.triggered.connect(self.close)
         menu_fichier.addAction(act_quitter)
+
+        # ---- Navigation figures ----
+        self.act_next_figure = QAction("Next Figure", self)
+        self.act_next_figure.setShortcut(QKeySequence("F"))
+        self.act_next_figure.setShortcutContext(Qt.ApplicationShortcut)
+        self.act_next_figure.triggered.connect(self.goto_next_figure)
+        self.addAction(self.act_next_figure)
+
+        self.act_prev_figure = QAction("Previous Figure", self)
+        self.act_prev_figure.setShortcut(QKeySequence("Shift+F"))
+        self.act_prev_figure.setShortcutContext(Qt.ApplicationShortcut)
+        self.act_prev_figure.triggered.connect(self.goto_prev_figure)
+        self.addAction(self.act_prev_figure)
 
         # ---- Time navigation actions (with shortcuts shown) ----
         act_fwd_10 = QAction("Avance +10s (→)", self)
@@ -4219,6 +4421,36 @@ class MainWindow(QMainWindow):
             self.bookmark_overlay_timer.timeout.connect(self.bookmark_overlay.hide)
 
         self.bookmark_overlay_timer.start(4000)
+
+    def goto_next_figure(self):
+        """Jump to the next detected figure based on current video frame."""
+        if not hasattr(self, "figures") or not self.figures:
+            return
+
+        current = self.i  # current VIDEO frame
+
+        for fig in self.figures:
+            if fig["start"] > current:
+                self.seek_video(fig["start"])
+                return
+
+        # if none found → go to first
+        self.seek_video(self.figures[0]["start"])
+
+    def goto_prev_figure(self):
+        """Jump to the previous detected figure based on current video frame."""
+        if not hasattr(self, "figures") or not self.figures:
+            return
+
+        current = self.i  # current VIDEO frame
+
+        for fig in reversed(self.figures):
+            if fig["start"] < current:
+                self.seek_video(fig["start"])
+                return
+
+        # if none found → go to last
+        self.seek_video(self.figures[-1]["start"])
 
     # ==================================================
     def toggle_play(self):
