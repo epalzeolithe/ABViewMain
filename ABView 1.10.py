@@ -1377,6 +1377,13 @@ class MainWindow(QMainWindow):
         self.act_toggle_axes.triggered.connect(self.toggle_axes_visibility)
         menu_settings.addAction(self.act_toggle_axes)
 
+        # ---- Toggle timeline zoom ----
+        self.act_toggle_timeline_zoom = QAction("Zoom Timeline", self)
+        self.act_toggle_timeline_zoom.setCheckable(True)
+        self.act_toggle_timeline_zoom.setChecked(True)
+        self.act_toggle_timeline_zoom.triggered.connect(self.toggle_timeline_zoom)
+        menu_settings.addAction(self.act_toggle_timeline_zoom)
+
         # ---- Recalibrate camera mounting from current frame ----
         self.act_recalibrate_sol = QAction("Recalibrer Sol", self)
         self.act_recalibrate_sol.triggered.connect(self.calibrate_gfx_on_current_frame)
@@ -1861,7 +1868,6 @@ class MainWindow(QMainWindow):
         self.fpm_timeline_legend.move(0, 0)
         self.fpm_timeline_legend.show()
 
-
     def init_timeline_zoom(self):
         """Initialize timeline zoom bounds based on altitude > 3000 ft."""
         # already initialized → do nothing
@@ -1896,6 +1902,15 @@ class MainWindow(QMainWindow):
             self.build_g_timeline()
             self.build_altitude_timeline()
             self.build_fpm_timeline()
+        except Exception:
+            pass
+
+    def toggle_timeline_zoom(self, checked):
+        """Enable/disable timeline zoom and rebuild timelines."""
+        self.timeline_zoom = checked
+
+        try:
+            self._build_all_timelines()
         except Exception:
             pass
 
