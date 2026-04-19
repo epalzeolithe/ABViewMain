@@ -1884,7 +1884,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "timeline_start") and hasattr(self, "timeline_end"):
             return
 
-        self.timeline_zoom = True
+        self.timeline_zoom = False
 
         if "gps_alt" not in self.df.columns or len(self.df) == 0:
             self.timeline_start = 0
