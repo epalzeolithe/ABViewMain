@@ -4395,6 +4395,16 @@ class MainWindow(QMainWindow):
 
             self.video2_date_label.setText(text)
             self.video2_date_label.adjustSize()
+        # ---- Disable timeline zoom if current position is before zoom window ----
+        if self.timeline_zoom:
+            if self.idf < self.timeline_start:
+                self.timeline_zoom = False
+                self._build_all_timelines()
+        if self.timeline_zoom:
+            if self.idf > self.timeline_end:
+                self.timeline_zoom = False
+                self._build_all_timelines()
+
         self.update_g_timeline_cursor()
 
         if len(self._bm_frames_cache) > 0:
