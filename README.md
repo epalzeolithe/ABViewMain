@@ -1,3 +1,7 @@
+Compilation :
+pyinstaller -w ABView\ 1.10.py
+
+
 # ABView - Aerobatic Flight Viewer
 
 DEMO https://youtu.be/CWQwiJPiQm4
