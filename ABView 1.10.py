@@ -1479,6 +1479,7 @@ class MainWindow(QMainWindow):
 
         # ---- Reload bookmarks CSV ----
         self.act_reload_bookmarks = QAction("Recharger CSV", self)
+        self.act_reload_bookmarks.setShortcut("Ctrl+R")
         self.act_reload_bookmarks.triggered.connect(self.reload_bookmarks)
 
         # ---- Add bookmark ----
@@ -4265,9 +4266,9 @@ class MainWindow(QMainWindow):
         self.menu_bookmarks.clear()
         self.menu_bookmarks.addAction(self.act_reload_bookmarks)
 
-        if not hasattr(self, "act_open_bookmarks_code"):
-            self.act_open_bookmarks_code = QAction("Ouvrir avec Code", self)
-            self.act_open_bookmarks_code.triggered.connect(self.open_bookmarks_in_code)
+        self.act_open_bookmarks_code = QAction("Ouvrir avec Code", self)
+        self.act_open_bookmarks_code.setShortcut("Ctrl+C")
+        self.act_open_bookmarks_code.triggered.connect(self.open_bookmarks_in_code)
 
         self.menu_bookmarks.addAction(self.act_open_bookmarks_code)
         self.menu_bookmarks.addSeparator()
