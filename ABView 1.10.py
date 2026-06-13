@@ -4247,6 +4247,14 @@ class MainWindow(QMainWindow):
         self.refresh_bookmark_menu()
         self.update_bookmark_ticks()
 
+    def open_bookmarks_in_code(self):
+        """Open bookmark CSV in Visual Studio Code."""
+        try:
+            import subprocess
+            subprocess.Popen(["/usr/local/bin/code", BOOKMARK_FILE])
+        except Exception as e:
+            print("Unable to open bookmark file in VS Code:", e)
+
     def save_bookmarks(self):
         self.bookmarks_df.to_csv(BOOKMARK_FILE, index=False)
 
@@ -4256,6 +4264,12 @@ class MainWindow(QMainWindow):
         # rebuild menu while preserving the fixed actions
         self.menu_bookmarks.clear()
         self.menu_bookmarks.addAction(self.act_reload_bookmarks)
+
+        if not hasattr(self, "act_open_bookmarks_code"):
+            self.act_open_bookmarks_code = QAction("Ouvrir avec Code", self)
+            self.act_open_bookmarks_code.triggered.connect(self.open_bookmarks_in_code)
+
+        self.menu_bookmarks.addAction(self.act_open_bookmarks_code)
         self.menu_bookmarks.addSeparator()
         self.menu_bookmarks.addAction(self.act_add_bookmark)
         self.menu_bookmarks.addSeparator()

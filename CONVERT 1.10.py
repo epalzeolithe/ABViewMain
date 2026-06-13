@@ -330,6 +330,14 @@ def main():
 
     print("Done.")
 
+    # ---- Call merge script ----
+    try:
+        merge_script = os.path.join(os.path.dirname(__file__), "merge 1.10.py")
+        print("Launching merge script:", merge_script)
+        subprocess.run([sys.executable, merge_script], check=True)
+    except Exception as e:
+        print("Error while running merge script:", e)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
