@@ -1,0 +1,1 @@
+pyinstaller -w --icon=ressources/ABV.icns ABView\ 1.10.py
