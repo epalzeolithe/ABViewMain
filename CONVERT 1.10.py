@@ -208,6 +208,67 @@ crop={CROP_BACK},scale=1920:1080:flags=lanczos[back]
         "-c:a", "aac", "-b:a", "192k",
         back_out,]
 
+def build_ffmpeg_cmd_onefile(input1, front_out, back_out, video_bitrate):
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel", "error",
+        "-stats",
+        "-y",
+        "-hwaccel", "videotoolbox",
+        *(["-t", "10"] if SHORT_CONVERT else []),
+
+        "-i", input1,
+
+        "-filter_complex",
+        f"""
+[0:v:0][0:v:1]hstack[v];
+
+[0:a]asplit=2[a1][a2];
+
+[v]v360=input=dfisheye:output=hammer:ih_fov=193:iv_fov=193[vh];
+[vh]split=2[vf][vb];
+
+[vf]v360=input=hammer:output=hammer:yaw=0:pitch={PITCH_FRONT}:w=1920:h=1080,
+crop={CROP_FRONT},
+scale=1920:1080:flags=lanczos[front];
+
+[vb]v360=input=hammer:output=hammer:yaw=180:w=1920:h=1080,
+crop={CROP_BACK},
+scale=1920:1080:flags=lanczos[back]
+""",
+
+        # Front
+        "-map", "[front]",
+        "-map", "[a1]",
+        "-c:v", "h264_videotoolbox",
+        "-b:v", video_bitrate,
+        "-maxrate", video_bitrate,
+        "-bufsize", "24M",
+        "-profile:v", "high",
+        "-g", "60",
+        "-allow_sw", "1",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        front_out,
+
+        # Back
+        "-map", "[back]",
+        "-map", "[a2]",
+        "-c:v", "h264_videotoolbox",
+        "-b:v", video_bitrate,
+        "-maxrate", video_bitrate,
+        "-bufsize", "24M",
+        "-profile:v", "high",
+        "-g", "60",
+        "-allow_sw", "1",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        back_out,
+    ]
+
 def get_mp4_creation_datetime(path):
     media_info = MediaInfo.parse(path)
     for track in media_info.tracks:
@@ -263,7 +324,12 @@ def main():
 
     front=pdl+"front.mp4"
     back=pdl+"back.mp4"
-    cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
+
+
+    if "none.insv" in X4_INSV_2:
+        cmd = build_ffmpeg_cmd_onefile(X4_INSV_1, back, front, "8M")
+    else:
+        cmd = build_ffmpeg_cmd(X4_INSV_1, X4_INSV_2, back, front, "8M")
     print("Starting merging and conversion of : ",X4_INSV_1," and : ",X4_INSV_2)
 
     if os.path.exists(back) or os.path.exists(front):
